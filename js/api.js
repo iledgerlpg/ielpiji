@@ -90,7 +90,7 @@ const API = (() => {
     try {
       const res = await fetch(buildUrl(path), {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body:    JSON.stringify(payload),
       });
       const data = await parseResponse(res);
