@@ -242,7 +242,7 @@ async function loadAbsensi() {
           ${!sudahMasuk ? '📍 Absen Masuk' : '📍 Absen Pulang'}
         </h3>
         <div class="text-sm text-slate-500 dark:text-slate-400 bg-blue-50 dark:bg-blue-950/30 rounded-xl px-4 py-3">
-          ℹ️ Foto diambil via <strong>kamera depan</strong>. Lokasi GPS akan dicatat otomatis.
+          ℹ️ Pastikan Wajah Terlihat Jelas <strong> </strong>. Mohon tidak meninggalkan halaman ketika absen berlangsung.
         </div>
 
         <!-- Foto preview -->
@@ -516,15 +516,6 @@ async function loadFormLaporan() {
         </div>
       </div>
 
-      <!-- GPS -->
-      <div id="lp-gps-status" class="flex items-center gap-3 py-3 px-4 rounded-xl bg-slate-50 dark:bg-slate-800">
-        <div class="text-xl">📡</div>
-        <div class="flex-1">
-          <div class="text-sm font-medium text-slate-700 dark:text-slate-300">Lokasi GPS Saat Ini</div>
-          <div id="lp-gps-text" class="text-xs text-slate-500 dark:text-slate-400">Belum diambil</div>
-        </div>
-        <button id="lp-gps-btn" class="btn-secondary text-xs py-1.5 px-3" onclick="getLaporanGPS()">Ambil Lokasi</button>
-      </div>
 
       <div id="lp-error" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
 
