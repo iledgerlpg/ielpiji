@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
   UI.init();
   document.getElementById('topbar-title').textContent = 'HRD Dashboard';
   showSection('dashboard');
+  loadDashboard();
 });
 
 // ============================================================
@@ -87,7 +88,7 @@ async function loadDashboard(tanggal = UI.todayInputValue()) {
   const main = document.getElementById('main-content');
   main.innerHTML = `
     <div class="page-header">
-      <h2 class="page-title">Selamat datang, ${SESSION.nama} 👋</h2>
+      <h2 class="page-title">Selamat datang, ${UI.escapeHtml(SESSION.nama)} 👋</h2>
       <p class="page-sub">Ringkasan kehadiran & aktivitas hari ini</p>
     </div>
     <div class="flex items-center gap-2 mb-5">
@@ -119,7 +120,6 @@ async function loadDashboard(tanggal = UI.todayInputValue()) {
     </div>`;
 
   const res = await API.hrd.getDashboard({ tanggal });
-  if (activeSection !== 'dashboard') return; // section sudah berpindah, jangan sentuh DOM lama
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const { sudah_absen, belum_absen, pending_approval } = res.data;
@@ -156,9 +156,9 @@ async function loadDashboard(tanggal = UI.todayInputValue()) {
     ? sudah_absen.map(u => `
         <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center text-green-700 dark:text-green-400 font-bold text-sm">${u.nama.charAt(0)}</div>
+            <div class="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center text-green-700 dark:text-green-400 font-bold text-sm">${UI.escapeHtml(u.nama.charAt(0))}</div>
             <div>
-              <div class="text-sm font-medium text-slate-900 dark:text-white">${u.nama}</div>
+              <div class="text-sm font-medium text-slate-900 dark:text-white">${UI.escapeHtml(u.nama)}</div>
               <div class="text-xs text-slate-500">${UI.badge(u.role, u.role)}</div>
             </div>
           </div>
@@ -170,9 +170,9 @@ async function loadDashboard(tanggal = UI.todayInputValue()) {
   document.getElementById('dash-belum').innerHTML = belum_absen.length
     ? belum_absen.map(u => `
         <div class="flex items-center gap-3 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
-          <div class="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center text-red-600 dark:text-red-400 font-bold text-sm">${u.nama.charAt(0)}</div>
+          <div class="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center text-red-600 dark:text-red-400 font-bold text-sm">${UI.escapeHtml(u.nama.charAt(0))}</div>
           <div>
-            <div class="text-sm font-medium text-slate-900 dark:text-white">${u.nama}</div>
+            <div class="text-sm font-medium text-slate-900 dark:text-white">${UI.escapeHtml(u.nama)}</div>
             <div class="text-xs text-slate-500">${UI.badge(u.role, u.role)}</div>
           </div>
         </div>`).join('')
@@ -184,8 +184,8 @@ async function loadDashboard(tanggal = UI.todayInputValue()) {
     ? pending_approval.map(u => `
         <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
           <div>
-            <div class="text-sm font-medium text-slate-900 dark:text-white">${u.nama}</div>
-            <div class="text-xs text-slate-500 dark:text-slate-400">${u.email} · ${UI.badge(u.role, u.role)}</div>
+            <div class="text-sm font-medium text-slate-900 dark:text-white">${UI.escapeHtml(u.nama)}</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">${UI.escapeHtml(u.email)} · ${UI.badge(u.role, u.role)}</div>
           </div>
           <div class="flex gap-2">
             <button class="btn-success text-xs py-1 px-3" onclick="approveUser('${u.user_id}','APPROVE')">Setujui</button>
@@ -225,7 +225,6 @@ async function loadUsers() {
     </div>`;
 
   const res = await API.hrd.getUsers();
-  if (activeSection !== 'users') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allUsers = res.data.users;
   renderUsers(allUsers);
@@ -250,21 +249,35 @@ function renderUsers(users) {
     <tr>
       <td>
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-sm shrink-0">${u.nama.charAt(0)}</div>
-          <div class="font-medium text-slate-900 dark:text-white">${u.nama}</div>
+          <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-sm shrink-0">${UI.escapeHtml(u.nama.charAt(0))}</div>
+          <div class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(u.nama)}</div>
         </div>
       </td>
-      <td class="text-slate-500 dark:text-slate-400 text-xs">${u.email}</td>
+      <td class="text-slate-500 dark:text-slate-400 text-xs">${UI.escapeHtml(u.email)}</td>
       <td>${UI.badge(u.role.replace('_',' '), u.role)}</td>
       <td>${UI.badge(u.status, u.status)}</td>
       <td class="text-right">
         <div class="flex gap-1 justify-end">
           ${u.status === 'PENDING' ? `<button class="btn-success text-xs py-1 px-2" onclick="approveUser('${u.user_id}','APPROVE')">✓ Setujui</button>` : ''}
-          <button class="btn-secondary text-xs py-1 px-2" onclick="openUserModal(${JSON.stringify(u).replace(/"/g,'&quot;')})">Edit</button>
-          <button class="btn-danger text-xs py-1 px-2"    onclick="deleteUser('${u.user_id}','${u.nama}')">Hapus</button>
+          <button class="btn-secondary text-xs py-1 px-2" onclick="openUserModalById('${u.user_id}')">Edit</button>
+          <button class="btn-danger text-xs py-1 px-2"    onclick="deleteUserById('${u.user_id}')">Hapus</button>
         </div>
       </td>
     </tr>`).join('') : `<tr><td colspan="5">${UI.emptyState('Tidak ada user ditemukan.', '👤')}</td></tr>`;
+}
+
+/** Cari user dari cache allUsers berdasarkan ID, lalu buka modal edit (hindari inject JSON ke onclick). */
+function openUserModalById(userId) {
+  const user = allUsers.find(u => u.user_id === userId);
+  if (!user) { UI.toast('Data user tidak ditemukan.', 'error'); return; }
+  openUserModal(user);
+}
+
+/** Cari user dari cache allUsers berdasarkan ID, lalu konfirmasi hapus. */
+function deleteUserById(userId) {
+  const user = allUsers.find(u => u.user_id === userId);
+  if (!user) { UI.toast('Data user tidak ditemukan.', 'error'); return; }
+  deleteUser(userId, user.nama);
 }
 
 function openUserModal(user = null) {
@@ -282,22 +295,21 @@ function openUserModal(user = null) {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label">Nama Lengkap *</label>
-            <input id="um-nama" class="form-input" value="${user?.nama || ''}" placeholder="Nama Lengkap"/>
+            <input id="um-nama" class="form-input" value="${UI.escapeHtml(user?.nama || '')}" placeholder="Nama Lengkap"/>
           </div>
           <div>
             <label class="form-label">No. HP</label>
-            <input id="um-hp" class="form-input" value="${user?.no_hp || ''}" placeholder="081xxxxxxx"/>
+            <input id="um-hp" class="form-input" value="${UI.escapeHtml(user?.no_hp || '')}" placeholder="081xxxxxxx"/>
           </div>
         </div>
         <div>
           <label class="form-label">Email *</label>
-          <input id="um-email" class="form-input ${isEdit ? 'opacity-60' : ''}" type="email" value="${user?.email || ''}" placeholder="email@pt.com" ${isEdit ? 'disabled' : ''}/>
+          <input id="um-email" class="form-input" type="email" value="${UI.escapeHtml(user?.email || '')}" placeholder="email@pt.com" ${isEdit ? 'disabled class="form-input opacity-60"' : ''}/>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label">Role *</label>
             <select id="um-role" class="form-select" ${user?.role === 'HRD' ? 'disabled' : ''}>
-              <option ${user?.role==='HRD'?'selected':''} ${user?.role==='HRD'?'':'hidden'}>HRD</option>
               <option ${user?.role==='OPERATOR'?'selected':''}>OPERATOR</option>
               <option ${user?.role==='DRIVER'?'selected':''}>DRIVER</option>
               <option ${user?.role==='KERNET'?'selected':''}>KERNET</option>
@@ -341,8 +353,8 @@ async function saveUser(userId) {
 
   if (res.success) {
     UI.toast(userId ? 'User berhasil diupdate.' : 'User berhasil dibuat.', 'success');
-    document.getElementById('user-modal')?.remove();
-    if (activeSection === 'users') loadUsers();
+    document.getElementById('user-modal').remove();
+    loadUsers();
   } else {
     errEl.textContent = res.message;
     errEl.classList.remove('hidden');
@@ -353,12 +365,8 @@ async function deleteUser(userId, nama) {
   const ok = await UI.confirm(`Nonaktifkan akun "${nama}"? Akun tidak akan bisa login, tapi data tetap tersimpan.`, 'Nonaktifkan User');
   if (!ok) return;
   const res = await API.hrd.deleteUser({ user_id: userId });
-  if (res.success) {
-    UI.toast('User berhasil dinonaktifkan.', 'success');
-    if (activeSection === 'users') loadUsers();
-  } else {
-    UI.toast(res.message, 'error');
-  }
+  if (res.success) { UI.toast('User berhasil dinonaktifkan.', 'success'); loadUsers(); }
+  else UI.toast(res.message, 'error');
 }
 
 async function approveUser(userId, action) {
@@ -366,14 +374,8 @@ async function approveUser(userId, action) {
   const ok = await UI.confirm(`${action === 'APPROVE' ? 'Setujui' : 'Tolak'} akun ini?`, 'Konfirmasi');
   if (!ok) return;
   const res = await API.hrd.approveUser({ user_id: userId, action });
-  if (res.success) {
-    UI.toast(`Akun berhasil di-${label}.`, 'success');
-    // Refresh sesuai section yang sedang aktif, jangan selalu lempar ke dashboard
-    if (activeSection === 'users') loadUsers();
-    else if (activeSection === 'dashboard') loadDashboard();
-  } else {
-    UI.toast(res.message, 'error');
-  }
+  if (res.success) { UI.toast(`Akun berhasil di-${label}.`, 'success'); loadDashboard(); }
+  else UI.toast(res.message, 'error');
 }
 
 // ============================================================
@@ -414,19 +416,15 @@ async function fetchAbsensi() {
   if (params.tanggal) delete params.bulan;
 
   const tbody = document.getElementById('abs-table-body');
-  if (!tbody) return;
   tbody.innerHTML = `<tr><td colspan="7"><div class="py-4">${skeletonLine()}</div></td></tr>`;
 
   const res = await API.hrd.getAbsensi(params);
-  if (activeSection !== 'absensi') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allAbsensi = res.data.absensi;
 
-  const body = document.getElementById('abs-table-body');
-  if (!body) return;
-  body.innerHTML = allAbsensi.length ? allAbsensi.map(a => `
+  tbody.innerHTML = allAbsensi.length ? allAbsensi.map(a => `
     <tr>
-      <td class="font-medium text-slate-900 dark:text-white">${a.nama}</td>
+      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(a.nama)}</td>
       <td>${UI.badge(a.role, a.role)}</td>
       <td class="text-slate-500 dark:text-slate-400 text-xs">${UI.formatDate(a.tanggal)}</td>
       <td class="font-mono text-sm text-slate-700 dark:text-slate-300">${a.jam_masuk || '-'}</td>
@@ -454,25 +452,22 @@ async function loadPerusahaan() {
     </div>`;
 
   const res = await API.hrd.getPerusahaan();
-  if (activeSection !== 'perusahaan') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const d = res.data;
 
-  const formEl = document.getElementById('perusahaan-form');
-  if (!formEl) return;
-  formEl.innerHTML = `
+  document.getElementById('perusahaan-form').innerHTML = `
     <div class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="form-label">Nama PT *</label><input id="p-nama" class="form-input" value="${d.nama_pt||''}" placeholder="PT Maju Jaya"/></div>
-        <div><label class="form-label">Kode Unik</label><input class="form-input opacity-60" value="${d.kode_unik||''}" disabled/></div>
+        <div><label class="form-label">Nama PT *</label><input id="p-nama" class="form-input" value="${UI.escapeHtml(d.nama_pt||'')}" placeholder="PT Maju Jaya"/></div>
+        <div><label class="form-label">Kode Unik</label><input class="form-input opacity-60" value="${UI.escapeHtml(d.kode_unik||'')}" disabled/></div>
       </div>
-      <div><label class="form-label">Email PT</label><input id="p-email" class="form-input" type="email" value="${d.email_pt||''}" placeholder="info@pt.com"/></div>
-      <div><label class="form-label">Alamat</label><input id="p-alamat" class="form-input" value="${d.alamat||''}" placeholder="Jl. Merpati No.42..."/></div>
+      <div><label class="form-label">Email PT</label><input id="p-email" class="form-input" type="email" value="${UI.escapeHtml(d.email_pt||'')}" placeholder="info@pt.com"/></div>
+      <div><label class="form-label">Alamat</label><input id="p-alamat" class="form-input" value="${UI.escapeHtml(d.alamat||'')}" placeholder="Jl. Merpati No.42..."/></div>
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="form-label">No. Telepon</label><input id="p-telp" class="form-input" value="${d.no_telp||''}" placeholder="02112345678"/></div>
-        <div><label class="form-label">NPWP</label><input id="p-npwp" class="form-input" value="${d.npwp||''}" placeholder="00.000.000.0-000.000"/></div>
+        <div><label class="form-label">No. Telepon</label><input id="p-telp" class="form-input" value="${UI.escapeHtml(d.no_telp||'')}" placeholder="02112345678"/></div>
+        <div><label class="form-label">NPWP</label><input id="p-npwp" class="form-input" value="${UI.escapeHtml(d.npwp||'')}" placeholder="00.000.000.0-000.000"/></div>
       </div>
-      <div><label class="form-label">Website</label><input id="p-web" class="form-input" value="${d.website||''}" placeholder="https://www.pt.com"/></div>
+      <div><label class="form-label">Website</label><input id="p-web" class="form-input" value="${UI.escapeHtml(d.website||'')}" placeholder="https://www.pt.com"/></div>
       <div class="flex justify-end pt-2">
         <button id="save-pt-btn" class="btn-primary" onclick="savePerusahaan()">Simpan Perubahan</button>
       </div>
@@ -514,7 +509,6 @@ async function loadTugas() {
     <div id="tugas-list" class="space-y-3"></div>`;
 
   const res = await API.hrd.getTugasAdmin();
-  if (activeSection !== 'tugas') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allTugas = res.data.tugas;
   renderTugas(allTugas);
@@ -527,16 +521,15 @@ function filterTugas() {
 
 function renderTugas(tugas) {
   const el = document.getElementById('tugas-list');
-  if (!el) return;
   el.innerHTML = tugas.length ? tugas.map(t => `
     <div class="card">
       <div class="flex items-start justify-between gap-3">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
-            <h4 class="font-semibold text-slate-900 dark:text-white">${t.judul}</h4>
+            <h4 class="font-semibold text-slate-900 dark:text-white">${UI.escapeHtml(t.judul)}</h4>
             ${UI.badge(t.status, t.status)}
           </div>
-          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">${t.deskripsi}</p>
+          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">${UI.escapeHtml(t.deskripsi)}</p>
           <div class="text-xs text-slate-500 dark:text-slate-400 mt-2">${UI.formatDateTime(t.created_at)} · ${t.untuk_user_id ? 'Ditugaskan ke user tertentu' : 'Semua Staff Admin'}</div>
         </div>
         ${t.file_url ? `<a href="${t.file_url}" target="_blank" class="btn-secondary text-xs py-1 px-2 shrink-0">📎 File</a>` : ''}
@@ -574,14 +567,8 @@ async function saveTugas() {
   UI.setLoading(btn, true, 'Membuat...');
   const res = await API.hrd.createTugasAdmin({ judul, deskripsi: desc, file_url: document.getElementById('t-file').value.trim() });
   UI.setLoading(btn, false);
-  if (res.success) {
-    UI.toast('Tugas berhasil dibuat.', 'success');
-    document.getElementById('tugas-modal')?.remove();
-    if (activeSection === 'tugas') loadTugas();
-  } else {
-    errEl.textContent = res.message;
-    errEl.classList.remove('hidden');
-  }
+  if (res.success) { UI.toast('Tugas berhasil dibuat.', 'success'); document.getElementById('tugas-modal').remove(); loadTugas(); }
+  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
 // ============================================================
@@ -604,43 +591,33 @@ async function loadPiket() {
     </div>`;
 
   await fetchPiket();
-  if (activeSection !== 'piket') return;
 
   // Ambil daftar Staff Admin untuk dropdown
   const usersRes = await API.hrd.getUsers({ role: 'STAFF_ADMIN', status: 'ACTIVE' });
-  if (activeSection !== 'piket') return;
   window._staffList = usersRes.success ? usersRes.data.users : [];
 }
 
 async function fetchPiket() {
   const tbody = document.getElementById('piket-tbody');
-  if (!tbody) return;
   tbody.innerHTML = `<tr><td colspan="4"><div class="py-4">${skeletonLine()}</div></td></tr>`;
-
   const res = await API.hrd.getJadwalPiket({ bulan: document.getElementById('piket-bulan')?.value });
-  if (activeSection !== 'piket') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allPiket = res.data.jadwal;
-
   const usersRes = await API.hrd.getUsers({ role: 'STAFF_ADMIN' });
-  if (activeSection !== 'piket') return;
   const users = usersRes.success ? usersRes.data.users : [];
   const userMap = {};
   users.forEach(u => { userMap[u.user_id] = u.nama; });
-
-  const body = document.getElementById('piket-tbody');
-  if (!body) return;
-  body.innerHTML = allPiket.length ? allPiket.map(p => `
+  tbody.innerHTML = allPiket.length ? allPiket.map(p => `
     <tr>
-      <td class="font-medium text-slate-900 dark:text-white">${userMap[p.user_id] || p.user_id}</td>
+      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(userMap[p.user_id] || p.user_id)}</td>
       <td class="text-slate-500 dark:text-slate-400 text-sm">${UI.formatDate(p.tanggal)}</td>
-      <td class="text-slate-700 dark:text-slate-300">${p.shift}</td>
-      <td class="text-slate-500 dark:text-slate-400 text-sm">${p.keterangan || '-'}</td>
+      <td class="text-slate-700 dark:text-slate-300">${UI.escapeHtml(p.shift)}</td>
+      <td class="text-slate-500 dark:text-slate-400 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
     </tr>`).join('') : `<tr><td colspan="4">${UI.emptyState('Belum ada jadwal piket.', '📅')}</td></tr>`;
 }
 
 function openPiketModal() {
-  const staffOpts = (window._staffList || []).map(u => `<option value="${u.user_id}">${u.nama}</option>`).join('');
+  const staffOpts = (window._staffList || []).map(u => `<option value="${u.user_id}">${UI.escapeHtml(u.nama)}</option>`).join('');
   const modal = document.createElement('div');
   modal.id    = 'piket-modal';
   modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
@@ -672,14 +649,8 @@ async function savePiket() {
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = await API.hrd.createJadwalPiket({ user_id: userId, tanggal: tgl, shift, keterangan: document.getElementById('pk-ket').value.trim() });
   UI.setLoading(btn, false);
-  if (res.success) {
-    UI.toast('Jadwal piket berhasil ditambahkan.', 'success');
-    document.getElementById('piket-modal')?.remove();
-    if (activeSection === 'piket') fetchPiket();
-  } else {
-    errEl.textContent = res.message;
-    errEl.classList.remove('hidden');
-  }
+  if (res.success) { UI.toast('Jadwal piket berhasil ditambahkan.', 'success'); document.getElementById('piket-modal').remove(); fetchPiket(); }
+  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
 // ============================================================
@@ -704,26 +675,20 @@ async function loadCatatan() {
 
 async function fetchCatatan() {
   const el = document.getElementById('catatan-list');
-  if (!el) return;
   el.innerHTML = `<div class="animate-pulse space-y-3">${Array(3).fill('<div class="card h-20"></div>').join('')}</div>`;
-
   const res = await API.hrd.getCatatan({ tipe: document.getElementById('cat-tipe')?.value || undefined });
-  if (activeSection !== 'catatan') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allCatatan = res.data.catatan;
-
-  const listEl = document.getElementById('catatan-list');
-  if (!listEl) return;
-  listEl.innerHTML = allCatatan.length ? allCatatan.map(c => `
+  el.innerHTML = allCatatan.length ? allCatatan.map(c => `
     <div class="card">
       <div class="flex items-start justify-between gap-2">
         <div class="flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-semibold text-slate-900 dark:text-white">${c.judul}</span>
+            <span class="font-semibold text-slate-900 dark:text-white">${UI.escapeHtml(c.judul)}</span>
             ${UI.badge(c.tipe, null)}
             ${c.untuk_role !== 'ALL' ? UI.badge(c.untuk_role.replace('_',' '), c.untuk_role) : '<span class="badge badge-gray">Semua</span>'}
           </div>
-          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1.5">${c.isi}</p>
+          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1.5">${UI.escapeHtml(c.isi)}</p>
           <div class="text-xs text-slate-400 dark:text-slate-600 mt-2">${UI.formatDateTime(c.created_at)}</div>
         </div>
       </div>
@@ -774,14 +739,8 @@ async function saveCatatan() {
   UI.setLoading(btn, true, 'Mengirim...');
   const res = await API.hrd.createCatatan({ judul, isi, tipe: document.getElementById('cn-tipe').value, untuk_role: document.getElementById('cn-role').value });
   UI.setLoading(btn, false);
-  if (res.success) {
-    UI.toast('Catatan berhasil dikirim.', 'success');
-    document.getElementById('catatan-modal')?.remove();
-    if (activeSection === 'catatan') fetchCatatan();
-  } else {
-    errEl.textContent = res.message;
-    errEl.classList.remove('hidden');
-  }
+  if (res.success) { UI.toast('Catatan berhasil dikirim.', 'success'); document.getElementById('catatan-modal').remove(); fetchCatatan(); }
+  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
 // ── Tiny helpers ──
