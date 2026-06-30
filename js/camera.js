@@ -1,37 +1,35 @@
 /**
  * ILPG Frontend — camera.js
- * Kamera depan wajib (facingMode: "user"), tangkap foto via Canvas,
- * kompresi otomatis sebelum upload.
+ * Mendukung kamera depan (absensi, selfie, di-mirror) dan kamera belakang
+ * (laporan pengiriman, tidak di-mirror). Tangkap foto via Canvas tanpa
+ * distorsi aspect ratio, lalu kompresi otomatis sebelum upload.
  */
 
 const Camera = (() => {
-  let _stream   = null;
-  let _videoEl  = null;
-  let _canvasEl = null;
+  let _stream      = null;
+  let _videoEl     = null;
+  let _facingMode  = 'user'; // dipakai capture() untuk tahu apakah perlu mirror
 
   // ============================================================
   // KONFIGURASI
   // ============================================================
 
   const CONFIG = {
-    width:         640,
-    height:        480,
+    maxWidth:      1280,   // batas lebar output, tinggi menyesuaikan rasio asli
     jpegQuality:   0.60,   // 60% → target 50-200KB
     maxSizeBytes:  2.5 * 1024 * 1024, // 2.5MB hard limit
-    constraints: {
+  };
+
+  function buildConstraints(facingMode, exact) {
+    return {
       video: {
-        facingMode: { exact: 'user' }, // WAJIB kamera depan
+        facingMode: exact ? { exact: facingMode } : facingMode,
         width:      { ideal: 1280 },
         height:     { ideal: 720 },
       },
       audio: false,
-    },
-    // Fallback jika exact: 'user' tidak tersedia (beberapa device desktop)
-    constraintsFallback: {
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    },
-  };
+    };
+  }
 
   // ============================================================
   // INIT KAMERA
@@ -40,21 +38,23 @@ const Camera = (() => {
   /**
    * Inisialisasi stream kamera ke elemen <video>.
    * @param {HTMLVideoElement} videoEl - Elemen video target
+   * @param {'user'|'environment'} facingMode - 'user' = kamera depan (default), 'environment' = kamera belakang
    * @returns {Promise<boolean>} true jika berhasil
    */
-  async function init(videoEl) {
-    _videoEl = videoEl;
+  async function init(videoEl, facingMode = 'user') {
+    _videoEl    = videoEl;
+    _facingMode = facingMode;
 
     // Stop stream lama jika ada
     if (_stream) stop();
 
     try {
-      _stream = await navigator.mediaDevices.getUserMedia(CONFIG.constraints);
+      _stream = await navigator.mediaDevices.getUserMedia(buildConstraints(facingMode, true));
     } catch (err) {
-      // Fallback: coba tanpa exact (untuk support browser lebih luas)
+      // Fallback: coba tanpa exact (untuk support browser/device lebih luas)
       if (err.name === 'OverconstrainedError' || err.name === 'NotFoundError') {
         try {
-          _stream = await navigator.mediaDevices.getUserMedia(CONFIG.constraintsFallback);
+          _stream = await navigator.mediaDevices.getUserMedia(buildConstraints(facingMode, false));
         } catch (fallbackErr) {
           throw new Error(`Kamera tidak bisa diakses: ${fallbackErr.message}`);
         }
@@ -66,6 +66,9 @@ const Camera = (() => {
     }
 
     _videoEl.srcObject = _stream;
+    // Mirror hanya untuk kamera depan (selfie). Kamera belakang harus tampil normal.
+    _videoEl.style.transform = (facingMode === 'user') ? 'scaleX(-1)' : 'none';
+
     await new Promise((resolve, reject) => {
       _videoEl.onloadedmetadata = resolve;
       _videoEl.onerror = reject;
@@ -79,48 +82,68 @@ const Camera = (() => {
   // ============================================================
 
   /**
-   * Tangkap frame dari video, gambar ke canvas, dan kompresi.
-   * @param {HTMLCanvasElement} [canvasEl] - Canvas opsional (jika null, dibuat internal)
+   * Tangkap frame dari video, gambar ke canvas sesuai rasio asli video
+   * (tidak distorsi/gepeng), lalu kompresi.
    * @returns {Promise<{base64: string, sizeKB: number, width: number, height: number}>}
    */
-  async function capture(canvasEl = null) {
+  async function capture() {
     if (!_videoEl || !_stream) {
       throw new Error('Kamera belum diinisialisasi. Panggil Camera.init() terlebih dahulu.');
     }
 
-    const canvas = canvasEl || document.createElement('canvas');
-    canvas.width  = CONFIG.width;
-    canvas.height = CONFIG.height;
+    const vw = _videoEl.videoWidth;
+    const vh = _videoEl.videoHeight;
+    if (!vw || !vh) {
+      throw new Error('Video belum siap. Coba lagi sesaat.');
+    }
+
+    // Hitung ukuran output dengan mempertahankan aspect ratio asli video
+    const scale = Math.min(1, CONFIG.maxWidth / vw);
+    const outW  = Math.round(vw * scale);
+    const outH  = Math.round(vh * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = outW;
+    canvas.height = outH;
     const ctx = canvas.getContext('2d');
 
-    // Mirror gambar (selfie mode - kamera depan perlu di-flip)
-    ctx.save();
-    ctx.scale(-1, 1);
-    ctx.drawImage(_videoEl, -CONFIG.width, 0, CONFIG.width, CONFIG.height);
-    ctx.restore();
+    if (_facingMode === 'user') {
+      // Mirror gambar (selfie mode - kamera depan perlu di-flip)
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(_videoEl, -outW, 0, outW, outH);
+      ctx.restore();
+    } else {
+      // Kamera belakang: tampilkan apa adanya, tanpa mirror
+      ctx.drawImage(_videoEl, 0, 0, outW, outH);
+    }
 
     // Kompresi JPEG
     let base64 = canvas.toDataURL('image/jpeg', CONFIG.jpegQuality);
     let sizeBytes = Math.round((base64.length - 'data:image/jpeg;base64,'.length) * 0.75);
 
-    // Jika masih terlalu besar, kompresi lebih lanjut
+    // Jika masih terlalu besar, kompresi lebih lanjut (tetap pertahankan rasio)
     if (sizeBytes > CONFIG.maxSizeBytes) {
       const reducedQuality = CONFIG.jpegQuality * 0.7;
+      const smallerScale   = 0.75;
+      const sW = Math.round(outW * smallerScale);
+      const sH = Math.round(outH * smallerScale);
       const smallerCanvas  = document.createElement('canvas');
-      smallerCanvas.width  = 480;
-      smallerCanvas.height = 360;
+      smallerCanvas.width  = sW;
+      smallerCanvas.height = sH;
       const sCtx = smallerCanvas.getContext('2d');
-      sCtx.drawImage(canvas, 0, 0, 480, 360);
+      sCtx.drawImage(canvas, 0, 0, sW, sH);
       base64     = smallerCanvas.toDataURL('image/jpeg', reducedQuality);
       sizeBytes  = Math.round((base64.length - 'data:image/jpeg;base64,'.length) * 0.75);
+      return { base64, dataUrl: base64, sizeKB: Math.round(sizeBytes / 1024), width: sW, height: sH };
     }
 
     return {
       base64,
       dataUrl:   base64,
       sizeKB:    Math.round(sizeBytes / 1024),
-      width:     canvas.width,
-      height:    canvas.height,
+      width:     outW,
+      height:    outH,
     };
   }
 
@@ -135,6 +158,7 @@ const Camera = (() => {
     }
     if (_videoEl) {
       _videoEl.srcObject = null;
+      _videoEl.style.transform = '';
     }
   }
 
@@ -205,13 +229,13 @@ const Camera = (() => {
 
   /**
    * Buka modal kamera inline, tangkap foto, return base64.
-   * Utility fungsi high-level yang membungkus seluruh alur kamera.
    * @param {string} modalId - ID elemen modal yang berisi <video> dan <canvas>
    * @param {string} videoId - ID elemen <video>
    * @param {string} captureBtn - ID tombol capture
    * @param {Function} onCapture - Callback({base64, sizeKB}) setelah foto diambil
+   * @param {'user'|'environment'} facingMode - Kamera yang dipakai
    */
-  async function openModal(modalId, videoId, captureBtn, onCapture) {
+  async function openModal(modalId, videoId, captureBtn, onCapture, facingMode = 'user') {
     const modal  = document.getElementById(modalId);
     const video  = document.getElementById(videoId);
     const btn    = document.getElementById(captureBtn);
@@ -221,7 +245,7 @@ const Camera = (() => {
     modal.classList.add('flex');
 
     try {
-      await init(video);
+      await init(video, facingMode);
       btn.onclick = async () => {
         try {
           const result = await capture();
