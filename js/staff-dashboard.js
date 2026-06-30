@@ -50,7 +50,7 @@ function showSection(id) {
 async function loadDashboard() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
-    <div class="page-header"><h2 class="page-title">Halo, ${SESSION.nama}! 👋</h2><p class="page-sub">Ringkasan aktivitas Staff Admin hari ini.</p></div>
+    <div class="page-header"><h2 class="page-title">Halo, ${UI.escapeHtml(SESSION.nama)}! 👋</h2><p class="page-sub">Ringkasan aktivitas Staff Admin hari ini.</p></div>
     <div id="dash-content" class="space-y-4"><div class="animate-pulse space-y-3">${Array(3).fill('<div class="card h-20 bg-slate-200 dark:bg-slate-800"></div>').join('')}</div></div>`;
 
   const res = await API.staff.getDashboard();
@@ -90,7 +90,7 @@ async function loadDashboard() {
       <div class="space-y-2">
         ${tugas.slice(0, 3).map(t => `
           <div class="flex items-start justify-between gap-3 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
-            <div><div class="text-sm font-medium text-slate-900 dark:text-white">${t.judul}</div><div class="text-xs text-slate-500 mt-0.5">${t.deskripsi?.substring(0,60)}${t.deskripsi?.length > 60 ? '...' : ''}</div></div>
+            <div><div class="text-sm font-medium text-slate-900 dark:text-white">${UI.escapeHtml(t.judul)}</div><div class="text-xs text-slate-500 mt-0.5">${UI.escapeHtml(t.deskripsi?.substring(0,60))}${t.deskripsi?.length > 60 ? '...' : ''}</div></div>
             ${UI.badge(t.status, t.status)}
           </div>`).join('')}
       </div>
@@ -241,10 +241,10 @@ function filterTugasStaff() {
       <div class="flex items-start justify-between gap-3">
         <div class="flex-1">
           <div class="flex items-center gap-2 flex-wrap mb-1">
-            <span class="font-semibold text-slate-900 dark:text-white">${t.judul}</span>
+            <span class="font-semibold text-slate-900 dark:text-white">${UI.escapeHtml(t.judul)}</span>
             ${UI.badge(t.status, t.status)}
           </div>
-          <p class="text-sm text-slate-600 dark:text-slate-400">${t.deskripsi}</p>
+          <p class="text-sm text-slate-600 dark:text-slate-400">${UI.escapeHtml(t.deskripsi)}</p>
           <div class="text-xs text-slate-400 mt-2">${UI.formatDateTime(t.created_at)}</div>
         </div>
         <div class="flex flex-col gap-2 shrink-0">
@@ -282,11 +282,11 @@ async function loadCatatan() {
       <div class="flex items-start justify-between gap-2">
         <div class="flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-semibold text-slate-900 dark:text-white">${c.judul}</span>
+            <span class="font-semibold text-slate-900 dark:text-white">${UI.escapeHtml(c.judul)}</span>
             ${UI.badge(c.tipe, null)}
             ${c.dari_user_id !== SESSION.user_id ? '<span class="badge badge-gray">Dari HRD</span>' : '<span class="badge badge-blue">Dari Saya</span>'}
           </div>
-          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1.5">${c.isi}</p>
+          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1.5">${UI.escapeHtml(c.isi)}</p>
           <div class="text-xs text-slate-400 mt-2">${UI.formatDateTime(c.created_at)}</div>
         </div>
       </div>
@@ -354,8 +354,8 @@ async function fetchPiketStaff() {
         <div class="text-[10px] text-blue-500 uppercase">${new Date(p.tanggal).toLocaleDateString('id-ID',{month:'short'})}</div>
       </div>
       <div class="flex-1">
-        <div class="font-semibold text-slate-900 dark:text-white">${p.shift}</div>
-        ${p.keterangan ? `<div class="text-sm text-slate-500 mt-0.5">${p.keterangan}</div>` : ''}
+        <div class="font-semibold text-slate-900 dark:text-white">${UI.escapeHtml(p.shift)}</div>
+        ${p.keterangan ? `<div class="text-sm text-slate-500 mt-0.5">${UI.escapeHtml(p.keterangan)}</div>` : ''}
       </div>
     </div>`).join('') : UI.emptyState('Belum ada jadwal piket bulan ini.', '📅');
 }
