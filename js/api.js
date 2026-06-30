@@ -8,7 +8,7 @@ const API = (() => {
   // ============================================================
   // CONFIG
   // ============================================================
-  const BASE_URL = window.ILPG_CONFIG?.API_URL || 'https://script.google.com/macros/s/GANTI_DENGAN_DEPLOYMENT_ID/exec';
+  const BASE_URL = window.ILPG_CONFIG?.API_URL || 'https://script.google.com/macros/s/AKfycbwlBuYTi_7wwCtk7YxiPCu-K_fz13NZ18jXcrTVjNPnJSkvnNZOru43OsPv4MGCrfEwxw/exec';
 
   // ============================================================
   // INTERNAL HELPERS
