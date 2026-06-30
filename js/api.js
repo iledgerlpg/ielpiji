@@ -2,6 +2,10 @@
  * ILPG Frontend — api.js
  * Klien API terpusat: semua request ke GAS backend melewati file ini.
  * Menangani: token injection, retry, offline queue, error parsing.
+ *
+ * REVISI: ditambahkan API.operator.getDrivers() — endpoint baru khusus
+ * Operator untuk mengambil daftar Driver/Kernet (dipakai di dropdown
+ * form "Buat Jadwal"), karena GET /hrd/users dikunci hanya untuk role HRD.
  */
 
 const API = (() => {
@@ -157,6 +161,7 @@ const API = (() => {
   // ============================================================
   const operator = {
     getDashboard:              (p) => get('operator/dashboard', p),
+    getDrivers:                (p) => get('operator/drivers', p),
     getJadwalHarian:           (p) => get('operator/jadwal-harian', p),
     createJadwalHarian:        (b) => post('operator/jadwal-harian', b),
     updateJadwalHarian:        (b) => post('operator/jadwal-harian/update', b),
