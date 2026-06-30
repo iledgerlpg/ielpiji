@@ -147,9 +147,6 @@
     if('serviceWorker'in navigator)navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
     const s=Auth.getSession();
     if(s){document.querySelectorAll('[data-user-nama]').forEach(el=>el.textContent=s.nama);document.querySelectorAll('[data-user-email]').forEach(el=>el.textContent=s.email);document.querySelectorAll('[data-user-role]').forEach(el=>el.textContent=s.role);document.querySelectorAll('[data-user-avatar]').forEach(el=>el.textContent=s.nama.charAt(0).toUpperCase());}
-    document.querySelectorAll('[data-toggle-theme]').forEach(btn=>btn.addEventListener('click',()=>UI.toggleTheme()));
-    document.querySelectorAll('[data-logout]').forEach(btn=>btn.addEventListener('click',()=>Auth.logout()));
-    UI.initTheme();
   });
 </script>
 </body>
