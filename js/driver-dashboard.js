@@ -80,7 +80,7 @@ async function loadDashboard() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
     <div class="page-header">
-      <h2 class="page-title">Halo, ${SESSION.nama}! 👋</h2>
+      <h2 class="page-title">Halo, ${UI.escapeHtml(SESSION.nama)}! 👋</h2>
       <p class="page-sub">Ringkasan aktivitas Anda hari ini</p>
     </div>
     <div id="dash-content" class="space-y-4">
@@ -151,8 +151,8 @@ async function loadDashboard() {
             return `
               <div class="flex items-center justify-between py-2.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-800">
                 <div>
-                  <div class="font-medium text-slate-900 dark:text-white text-sm">Rit ${j.rit} — ${j.pangkalan_nama}</div>
-                  <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${j.jumlah_kirim} tabung · ${j.spbe_nama || ''}</div>
+                  <div class="font-medium text-slate-900 dark:text-white text-sm">Rit ${j.rit} — ${UI.escapeHtml(j.pangkalan_nama)}</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${j.jumlah_kirim} tabung · ${UI.escapeHtml(j.spbe_nama || '')}</div>
                 </div>
                 <div>
                   ${sudahLapor
@@ -405,16 +405,16 @@ async function fetchJadwalSaya() {
         <div class="flex-1">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="font-semibold text-slate-900 dark:text-white">Rit ${j.rit}</span>
-            <span class="badge badge-blue">${j.pangkalan_nama}</span>
+            <span class="badge badge-blue">${UI.escapeHtml(j.pangkalan_nama)}</span>
           </div>
           <div class="grid grid-cols-2 gap-2 mt-2 text-sm">
-            <div class="text-slate-500 dark:text-slate-400">SPBE: <span class="font-medium text-slate-700 dark:text-slate-300">${j.spbe_nama || '-'}</span></div>
+            <div class="text-slate-500 dark:text-slate-400">SPBE: <span class="font-medium text-slate-700 dark:text-slate-300">${UI.escapeHtml(j.spbe_nama || '-')}</span></div>
             <div class="text-slate-500 dark:text-slate-400">Target Kirim: <span class="font-medium text-slate-700 dark:text-slate-300">${j.jumlah_kirim} tabung</span></div>
             <div class="text-slate-500 dark:text-slate-400">Tanggal: <span class="font-medium text-slate-700 dark:text-slate-300">${UI.formatDate(j.tanggal)}</span></div>
-            ${j.keterangan ? `<div class="text-slate-500 dark:text-slate-400 col-span-2">Ket: <span class="font-medium">${j.keterangan}</span></div>` : ''}
+            ${j.keterangan ? `<div class="text-slate-500 dark:text-slate-400 col-span-2">Ket: <span class="font-medium">${UI.escapeHtml(j.keterangan)}</span></div>` : ''}
           </div>
         </div>
-        <button class="btn-primary shrink-0 text-xs py-2 px-3" onclick="showSection('laporan');prefillJadwal('${j.jadwal_id}','${j.pangkalan_id}','${j.pangkalan_nama}',${j.jumlah_kirim})">
+        <button class="btn-primary shrink-0 text-xs py-2 px-3" onclick="prefillJadwal('${j.jadwal_id}','${j.pangkalan_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim});showSection('laporan')">
           Lapor
         </button>
       </div>
@@ -447,10 +447,10 @@ async function fetchJadwalGlobal() {
   tbody.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
     <tr>
       <td class="font-semibold">Rit ${j.rit}</td>
-      <td class="font-medium text-slate-900 dark:text-white">${j.pangkalan_nama}</td>
+      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(j.pangkalan_nama)}</td>
       <td>${j.jumlah_kirim} tabung</td>
-      <td>${j.driver1_nama}</td>
-      <td class="text-slate-500">${j.driver2_nama !== '-' ? j.driver2_nama : '—'}</td>
+      <td>${UI.escapeHtml(j.driver1_nama)}</td>
+      <td class="text-slate-500">${j.driver2_nama !== '-' ? UI.escapeHtml(j.driver2_nama) : '—'}</td>
     </tr>`).join('') : `<tr><td colspan="5">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
 }
 
@@ -462,8 +462,8 @@ let _laporanPhotos  = {};
 let _laporanGPS     = null;
 let _prefillData    = null;
 
-function prefillJadwal(jadwalId, pangkalanId, pangkalanNama, jumlahKirim) {
-  _prefillData = { jadwalId, pangkalanId, pangkalanNama, jumlahKirim };
+function prefillJadwal(jadwalId, pangkalanId, pangkalanNamaEncoded, jumlahKirim) {
+  _prefillData = { jadwalId, pangkalanId, pangkalanNama: decodeURIComponent(pangkalanNamaEncoded), jumlahKirim };
 }
 
 async function loadFormLaporan() {
@@ -475,7 +475,7 @@ async function loadFormLaporan() {
   const jadwalRes = await API.driver.getJadwalSaya({ tanggal: UI.todayInputValue() });
   const jadwalList = jadwalRes.success ? jadwalRes.data.jadwal : [];
   const pangkalanOpts = jadwalList.map(j =>
-    `<option value="${j.pangkalan_id}" data-jumlah="${j.jumlah_kirim}" data-jadwal="${j.jadwal_id}">${j.pangkalan_nama} (Rit ${j.rit})</option>`
+    `<option value="${j.pangkalan_id}" data-jumlah="${j.jumlah_kirim}" data-jadwal="${j.jadwal_id}">${UI.escapeHtml(j.pangkalan_nama)} (Rit ${j.rit})</option>`
   ).join('');
 
   main.innerHTML = `
@@ -700,7 +700,7 @@ async function fetchRiwayat() {
       <div class="flex items-start justify-between gap-3">
         <div class="flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-semibold text-slate-900 dark:text-white">${l.pangkalan_nama}</span>
+            <span class="font-semibold text-slate-900 dark:text-white">${UI.escapeHtml(l.pangkalan_nama)}</span>
             ${UI.badge(l.status, l.status)}
           </div>
           <div class="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm text-slate-500 dark:text-slate-400">
@@ -709,7 +709,7 @@ async function fetchRiwayat() {
             <div>📦 Kirim: <span class="font-medium text-slate-700 dark:text-slate-300">${l.jumlah_kirim}</span></div>
             <div>↩️ Retur: <span class="font-medium text-slate-700 dark:text-slate-300">${l.jumlah_retur || 0}</span></div>
           </div>
-          ${l.catatan_operator ? `<div class="mt-2 text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-amber-700 dark:text-amber-400">📝 Catatan Operator: ${l.catatan_operator}</div>` : ''}
+          ${l.catatan_operator ? `<div class="mt-2 text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-amber-700 dark:text-amber-400">📝 Catatan Operator: ${UI.escapeHtml(l.catatan_operator)}</div>` : ''}
         </div>
         <div class="flex flex-col gap-1 shrink-0">
           ${l.foto_pengiriman_url ? `<a href="${l.foto_pengiriman_url}" target="_blank" class="btn-secondary text-xs py-1 px-2">📷 Kirim</a>` : ''}
