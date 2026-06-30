@@ -2,6 +2,13 @@
  * ILPG Frontend — operator-dashboard.js
  * Semua logika Operator: dashboard, jadwal harian, laporan pengiriman,
  * monitoring, pembayaran refill & bagi hasil, stok gudang, pangkalan, SPBE.
+ *
+ * REVISI: loadJadwalDropdowns() sekarang memakai API.operator.getDrivers()
+ * (endpoint baru, khusus role OPERATOR) menggantikan API.hrd.getUsers()
+ * yang sebelumnya selalu gagal dengan 403 Forbidden karena endpoint itu
+ * dikunci hanya untuk role HRD — makanya dropdown Driver di form "Buat
+ * Jadwal" selalu kosong. Sekalian dropdown "Driver 2 / Kernet" sekarang
+ * ikut menampilkan user dengan role KERNET, bukan cuma DRIVER.
  */
 
 const SESSION = Auth.guard(['OPERATOR']);
@@ -229,10 +236,10 @@ function openJadwalModal() {
 }
 
 async function loadJadwalDropdowns() {
-  const [pangRes, spbeRes, userRes] = await Promise.all([
+  const [pangRes, spbeRes, driverRes] = await Promise.all([
     API.operator.getPangkalan({ status: 'ACTIVE' }),
     API.operator.getSPBE({ status: 'ACTIVE' }),
-    API.hrd.getUsers({ role: 'DRIVER', status: 'ACTIVE' }),
+    API.operator.getDrivers(),
   ]);
   const fill = (id, items, valKey, labelKey) => {
     const el = document.getElementById(id);
@@ -241,13 +248,13 @@ async function loadJadwalDropdowns() {
   };
   if (pangRes.success) fill('jm-pangkalan', pangRes.data.pangkalan, 'pangkalan_id', 'nama');
   if (spbeRes.success) fill('jm-spbe', spbeRes.data.spbe, 'spbe_id', 'nama');
-  if (userRes.success) {
-    const drivers = userRes.data.users;
-    fill('jm-driver1', drivers, 'user_id', 'nama');
-    document.getElementById('jm-driver2').innerHTML =
-      `<option value="">-- Opsional --</option>` +
-      drivers.map(d => `<option value="${d.user_id}">${UI.escapeHtml(d.nama)}</option>`).join('');
-  }
+  if (!driverRes.success) { UI.toast(driverRes.message || 'Gagal memuat daftar driver.', 'error'); return; }
+
+  const drivers = driverRes.data.drivers; // berisi DRIVER + KERNET aktif
+  fill('jm-driver1', drivers, 'user_id', 'nama');
+  document.getElementById('jm-driver2').innerHTML =
+    `<option value="">-- Opsional --</option>` +
+    drivers.map(d => `<option value="${d.user_id}">${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
 }
 
 async function saveJadwal() {
