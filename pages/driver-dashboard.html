@@ -211,9 +211,7 @@
       document.querySelectorAll('[data-user-role]').forEach(el => el.textContent = s.role);
       document.querySelectorAll('[data-user-avatar]').forEach(el => el.textContent = s.nama.charAt(0).toUpperCase());
     }
-    document.querySelectorAll('[data-toggle-theme]').forEach(btn => btn.addEventListener('click', () => UI.toggleTheme()));
-    document.querySelectorAll('[data-logout]').forEach(btn => btn.addEventListener('click', () => Auth.logout()));
-    UI.initTheme();
+
     window.addEventListener('online', () => { document.getElementById('offline-bar').classList.add('hidden'); DB.flushQueue().then(r => { if (r.flushed > 0) UI.toast(`${r.flushed} data terkirim.`, 'success'); }); });
     window.addEventListener('offline', () => { document.getElementById('offline-bar').classList.remove('hidden'); });
     if (!navigator.onLine) document.getElementById('offline-bar').classList.remove('hidden');
