@@ -258,14 +258,7 @@ async function loadAbsensi() {
         </div>
 
 
-          <div class="text-xl">📡</div>
-          <div class="flex-1">
-            <div class="text-sm font-medium text-slate-700 dark:text-slate-300">Lokasi GPS</div>
-            <div id="gps-status-text" class="text-xs text-slate-500 dark:text-slate-400">Belum diambil</div>
-          </div>
-          <button id="gps-btn" class="btn-secondary text-xs py-1.5 px-3" onclick="getGPSLocation()">Ambil Lokasi</button>
-        </div>
-
+ 
         <div id="abs-error" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
 
         <button id="abs-submit-btn" class="btn-primary w-full justify-center py-3" onclick="submitAbsensi('${!sudahMasuk ? 'masuk' : 'pulang'}')">
