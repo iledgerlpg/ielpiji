@@ -119,6 +119,7 @@ async function loadDashboard(tanggal = UI.todayInputValue()) {
     </div>`;
 
   const res = await API.hrd.getDashboard({ tanggal });
+  if (activeSection !== 'dashboard') return; // section sudah berpindah, jangan sentuh DOM lama
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const { sudah_absen, belum_absen, pending_approval } = res.data;
@@ -224,6 +225,7 @@ async function loadUsers() {
     </div>`;
 
   const res = await API.hrd.getUsers();
+  if (activeSection !== 'users') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allUsers = res.data.users;
   renderUsers(allUsers);
@@ -289,12 +291,13 @@ function openUserModal(user = null) {
         </div>
         <div>
           <label class="form-label">Email *</label>
-          <input id="um-email" class="form-input" type="email" value="${user?.email || ''}" placeholder="email@pt.com" ${isEdit ? 'disabled class="form-input opacity-60"' : ''}/>
+          <input id="um-email" class="form-input ${isEdit ? 'opacity-60' : ''}" type="email" value="${user?.email || ''}" placeholder="email@pt.com" ${isEdit ? 'disabled' : ''}/>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label">Role *</label>
             <select id="um-role" class="form-select" ${user?.role === 'HRD' ? 'disabled' : ''}>
+              <option ${user?.role==='HRD'?'selected':''} ${user?.role==='HRD'?'':'hidden'}>HRD</option>
               <option ${user?.role==='OPERATOR'?'selected':''}>OPERATOR</option>
               <option ${user?.role==='DRIVER'?'selected':''}>DRIVER</option>
               <option ${user?.role==='KERNET'?'selected':''}>KERNET</option>
@@ -338,8 +341,8 @@ async function saveUser(userId) {
 
   if (res.success) {
     UI.toast(userId ? 'User berhasil diupdate.' : 'User berhasil dibuat.', 'success');
-    document.getElementById('user-modal').remove();
-    loadUsers();
+    document.getElementById('user-modal')?.remove();
+    if (activeSection === 'users') loadUsers();
   } else {
     errEl.textContent = res.message;
     errEl.classList.remove('hidden');
@@ -350,8 +353,12 @@ async function deleteUser(userId, nama) {
   const ok = await UI.confirm(`Nonaktifkan akun "${nama}"? Akun tidak akan bisa login, tapi data tetap tersimpan.`, 'Nonaktifkan User');
   if (!ok) return;
   const res = await API.hrd.deleteUser({ user_id: userId });
-  if (res.success) { UI.toast('User berhasil dinonaktifkan.', 'success'); loadUsers(); }
-  else UI.toast(res.message, 'error');
+  if (res.success) {
+    UI.toast('User berhasil dinonaktifkan.', 'success');
+    if (activeSection === 'users') loadUsers();
+  } else {
+    UI.toast(res.message, 'error');
+  }
 }
 
 async function approveUser(userId, action) {
@@ -359,8 +366,14 @@ async function approveUser(userId, action) {
   const ok = await UI.confirm(`${action === 'APPROVE' ? 'Setujui' : 'Tolak'} akun ini?`, 'Konfirmasi');
   if (!ok) return;
   const res = await API.hrd.approveUser({ user_id: userId, action });
-  if (res.success) { UI.toast(`Akun berhasil di-${label}.`, 'success'); loadDashboard(); }
-  else UI.toast(res.message, 'error');
+  if (res.success) {
+    UI.toast(`Akun berhasil di-${label}.`, 'success');
+    // Refresh sesuai section yang sedang aktif, jangan selalu lempar ke dashboard
+    if (activeSection === 'users') loadUsers();
+    else if (activeSection === 'dashboard') loadDashboard();
+  } else {
+    UI.toast(res.message, 'error');
+  }
 }
 
 // ============================================================
@@ -401,13 +414,17 @@ async function fetchAbsensi() {
   if (params.tanggal) delete params.bulan;
 
   const tbody = document.getElementById('abs-table-body');
+  if (!tbody) return;
   tbody.innerHTML = `<tr><td colspan="7"><div class="py-4">${skeletonLine()}</div></td></tr>`;
 
   const res = await API.hrd.getAbsensi(params);
+  if (activeSection !== 'absensi') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allAbsensi = res.data.absensi;
 
-  tbody.innerHTML = allAbsensi.length ? allAbsensi.map(a => `
+  const body = document.getElementById('abs-table-body');
+  if (!body) return;
+  body.innerHTML = allAbsensi.length ? allAbsensi.map(a => `
     <tr>
       <td class="font-medium text-slate-900 dark:text-white">${a.nama}</td>
       <td>${UI.badge(a.role, a.role)}</td>
@@ -437,10 +454,13 @@ async function loadPerusahaan() {
     </div>`;
 
   const res = await API.hrd.getPerusahaan();
+  if (activeSection !== 'perusahaan') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const d = res.data;
 
-  document.getElementById('perusahaan-form').innerHTML = `
+  const formEl = document.getElementById('perusahaan-form');
+  if (!formEl) return;
+  formEl.innerHTML = `
     <div class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <div><label class="form-label">Nama PT *</label><input id="p-nama" class="form-input" value="${d.nama_pt||''}" placeholder="PT Maju Jaya"/></div>
@@ -494,6 +514,7 @@ async function loadTugas() {
     <div id="tugas-list" class="space-y-3"></div>`;
 
   const res = await API.hrd.getTugasAdmin();
+  if (activeSection !== 'tugas') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allTugas = res.data.tugas;
   renderTugas(allTugas);
@@ -506,6 +527,7 @@ function filterTugas() {
 
 function renderTugas(tugas) {
   const el = document.getElementById('tugas-list');
+  if (!el) return;
   el.innerHTML = tugas.length ? tugas.map(t => `
     <div class="card">
       <div class="flex items-start justify-between gap-3">
@@ -552,8 +574,14 @@ async function saveTugas() {
   UI.setLoading(btn, true, 'Membuat...');
   const res = await API.hrd.createTugasAdmin({ judul, deskripsi: desc, file_url: document.getElementById('t-file').value.trim() });
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Tugas berhasil dibuat.', 'success'); document.getElementById('tugas-modal').remove(); loadTugas(); }
-  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+  if (res.success) {
+    UI.toast('Tugas berhasil dibuat.', 'success');
+    document.getElementById('tugas-modal')?.remove();
+    if (activeSection === 'tugas') loadTugas();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 // ============================================================
@@ -576,23 +604,33 @@ async function loadPiket() {
     </div>`;
 
   await fetchPiket();
+  if (activeSection !== 'piket') return;
 
   // Ambil daftar Staff Admin untuk dropdown
   const usersRes = await API.hrd.getUsers({ role: 'STAFF_ADMIN', status: 'ACTIVE' });
+  if (activeSection !== 'piket') return;
   window._staffList = usersRes.success ? usersRes.data.users : [];
 }
 
 async function fetchPiket() {
   const tbody = document.getElementById('piket-tbody');
+  if (!tbody) return;
   tbody.innerHTML = `<tr><td colspan="4"><div class="py-4">${skeletonLine()}</div></td></tr>`;
+
   const res = await API.hrd.getJadwalPiket({ bulan: document.getElementById('piket-bulan')?.value });
+  if (activeSection !== 'piket') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allPiket = res.data.jadwal;
+
   const usersRes = await API.hrd.getUsers({ role: 'STAFF_ADMIN' });
+  if (activeSection !== 'piket') return;
   const users = usersRes.success ? usersRes.data.users : [];
   const userMap = {};
   users.forEach(u => { userMap[u.user_id] = u.nama; });
-  tbody.innerHTML = allPiket.length ? allPiket.map(p => `
+
+  const body = document.getElementById('piket-tbody');
+  if (!body) return;
+  body.innerHTML = allPiket.length ? allPiket.map(p => `
     <tr>
       <td class="font-medium text-slate-900 dark:text-white">${userMap[p.user_id] || p.user_id}</td>
       <td class="text-slate-500 dark:text-slate-400 text-sm">${UI.formatDate(p.tanggal)}</td>
@@ -634,8 +672,14 @@ async function savePiket() {
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = await API.hrd.createJadwalPiket({ user_id: userId, tanggal: tgl, shift, keterangan: document.getElementById('pk-ket').value.trim() });
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Jadwal piket berhasil ditambahkan.', 'success'); document.getElementById('piket-modal').remove(); fetchPiket(); }
-  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+  if (res.success) {
+    UI.toast('Jadwal piket berhasil ditambahkan.', 'success');
+    document.getElementById('piket-modal')?.remove();
+    if (activeSection === 'piket') fetchPiket();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 // ============================================================
@@ -660,11 +704,17 @@ async function loadCatatan() {
 
 async function fetchCatatan() {
   const el = document.getElementById('catatan-list');
+  if (!el) return;
   el.innerHTML = `<div class="animate-pulse space-y-3">${Array(3).fill('<div class="card h-20"></div>').join('')}</div>`;
+
   const res = await API.hrd.getCatatan({ tipe: document.getElementById('cat-tipe')?.value || undefined });
+  if (activeSection !== 'catatan') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allCatatan = res.data.catatan;
-  el.innerHTML = allCatatan.length ? allCatatan.map(c => `
+
+  const listEl = document.getElementById('catatan-list');
+  if (!listEl) return;
+  listEl.innerHTML = allCatatan.length ? allCatatan.map(c => `
     <div class="card">
       <div class="flex items-start justify-between gap-2">
         <div class="flex-1">
@@ -724,8 +774,14 @@ async function saveCatatan() {
   UI.setLoading(btn, true, 'Mengirim...');
   const res = await API.hrd.createCatatan({ judul, isi, tipe: document.getElementById('cn-tipe').value, untuk_role: document.getElementById('cn-role').value });
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Catatan berhasil dikirim.', 'success'); document.getElementById('catatan-modal').remove(); fetchCatatan(); }
-  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+  if (res.success) {
+    UI.toast('Catatan berhasil dikirim.', 'success');
+    document.getElementById('catatan-modal')?.remove();
+    if (activeSection === 'catatan') fetchCatatan();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 // ── Tiny helpers ──
