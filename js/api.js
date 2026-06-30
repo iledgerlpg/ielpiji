@@ -8,7 +8,7 @@ const API = (() => {
   // ============================================================
   // CONFIG
   // ============================================================
-  const BASE_URL = window.ILPG_CONFIG?.API_URL || 'https://script.google.com/macros/s/AKfycbwlBuYTi_7wwCtk7YxiPCu-K_fz13NZ18jXcrTVjNPnJSkvnNZOru43OsPv4MGCrfEwxw/exec';
+  const BASE_URL = window.ILPG_CONFIG?.API_URL || 'https://script.google.com/macros/s/GANTI_DENGAN_DEPLOYMENT_ID/exec';
 
   // ============================================================
   // INTERNAL HELPERS
@@ -58,7 +58,7 @@ const API = (() => {
     try {
       const res = await fetch(buildUrl(path, params), {
         method: 'GET',
-        headers: { 'Accept': 'text/plain' },
+        headers: { 'Accept': 'application/json' },
       });
       const data = await parseResponse(res);
       if (data.code === 401) { Auth.handleUnauthorized(); }
