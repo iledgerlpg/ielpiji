@@ -1,0 +1,10 @@
+# Cloudflare Pages — _redirects
+# Semua route yang tidak diketahui redirect ke index.html (SPA fallback)
+/                     /index.html          200
+/pages/*              /pages/:splat        200
+/js/*                 /js/:splat           200
+/assets/*             /assets/:splat       200
+
+# Redirect lama (backward compat)
+/login                /pages/login.html    301
+/dashboard            /index.html          302

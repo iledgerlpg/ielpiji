@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="id" class="">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="theme-color" content="#1d4ed8"/>
+  <title>ILPG — Driver Dashboard</title>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="icon" href="/assets/icon-192.png"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: { brand: { 600:'#2563eb',700:'#1d4ed8' } },
+        animation: { 'fade-in':'fadeIn .25s ease','scale-in':'scaleIn .2s ease' },
+        keyframes: { fadeIn:{'0%':{opacity:0},'100%':{opacity:1}}, scaleIn:{'0%':{transform:'scale(.95)',opacity:0},'100%':{transform:'scale(1)',opacity:1}} },
+      }}
+    };
+  </script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,sans-serif}
+    .sidebar{width:260px;transition:transform .25s ease}
+    .sidebar.collapsed .nav-label,.sidebar.collapsed .user-info{display:none}
+    .card{background:white;border-radius:1rem;box-shadow:0 1px 3px rgba(0,0,0,.07);border:1px solid #e2e8f0;padding:1.25rem}
+    .dark .card{background:#0f172a;border-color:#1e293b}
+    .card-compact{background:white;border-radius:.75rem;border:1px solid #e2e8f0;padding:1rem}
+    .dark .card-compact{background:#0f172a;border-color:#1e293b}
+    .btn-primary{display:inline-flex;align-items:center;gap:.5rem;padding:.625rem 1rem;background:#2563eb;color:white;font-size:.875rem;font-weight:500;border-radius:.75rem;border:none;cursor:pointer;transition:background .15s}
+    .btn-primary:hover{background:#1d4ed8}
+    .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+    .btn-secondary{display:inline-flex;align-items:center;gap:.5rem;padding:.625rem 1rem;background:#f1f5f9;color:#475569;font-size:.875rem;font-weight:500;border-radius:.75rem;border:none;cursor:pointer;transition:background .15s}
+    .dark .btn-secondary{background:#1e293b;color:#94a3b8}
+    .btn-secondary:hover{background:#e2e8f0}
+    .dark .btn-secondary:hover{background:#334155}
+    .btn-danger{display:inline-flex;align-items:center;gap:.5rem;padding:.625rem 1rem;background:#ef4444;color:white;font-size:.875rem;font-weight:500;border-radius:.75rem;border:none;cursor:pointer}
+    .btn-icon{padding:.5rem;border-radius:.75rem;border:none;cursor:pointer;background:transparent;color:#64748b;transition:background .15s}
+    .btn-icon:hover{background:#f1f5f9}
+    .dark .btn-icon:hover{background:#1e293b}
+    .form-label{display:block;font-size:.875rem;font-weight:500;color:#374151;margin-bottom:.375rem}
+    .dark .form-label{color:#d1d5db}
+    .form-input{width:100%;padding:.625rem 1rem;border-radius:.75rem;border:1px solid #d1d5db;background:white;color:#111827;font-size:.875rem;outline:none;transition:border .15s,box-shadow .15s}
+    .form-input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+    .dark .form-input{background:#1e293b;border-color:#334155;color:#f1f5f9}
+    .form-select{width:100%;padding:.625rem 1rem;border-radius:.75rem;border:1px solid #d1d5db;background:white;color:#111827;font-size:.875rem;outline:none}
+    .dark .form-select{background:#1e293b;border-color:#334155;color:#f1f5f9}
+    .badge{display:inline-flex;align-items:center;padding:.125rem .625rem;border-radius:9999px;font-size:.75rem;font-weight:500}
+    .badge-green{background:#dcfce7;color:#15803d}.dark .badge-green{background:rgba(20,83,45,.4);color:#4ade80}
+    .badge-red{background:#fee2e2;color:#dc2626}.dark .badge-red{background:rgba(127,29,29,.4);color:#f87171}
+    .badge-yellow{background:#fef3c7;color:#d97706}.dark .badge-yellow{background:rgba(120,53,15,.4);color:#fbbf24}
+    .badge-blue{background:#dbeafe;color:#1d4ed8}.dark .badge-blue{background:rgba(29,78,216,.3);color:#93c5fd}
+    .badge-gray{background:#f1f5f9;color:#475569}.dark .badge-gray{background:#1e293b;color:#94a3b8}
+    .stat-card{display:flex;align-items:flex-start;gap:1rem;background:white;border-radius:1rem;box-shadow:0 1px 3px rgba(0,0,0,.07);border:1px solid #e2e8f0;padding:1.25rem}
+    .dark .stat-card{background:#0f172a;border-color:#1e293b}
+    .stat-icon{width:3rem;height:3rem;border-radius:.875rem;display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0}
+    .stat-label{font-size:.7rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+    .stat-value{font-size:1.5rem;font-weight:700;color:#0f172a;margin-top:.125rem}
+    .dark .stat-value{color:white}
+    .nav-item{display:flex;align-items:center;gap:.75rem;padding:.625rem .75rem;border-radius:.75rem;font-size:.875rem;font-weight:500;color:#64748b;cursor:pointer;border:none;background:transparent;width:100%;text-align:left;transition:all .15s}
+    .nav-item:hover{background:#eff6ff;color:#2563eb}
+    .dark .nav-item:hover{background:rgba(29,78,216,.1);color:#93c5fd}
+    .nav-item.active{background:#eff6ff;color:#1d4ed8;font-weight:600}
+    .dark .nav-item.active{background:rgba(29,78,216,.15);color:#93c5fd}
+    .nav-item svg{width:1.25rem;height:1.25rem;flex-shrink:0}
+    .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4rem 1rem;text-align:center}
+    .page-title{font-size:1.25rem;font-weight:700;color:#0f172a}
+    .dark .page-title{color:white}
+    .page-sub{font-size:.875rem;color:#64748b;margin-top:.125rem}
+    .filter-bar{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-bottom:1.25rem}
+    .table-wrapper{overflow-x:auto;border-radius:1rem;border:1px solid #e2e8f0}
+    .dark .table-wrapper{border-color:#1e293b}
+    table{width:100%;font-size:.875rem;text-align:left;border-collapse:collapse}
+    thead th{padding:.75rem 1rem;font-size:.7rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;background:#f8fafc}
+    .dark thead th{background:rgba(15,23,42,.5);color:#94a3b8}
+    tbody tr{border-top:1px solid #f1f5f9}
+    .dark tbody tr{border-top-color:#1e293b}
+    tbody tr:hover{background:#f8fafc}
+    .dark tbody tr:hover{background:rgba(30,41,59,.5)}
+    tbody td{padding:.75rem 1rem;color:#475569}
+    .dark tbody td{color:#94a3b8}
+    ::-webkit-scrollbar{width:6px;height:6px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+    .dark ::-webkit-scrollbar-thumb{background:#334155}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .animate-pulse{animation:pulse 1.8s ease-in-out infinite}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes scaleIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+    .animate-scale-in{animation:scaleIn .2s ease}
+    #camera-modal video{transform:scaleX(-1);border-radius:.75rem;width:100%}
+  </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen">
+
+<!-- SIDEBAR -->
+<aside id="sidebar" class="sidebar fixed inset-y-0 left-0 z-40 flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 md:translate-x-0 -translate-x-full">
+  <div class="flex items-center gap-3 px-4 h-16 border-b border-slate-200 dark:border-slate-800 shrink-0">
+    <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="4" fill="#fff"/><path d="M10 4v12M4 10h12" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round" opacity=".4"/></svg>
+    </div>
+    <div class="nav-label">
+      <div class="font-bold text-slate-900 dark:text-white text-sm">ILPG</div>
+      <div class="text-xs text-slate-400">Driver</div>
+    </div>
+  </div>
+  <nav class="flex-1 overflow-y-auto py-3 px-3 space-y-0.5" id="sidebar-nav"></nav>
+  <div class="border-t border-slate-200 dark:border-slate-800 p-3 shrink-0">
+    <div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+      <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0" data-user-avatar>D</div>
+      <div class="user-info min-w-0 flex-1">
+        <div class="text-sm font-medium text-slate-900 dark:text-white truncate" data-user-nama>Driver</div>
+        <div class="text-xs text-slate-500" data-user-role>DRIVER</div>
+      </div>
+      <button data-toggle-theme class="btn-icon text-xs" data-theme-icon title="Ganti tema">🌙</button>
+    </div>
+  </div>
+</aside>
+
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/40 z-30 hidden md:hidden" onclick="toggleSidebar()"></div>
+
+<!-- TOPBAR -->
+<header class="fixed top-0 right-0 left-0 md:left-[260px] h-16 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-3">
+  <button class="btn-icon md:hidden" onclick="toggleSidebar()">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
+  <div class="flex-1 min-w-0">
+    <h1 class="text-base font-semibold text-slate-900 dark:text-white truncate" id="topbar-title">Driver Dashboard</h1>
+  </div>
+  <button class="btn-icon relative" onclick="showQueueModal()">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+    <span data-queue-badge class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">0</span>
+  </button>
+  <button data-toggle-theme class="btn-icon" data-theme-icon>🌙</button>
+  <div class="relative" id="avatar-menu">
+    <button class="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold hover:ring-2 hover:ring-indigo-400 transition-all" data-user-avatar onclick="toggleAvatarMenu()">D</button>
+    <div id="avatar-dropdown" class="hidden absolute right-0 top-12 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 py-2 z-50 animate-scale-in">
+      <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
+        <div class="text-sm font-semibold text-slate-900 dark:text-white truncate" data-user-nama>—</div>
+        <div class="text-xs text-slate-500 truncate" data-user-email>—</div>
+      </div>
+      <button class="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2" data-logout>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7"/></svg>Keluar
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="pt-16 md:ml-[260px] min-h-screen">
+  <div class="p-4 md:p-6 max-w-4xl mx-auto" id="main-content">
+    <div class="flex items-center justify-center h-64 text-slate-400 animate-pulse">Memuat dashboard...</div>
+  </div>
+</main>
+
+<!-- CAMERA MODAL -->
+<div id="camera-modal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+      <h3 class="font-semibold text-slate-900 dark:text-white" id="camera-modal-title">Ambil Foto</h3>
+      <button class="btn-icon" onclick="Camera.stop();UI.closeModal('camera-modal')">✕</button>
+    </div>
+    <div class="p-4 space-y-3">
+      <div class="relative bg-slate-900 rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center">
+        <video id="camera-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+        <div class="absolute inset-4 border-2 border-white/20 rounded-xl pointer-events-none"></div>
+      </div>
+      <canvas id="camera-canvas" class="hidden"></canvas>
+      <p class="text-xs text-slate-500 text-center">📸 Pastikan wajah atau objek terlihat jelas</p>
+      <button id="camera-capture-btn" class="btn-primary w-full justify-center py-3 text-sm">📷 Ambil Foto</button>
+    </div>
+  </div>
+</div>
+
+<!-- OFFLINE BAR -->
+<div id="offline-bar" class="fixed bottom-0 left-0 right-0 z-50 bg-amber-500 text-white text-center text-sm py-2 px-4 hidden">
+  ⚡ Tidak ada koneksi — Data akan dikirim otomatis saat online.
+</div>
+
+<!-- SCRIPTS -->
+<script>window.ILPG_CONFIG = { API_URL: 'https://script.google.com/macros/s/GANTI_DEPLOYMENT_ID/exec' };</script>
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/db.js"></script>
+<script src="/js/ui.js"></script>
+<script src="/js/camera.js"></script>
+<script src="/js/driver-dashboard.js"></script>
+<script>
+  function toggleSidebar() {
+    const sb = document.getElementById('sidebar');
+    const ov = document.getElementById('sidebar-overlay');
+    const open = sb.classList.contains('-translate-x-full');
+    sb.classList.toggle('-translate-x-full', !open);
+    ov.classList.toggle('hidden', !open);
+  }
+  function toggleAvatarMenu() { document.getElementById('avatar-dropdown').classList.toggle('hidden'); }
+  document.addEventListener('click', e => { if (!document.getElementById('avatar-menu')?.contains(e.target)) document.getElementById('avatar-dropdown')?.classList.add('hidden'); });
+  async function showQueueModal() {
+    const items = await DB.getQueue();
+    const pending = items.filter(i => i.status==='PENDING').length;
+    if (!pending) { UI.toast('Tidak ada data offline yang tertunda.','info'); return; }
+    const ok = await UI.confirm(`Terdapat ${pending} data yang belum terkirim. Kirim sekarang?`, 'Antrian Offline');
+    if (ok) { const r = await DB.flushQueue(); UI.toast(`${r.flushed} data terkirim.`, 'success'); UI.updateQueueBadge(); }
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+    const s = Auth.getSession();
+    if (s) {
+      document.querySelectorAll('[data-user-nama]').forEach(el => el.textContent = s.nama);
+      document.querySelectorAll('[data-user-email]').forEach(el => el.textContent = s.email);
+      document.querySelectorAll('[data-user-role]').forEach(el => el.textContent = s.role);
+      document.querySelectorAll('[data-user-avatar]').forEach(el => el.textContent = s.nama.charAt(0).toUpperCase());
+    }
+    document.querySelectorAll('[data-toggle-theme]').forEach(btn => btn.addEventListener('click', () => UI.toggleTheme()));
+    document.querySelectorAll('[data-logout]').forEach(btn => btn.addEventListener('click', () => Auth.logout()));
+    UI.initTheme();
+    window.addEventListener('online', () => { document.getElementById('offline-bar').classList.add('hidden'); DB.flushQueue().then(r => { if (r.flushed > 0) UI.toast(`${r.flushed} data terkirim.`, 'success'); }); });
+    window.addEventListener('offline', () => { document.getElementById('offline-bar').classList.remove('hidden'); });
+    if (!navigator.onLine) document.getElementById('offline-bar').classList.remove('hidden');
+  });
+</script>
+</body>
+</html>

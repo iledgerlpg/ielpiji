@@ -1,0 +1,24 @@
+{
+  "name": "ILPG - Informasi Logistik Pangkalan Gas",
+  "short_name": "ILPG",
+  "description": "Sistem informasi terintegrasi untuk manajemen logistik distribusi gas elpiji.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1623",
+  "theme_color": "#1d4ed8",
+  "orientation": "portrait-primary",
+  "lang": "id",
+  "icons": [
+    { "src": "/assets/icon-72.png",  "sizes": "72x72",   "type": "image/png", "purpose": "maskable any" },
+    { "src": "/assets/icon-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "maskable any" },
+    { "src": "/assets/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "maskable any" },
+    { "src": "/assets/icon-144.png", "sizes": "144x144", "type": "image/png", "purpose": "maskable any" },
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable any" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable any" }
+  ],
+  "categories": ["business", "productivity", "utilities"],
+  "shortcuts": [
+    { "name": "Absen Masuk",    "url": "/pages/absensi.html", "description": "Lakukan absensi masuk" },
+    { "name": "Laporan",        "url": "/pages/laporan.html", "description": "Kirim laporan pengiriman" }
+  ]
+}
