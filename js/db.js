@@ -159,7 +159,7 @@ const DB = (() => {
         await updateQueueItem(item.id, { status: 'SENDING', attempts: (item.attempts || 0) + 1 });
         const res  = await fetch(item.url, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body:    JSON.stringify(item.body),
         });
         const data = await res.json();
