@@ -4,7 +4,7 @@
  * IndexedDB queue untuk data yang gagal dikirim saat offline.
  */
 
-const SW_VERSION   = 'ilpg-v1.2';
+const SW_VERSION   = 'ilpg-v1.3';
 const STATIC_CACHE = `${SW_VERSION}-static`;
 const API_CACHE    = `${SW_VERSION}-api`;
 
@@ -141,7 +141,7 @@ async function processSyncQueue() {
     try {
       const res = await fetch(item.url, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body:    JSON.stringify(item.body),
       });
       if (res.ok) {
