@@ -227,9 +227,6 @@
       document.querySelectorAll('[data-user-pt]').forEach(el => el.textContent = s.nama_pt);
       const kEl = document.getElementById('profile-kode'); if (kEl) kEl.textContent = s.kode_unik;
     }
-    document.querySelectorAll('[data-toggle-theme]').forEach(btn => btn.addEventListener('click', () => UI.toggleTheme()));
-    document.querySelectorAll('[data-logout]').forEach(btn => btn.addEventListener('click', () => Auth.logout()));
-    UI.initTheme();
   });
 </script>
 </body>
