@@ -58,7 +58,7 @@ const API = (() => {
     try {
       const res = await fetch(buildUrl(path, params), {
         method: 'GET',
-        headers: { 'Accept': 'application/json' },
+        headers: { 'Accept': 'Plain/Text' },
       });
       const data = await parseResponse(res);
       if (data.code === 401) { Auth.handleUnauthorized(); }
