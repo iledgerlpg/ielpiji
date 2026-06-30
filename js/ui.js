@@ -233,6 +233,26 @@ const UI = (() => {
   }
 
   // ============================================================
+  // SECURITY — ESCAPE HTML
+  // ============================================================
+
+  /**
+   * Escape karakter HTML berbahaya dari teks yang berasal dari input user
+   * (nama, judul, isi catatan, deskripsi tugas, keterangan, dll), untuk
+   * mencegah stored XSS saat data tersebut di-render via innerHTML/template string.
+   * WAJIB dipakai untuk semua field teks bebas yang diketik manusia.
+   * TIDAK perlu dipakai untuk angka, tanggal, enum/status, atau UUID.
+   */
+  function escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // ============================================================
   // FORMATTERS
   // ============================================================
 
@@ -416,7 +436,7 @@ const UI = (() => {
     initTheme, toggleTheme,
     toast, skeleton, skeletonCard, skeletonTable, showSkeleton,
     setLoading, openModal, closeModal, initModals,
-    confirm, emptyState,
+    confirm, emptyState, escapeHtml,
     formatRupiah, formatNumber, formatDate, formatDateShort, formatDateTime,
     todayInputValue, currentMonthValue,
     badge, STATUS_COLORS,
