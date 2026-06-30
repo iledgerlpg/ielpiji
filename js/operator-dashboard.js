@@ -2,13 +2,6 @@
  * ILPG Frontend — operator-dashboard.js
  * Semua logika Operator: dashboard, jadwal harian, laporan pengiriman,
  * monitoring, pembayaran refill & bagi hasil, stok gudang, pangkalan, SPBE.
- *
- * REVISI: loadJadwalDropdowns() sekarang memakai API.operator.getDrivers()
- * (endpoint baru, khusus role OPERATOR) menggantikan API.hrd.getUsers()
- * yang sebelumnya selalu gagal dengan 403 Forbidden karena endpoint itu
- * dikunci hanya untuk role HRD — makanya dropdown Driver di form "Buat
- * Jadwal" selalu kosong. Sekalian dropdown "Driver 2 / Kernet" sekarang
- * ikut menampilkan user dengan role KERNET, bukan cuma DRIVER.
  */
 
 const SESSION = Auth.guard(['OPERATOR']);
@@ -94,6 +87,11 @@ function showSection(id) {
   if (loaders[id]) loaders[id]();
 }
 
+// Map tipe pembayaran -> id section, dipakai untuk guard race-condition.
+function sectionForTipe(tipe) {
+  return tipe === 'REFILL' ? 'bayar-refill' : 'bayar-bh';
+}
+
 // ============================================================
 // DASHBOARD
 // ============================================================
@@ -122,10 +120,13 @@ async function loadDashboard() {
 async function fetchDashboard() {
   const tanggal = document.getElementById('dash-tgl')?.value || UI.todayInputValue();
   const res = await API.operator.getDashboard({ tanggal });
+  if (activeSection !== 'dashboard') return; // section sudah berpindah, jangan sentuh DOM lama
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const d = res.data;
 
-  document.getElementById('dash-stats').innerHTML = `
+  const statsEl = document.getElementById('dash-stats');
+  if (!statsEl) return;
+  statsEl.innerHTML = `
     <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">📋</div><div><div class="stat-label">Jadwal Hari Ini</div><div class="stat-value">${d.jadwal_hari}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">✅</div><div><div class="stat-label">Sudah Lapor</div><div class="stat-value text-green-600">${d.driver_sudah_lapor}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-red-100 dark:bg-red-900/40">⏳</div><div><div class="stat-label">Belum Lapor</div><div class="stat-value text-red-500">${d.driver_belum_lapor?.length || 0}</div></div></div>
@@ -134,8 +135,8 @@ async function fetchDashboard() {
   document.getElementById('dash-belum-lapor').innerHTML = d.driver_belum_lapor?.length
     ? d.driver_belum_lapor.map(x => `
         <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
-          <div><div class="text-sm font-medium text-slate-900 dark:text-white">${UI.escapeHtml(x.driver_nama)}</div>
-          <div class="text-xs text-slate-500">${UI.escapeHtml(x.pangkalan_nama)} · Rit ${x.rit}</div></div>
+          <div><div class="text-sm font-medium text-slate-900 dark:text-white">${x.driver_nama}</div>
+          <div class="text-xs text-slate-500">${x.pangkalan_nama} · Rit ${x.rit}</div></div>
           <button class="btn-secondary text-xs py-1 px-2" onclick="showSection('laporan-pengiriman')">Detail</button>
         </div>`).join('')
     : UI.emptyState('Semua driver sudah lapor! 🎉', '✅');
@@ -143,7 +144,7 @@ async function fetchDashboard() {
   document.getElementById('dash-belum-bayar').innerHTML = d.pangkalan_belum_bayar?.length
     ? d.pangkalan_belum_bayar.map(x => `
         <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
-          <div class="text-sm font-medium text-slate-900 dark:text-white">${UI.escapeHtml(x.nama)}</div>
+          <div class="text-sm font-medium text-slate-900 dark:text-white">${x.nama}</div>
           <button class="btn-primary text-xs py-1 px-3" onclick="showSection('bayar-refill')">Bayar</button>
         </div>`).join('')
     : UI.emptyState('Semua pangkalan sudah bayar! 🎉', '💚');
@@ -174,19 +175,25 @@ async function loadJadwalHarian() {
 
 async function fetchJadwalHarian() {
   const tbody = document.getElementById('jh-tbody');
+  if (!tbody) return;
   tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
   const params = { tanggal: document.getElementById('jh-tgl')?.value || undefined, bulan: document.getElementById('jh-bln')?.value || undefined };
   if (params.tanggal) delete params.bulan;
+
   const res = await API.operator.getJadwalHarian(params);
+  if (activeSection !== 'jadwal-harian') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
-  tbody.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
+
+  const body = document.getElementById('jh-tbody');
+  if (!body) return;
+  body.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(j.tanggal)}</td>
       <td class="font-semibold">Rit ${j.rit}</td>
-      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(j.pangkalan_nama)}</td>
-      <td class="text-slate-500 text-xs">${UI.escapeHtml(j.spbe_nama)}</td>
+      <td class="font-medium text-slate-900 dark:text-white">${j.pangkalan_nama}</td>
+      <td class="text-slate-500 text-xs">${j.spbe_nama}</td>
       <td>${j.jumlah_kirim} <span class="text-slate-400 text-xs">tabung</span></td>
-      <td class="text-sm">${UI.escapeHtml(j.driver1_nama)}${j.driver2_nama !== '-' ? ' + '+UI.escapeHtml(j.driver2_nama) : ''}</td>
+      <td class="text-sm">${j.driver1_nama}${j.driver2_nama !== '-' ? ' + '+j.driver2_nama : ''}</td>
       <td class="text-right">
         <div class="flex gap-1 justify-end">
           <button class="btn-secondary text-xs py-1 px-2" onclick="deleteJadwalHarian('${j.jadwal_id}')">Hapus</button>
@@ -236,25 +243,31 @@ function openJadwalModal() {
 }
 
 async function loadJadwalDropdowns() {
-  const [pangRes, spbeRes, driverRes] = await Promise.all([
+  const [pangRes, spbeRes, userRes] = await Promise.all([
     API.operator.getPangkalan({ status: 'ACTIVE' }),
     API.operator.getSPBE({ status: 'ACTIVE' }),
-    API.operator.getDrivers(),
+    API.hrd.getUsers({ role: 'DRIVER', status: 'ACTIVE' }),
   ]);
+  // Modal mungkin sudah ditutup user selagi request berjalan — cek dulu sebelum mengisi dropdown.
+  if (!document.getElementById('jh-modal')) return;
+
   const fill = (id, items, valKey, labelKey) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.innerHTML = `<option value="">-- Pilih --</option>` + (items || []).map(i => `<option value="${i[valKey]}">${UI.escapeHtml(i[labelKey])}</option>`).join('');
+    el.innerHTML = `<option value="">-- Pilih --</option>` + (items || []).map(i => `<option value="${i[valKey]}">${i[labelKey]}</option>`).join('');
   };
   if (pangRes.success) fill('jm-pangkalan', pangRes.data.pangkalan, 'pangkalan_id', 'nama');
   if (spbeRes.success) fill('jm-spbe', spbeRes.data.spbe, 'spbe_id', 'nama');
-  if (!driverRes.success) { UI.toast(driverRes.message || 'Gagal memuat daftar driver.', 'error'); return; }
-
-  const drivers = driverRes.data.drivers; // berisi DRIVER + KERNET aktif
-  fill('jm-driver1', drivers, 'user_id', 'nama');
-  document.getElementById('jm-driver2').innerHTML =
-    `<option value="">-- Opsional --</option>` +
-    drivers.map(d => `<option value="${d.user_id}">${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
+  if (userRes.success) {
+    const drivers = userRes.data.users;
+    fill('jm-driver1', drivers, 'user_id', 'nama');
+    const driver2El = document.getElementById('jm-driver2');
+    if (driver2El) {
+      driver2El.innerHTML =
+        `<option value="">-- Opsional --</option>` +
+        drivers.map(d => `<option value="${d.user_id}">${d.nama}</option>`).join('');
+    }
+  }
 }
 
 async function saveJadwal() {
@@ -272,22 +285,32 @@ async function saveJadwal() {
     driver2_id: document.getElementById('jm-driver2').value,
     keterangan: document.getElementById('jm-ket').value.trim(),
   };
-  if (!body.tanggal || !body.spbe_id || !body.pangkalan_id || !body.jumlah_kirim || !body.driver1_id) {
-    errEl.textContent = 'Tanggal, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
+  if (!body.tanggal || !body.pangkalan_id || !body.driver1_id) {
+    errEl.textContent = 'Tanggal, pangkalan, dan driver 1 wajib diisi.';
     errEl.classList.remove('hidden'); return;
   }
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = await API.operator.createJadwalHarian(body);
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Jadwal berhasil ditambahkan.', 'success'); document.getElementById('jh-modal').remove(); fetchJadwalHarian(); }
-  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+  if (res.success) {
+    UI.toast('Jadwal berhasil ditambahkan.', 'success');
+    document.getElementById('jh-modal')?.remove();
+    if (activeSection === 'jadwal-harian') fetchJadwalHarian();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 async function deleteJadwalHarian(id) {
   if (!await UI.confirm('Hapus jadwal ini?', 'Konfirmasi Hapus')) return;
   const res = await API.operator.deleteJadwalHarian({ jadwal_id: id });
-  if (res.success) { UI.toast('Jadwal dihapus.', 'success'); fetchJadwalHarian(); }
-  else UI.toast(res.message, 'error');
+  if (res.success) {
+    UI.toast('Jadwal dihapus.', 'success');
+    if (activeSection === 'jadwal-harian') fetchJadwalHarian();
+  } else {
+    UI.toast(res.message, 'error');
+  }
 }
 
 // ============================================================
@@ -314,6 +337,7 @@ async function loadLaporan() {
 
 async function fetchLaporan() {
   const tbody = document.getElementById('lp-tbody');
+  if (!tbody) return;
   tbody.innerHTML = `<tr><td colspan="8">${skLine()}</td></tr>`;
   const params = {
     tanggal: document.getElementById('lp-tgl')?.value || undefined,
@@ -321,13 +345,18 @@ async function fetchLaporan() {
     status:  document.getElementById('lp-status')?.value || undefined,
   };
   if (params.tanggal) delete params.bulan;
+
   const res = await API.operator.getLaporanPengiriman(params);
+  if (activeSection !== 'laporan-pengiriman') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
-  tbody.innerHTML = res.data.laporan.length ? res.data.laporan.map(l => `
+
+  const body = document.getElementById('lp-tbody');
+  if (!body) return;
+  body.innerHTML = res.data.laporan.length ? res.data.laporan.map(l => `
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(l.tanggal)}<br/><span class="font-mono">${l.jam_laporan || ''}</span></td>
-      <td class="font-medium text-slate-900 dark:text-white text-sm">${UI.escapeHtml(l.driver_nama)}</td>
-      <td class="text-sm">${UI.escapeHtml(l.pangkalan_nama)}</td>
+      <td class="font-medium text-slate-900 dark:text-white text-sm">${l.driver_nama}</td>
+      <td class="text-sm">${l.pangkalan_nama}</td>
       <td class="font-semibold">${l.jumlah_kirim}</td>
       <td class="text-slate-500">${l.jumlah_retur || 0}</td>
       <td>${UI.badge(l.status, l.status)}</td>
@@ -346,15 +375,23 @@ async function fetchLaporan() {
 
 async function verifikasiLaporan(id) {
   const res = await API.operator.updateLaporanPengiriman({ laporan_id: id, status: 'VERIFIED' });
-  if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporan(); }
-  else UI.toast(res.message, 'error');
+  if (res.success) {
+    UI.toast('Laporan diverifikasi.', 'success');
+    if (activeSection === 'laporan-pengiriman') fetchLaporan();
+  } else {
+    UI.toast(res.message, 'error');
+  }
 }
 
 async function hapusLaporan(id) {
   if (!await UI.confirm('Hapus laporan ini?', 'Konfirmasi')) return;
   const res = await API.operator.deleteLaporanPengiriman({ laporan_id: id });
-  if (res.success) { UI.toast('Laporan dihapus.', 'success'); fetchLaporan(); }
-  else UI.toast(res.message, 'error');
+  if (res.success) {
+    UI.toast('Laporan dihapus.', 'success');
+    if (activeSection === 'laporan-pengiriman') fetchLaporan();
+  } else {
+    UI.toast(res.message, 'error');
+  }
 }
 
 // ============================================================
@@ -363,7 +400,6 @@ async function hapusLaporan(id) {
 
 async function loadMonitoringKirim() {
   const main = document.getElementById('main-content');
-  const now  = new Date();
   main.innerHTML = `
     <div class="page-header"><h2 class="page-title">Monitoring Pengiriman</h2><p class="page-sub">Perbandingan Master SA vs Jadwal Harian vs Laporan Realisasi.</p></div>
     <div class="filter-bar">
@@ -389,25 +425,32 @@ async function fetchMonitoringKirim() {
   const bulan = document.getElementById('mk-bln')?.value || UI.currentMonthValue();
   const [year, month] = bulan.split('-');
   const tbody = document.getElementById('mk-tbody');
+  if (!tbody) return;
   tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
+
   const res = await API.operator.getMonitoringPengiriman({ bulan: month, tahun: year });
+  if (activeSection !== 'monitoring-kirim') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const data  = res.data.monitoring;
   const total = { sa: 0, jadwal: 0, kirim: 0, retur: 0 };
   data.forEach(d => { total.sa += d.total_sa; total.jadwal += d.total_jadwal; total.kirim += d.total_kirim; total.retur += d.total_retur; });
 
-  document.getElementById('mk-summary').innerHTML = `
+  const summaryEl = document.getElementById('mk-summary');
+  if (!summaryEl) return;
+  summaryEl.innerHTML = `
     <div class="stat-card"><div class="stat-icon bg-slate-100 dark:bg-slate-800">📊</div><div><div class="stat-label">Total Alokasi SA</div><div class="stat-value">${UI.formatNumber(total.sa)}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">📋</div><div><div class="stat-label">Total Dijadwalkan</div><div class="stat-value">${UI.formatNumber(total.jadwal)}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">✅</div><div><div class="stat-label">Total Terkirim</div><div class="stat-value text-green-600">${UI.formatNumber(total.kirim)}</div></div></div>`;
 
-  tbody.innerHTML = data.length ? data.map(d => {
+  const body = document.getElementById('mk-tbody');
+  if (!body) return;
+  body.innerHTML = data.length ? data.map(d => {
     const selisihSA     = d.selisih_sa_kirim;
     const selisihJadwal = d.selisih_jadwal_kirim;
     return `
       <tr>
-        <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(d.nama)}</td>
+        <td class="font-medium text-slate-900 dark:text-white">${d.nama}</td>
         <td class="text-center">${UI.formatNumber(d.total_sa)}</td>
         <td class="text-center">${UI.formatNumber(d.total_jadwal)}</td>
         <td class="text-center font-semibold">${UI.formatNumber(d.total_kirim)}</td>
@@ -439,11 +482,14 @@ async function fetchMasterSA() {
   const bulan = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
   const [year, month] = bulan.split('-');
   const res = await API.operator.getMasterSA({ bulan: month, tahun: year });
+  if (activeSection !== 'master-sa') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const data = res.data.master_sa;
   const days = Array.from({length: 31}, (_, i) => i + 1);
 
-  document.getElementById('sa-container').innerHTML = data.length ? `
+  const containerEl = document.getElementById('sa-container');
+  if (!containerEl) return;
+  containerEl.innerHTML = data.length ? `
     <table style="min-width:900px">
       <thead><tr>
         <th>Pangkalan</th>
@@ -459,7 +505,7 @@ async function fetchMasterSA() {
             total += val;
             return `<td class="text-center text-xs ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">${val || ''}</td>`;
           }).join('');
-          return `<tr><td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(row.pangkalan_nama)}</td>${cells}<td class="text-center font-bold text-blue-600">${total}</td></tr>`;
+          return `<tr><td class="font-medium text-slate-900 dark:text-white">${row.pangkalan_nama}</td>${cells}<td class="text-center font-bold text-blue-600">${total}</td></tr>`;
         }).join('')}
       </tbody>
     </table>` : UI.emptyState('Belum ada data Master SA untuk bulan ini.','📊');
@@ -486,6 +532,7 @@ async function fetchPembayaran(tipe) {
   const bulan = document.getElementById('bp-bln')?.value || UI.currentMonthValue();
   const fn    = tipe === 'REFILL' ? API.operator.getPembayaranRefill : API.operator.getPembayaranBagiHasil;
   const res   = await fn({ bulan });
+  if (activeSection !== sectionForTipe(tipe)) return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const data = res.data.pembayaran || [];
@@ -493,19 +540,21 @@ async function fetchPembayaran(tipe) {
   const totalBayar   = data.reduce((s, d) => s + (d.total_bayar || 0), 0);
   const lunas        = data.filter(d => d.status === 'LUNAS').length;
 
-  document.getElementById('bp-summary').innerHTML = `
+  const summaryEl = document.getElementById('bp-summary');
+  if (!summaryEl) return;
+  summaryEl.innerHTML = `
     <div class="stat-card"><div class="stat-icon bg-slate-100 dark:bg-slate-800">💰</div><div><div class="stat-label">Total Tagihan</div><div class="stat-value text-lg">${UI.formatRupiah(totalTagihan)}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">✅</div><div><div class="stat-label">Total Terbayar</div><div class="stat-value text-lg text-green-600">${UI.formatRupiah(totalBayar)}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">🏦</div><div><div class="stat-label">Pangkalan Lunas</div><div class="stat-value">${lunas}/${data.length}</div></div></div>`;
 
-  window._pembayaranData = data;
-
-  document.getElementById('bp-list').innerHTML = data.length ? data.map(d => `
+  const listEl = document.getElementById('bp-list');
+  if (!listEl) return;
+  listEl.innerHTML = data.length ? data.map(d => `
     <div class="card">
       <div class="flex items-start justify-between gap-3">
         <div class="flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-semibold text-slate-900 dark:text-white">${UI.escapeHtml(d.nama)}</span>
+            <span class="font-semibold text-slate-900 dark:text-white">${d.nama}</span>
             ${UI.badge(d.status, d.status)}
           </div>
           <div class="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
@@ -517,15 +566,9 @@ async function fetchPembayaran(tipe) {
           </div>
         </div>
         ${d.status !== 'LUNAS' ? `
-          <button class="btn-primary text-xs py-2 px-3 shrink-0" onclick="openPembayaranModalById('${d.pangkalan_id}','${tipe}')">Bayar</button>` : ''}
+          <button class="btn-primary text-xs py-2 px-3 shrink-0" onclick="openPembayaranModal('${d.pangkalan_id}','${tipe}','${d.nama}')">Bayar</button>` : ''}
       </div>
     </div>`).join('') : UI.emptyState('Belum ada data pembayaran.', '💰');
-}
-
-/** Cari nama pangkalan dari cache by ID, lalu buka modal pembayaran (hindari inject nama mentah ke onclick). */
-function openPembayaranModalById(pangkalanId, tipe) {
-  const item = (window._pembayaranData || []).find(d => d.pangkalan_id === pangkalanId);
-  openPembayaranModal(pangkalanId, tipe, item ? item.nama : '-');
 }
 
 function openPembayaranModal(pangkalanId, tipe, namaPangkalan) {
@@ -540,37 +583,37 @@ function openPembayaranModal(pangkalanId, tipe, namaPangkalan) {
         <button class="btn-icon" onclick="document.getElementById('pay-modal').remove()">✕</button>
       </div>
       <div class="p-5 space-y-4">
-        <div><label class="form-label">Tanggal Bayar *</label><input id="pm-tgl" type="date" class="form-input" value="${UI.todayInputValue()}"/></div>
+        <div><label class="form-label">Tanggal Bayar *</label><input id="pay-tgl" type="date" class="form-input" value="${UI.todayInputValue()}"/></div>
         <div class="bg-blue-50 dark:bg-blue-950/30 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
           ${isRefill ? '💡 Bisa via Brimola, Transfer, atau keduanya.' : '⚠️ Bagi Hasil wajib via Transfer + bukti TF.'}
         </div>
         ${isRefill ? `
           <div><label class="form-label">Nominal Brimola (opsional)</label>
-            <input id="pm-brimola" type="number" class="form-input" placeholder="0" min="0"/>
+            <input id="pay-brimola" type="number" class="form-input" placeholder="0" min="0"/>
           </div>` : ''}
         <div><label class="form-label">Nominal Transfer ${!isRefill ? ' *' : '(opsional)'}</label>
-          <input id="pm-transfer" type="number" class="form-input" placeholder="0" min="0"/>
+          <input id="pay-transfer" type="number" class="form-input" placeholder="0" min="0"/>
         </div>
         ${!isRefill ? `
           <div><label class="form-label">Bukti Transfer *</label>
-            <input id="pm-bukti" type="url" class="form-input" placeholder="URL bukti TF di Drive..."/>
+            <input id="pay-bukti" type="url" class="form-input" placeholder="URL bukti TF di Drive..."/>
           </div>` : ''}
-        <div id="pm-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
-        <button id="pm-btn" class="btn-primary w-full justify-center" onclick="savePembayaran('${pangkalanId}','${tipe}')">Simpan Pembayaran</button>
+        <div id="pay-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+        <button id="pay-btn" class="btn-primary w-full justify-center" onclick="savePembayaran('${pangkalanId}','${tipe}')">Simpan Pembayaran</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
 }
 
 async function savePembayaran(pangkalanId, tipe) {
-  const btn       = document.getElementById('pm-btn');
-  const errEl     = document.getElementById('pm-err');
+  const btn       = document.getElementById('pay-btn');
+  const errEl     = document.getElementById('pay-err');
   errEl.classList.add('hidden');
   const isRefill  = tipe === 'REFILL';
-  const tanggal   = document.getElementById('pm-tgl').value;
-  const brimola   = Number(document.getElementById('pm-brimola')?.value || 0);
-  const transfer  = Number(document.getElementById('pm-transfer')?.value || 0);
-  const buktiUrl  = document.getElementById('pm-bukti')?.value.trim() || '';
+  const tanggal   = document.getElementById('pay-tgl').value;
+  const brimola   = Number(document.getElementById('pay-brimola')?.value || 0);
+  const transfer  = Number(document.getElementById('pay-transfer')?.value || 0);
+  const buktiUrl  = document.getElementById('pay-bukti')?.value.trim() || '';
 
   if (!isRefill && transfer <= 0) { errEl.textContent = 'Nominal transfer wajib untuk Bagi Hasil.'; errEl.classList.remove('hidden'); return; }
   if (!isRefill && !buktiUrl)     { errEl.textContent = 'Bukti transfer wajib untuk Bagi Hasil.'; errEl.classList.remove('hidden'); return; }
@@ -580,8 +623,14 @@ async function savePembayaran(pangkalanId, tipe) {
   const fn  = tipe === 'REFILL' ? API.operator.createPembayaranRefill : API.operator.createPembayaranBagiHasil;
   const res = await fn({ pangkalan_id: pangkalanId, laporan_id: '', tanggal_bayar: tanggal, nominal_brimola: brimola, nominal_transfer: transfer, bukti_tf_url: buktiUrl });
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Pembayaran berhasil dicatat.', 'success'); document.getElementById('pay-modal').remove(); fetchPembayaran(tipe); }
-  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+  if (res.success) {
+    UI.toast('Pembayaran berhasil dicatat.', 'success');
+    document.getElementById('pay-modal')?.remove();
+    if (activeSection === sectionForTipe(tipe)) fetchPembayaran(tipe);
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 // ============================================================
@@ -603,10 +652,12 @@ async function loadMonitoringBayar() {
 async function fetchMonitoringBayar() {
   const bulan = document.getElementById('mb-bln')?.value || UI.currentMonthValue();
   const res   = await API.operator.getMonitoringPembayaran({ bulan });
+  if (activeSection !== 'monitoring-bayar') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const { monitoring, grand_total } = res.data;
   const grandEl = document.getElementById('mb-grand');
+  if (!grandEl) return;
   grandEl.classList.remove('hidden');
   grandEl.innerHTML = `
     <div class="flex items-center justify-between">
@@ -614,10 +665,12 @@ async function fetchMonitoringBayar() {
       <div class="text-3xl">💰</div>
     </div>`;
 
-  document.getElementById('mb-list').innerHTML = monitoring.length ? monitoring.map(m => `
+  const listEl = document.getElementById('mb-list');
+  if (!listEl) return;
+  listEl.innerHTML = monitoring.length ? monitoring.map(m => `
     <div class="card">
       <div class="flex items-center justify-between mb-2">
-        <h4 class="font-semibold text-slate-900 dark:text-white">${UI.escapeHtml(m.nama)}</h4>
+        <h4 class="font-semibold text-slate-900 dark:text-white">${m.nama}</h4>
         <span class="font-bold text-slate-700 dark:text-slate-300">${UI.formatRupiah(m.total_semua)}</span>
       </div>
       <div class="grid grid-cols-2 gap-2 text-sm text-slate-500">
@@ -630,6 +683,8 @@ async function fetchMonitoringBayar() {
 // ============================================================
 // STOK GUDANG
 // ============================================================
+
+let _spbeNameMap = {};
 
 async function loadStokGudang() {
   const main = document.getElementById('main-content');
@@ -652,26 +707,42 @@ async function loadStokGudang() {
 
 async function fetchStok() {
   const bulan = document.getElementById('sg-bln')?.value;
-  document.getElementById('sg-tbody').innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
+  const tbody = document.getElementById('sg-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
+
+  // Ambil daftar SPBE untuk resolve nama (data pembelian cuma punya spbe_id).
+  const spbeRes = await API.operator.getSPBE();
+  if (activeSection !== 'stok-gudang') return;
+  if (spbeRes.success) {
+    _spbeNameMap = {};
+    spbeRes.data.spbe.forEach(s => { _spbeNameMap[s.spbe_id] = s.nama; });
+  }
+
   const res = await API.operator.getStokGudang({ bulan });
+  if (activeSection !== 'stok-gudang') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const { total_pembelian, total_terkirim, total_retur, stok_gudang, pembelian } = res.data;
   const stokColor = stok_gudang < 0 ? 'text-red-600' : stok_gudang < 100 ? 'text-amber-600' : 'text-green-600';
 
-  document.getElementById('sg-stats').innerHTML = `
+  const statsEl = document.getElementById('sg-stats');
+  if (!statsEl) return;
+  statsEl.innerHTML = `
     <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">📦</div><div><div class="stat-label">Total Beli</div><div class="stat-value">${UI.formatNumber(total_pembelian)}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">🚚</div><div><div class="stat-label">Terkirim</div><div class="stat-value">${UI.formatNumber(total_terkirim)}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-amber-100 dark:bg-amber-900/40">↩️</div><div><div class="stat-label">Retur</div><div class="stat-value">${UI.formatNumber(total_retur)}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-slate-100 dark:bg-slate-800">🏭</div><div><div class="stat-label">Stok Gudang</div><div class="stat-value ${stokColor}">${UI.formatNumber(stok_gudang)}</div></div></div>`;
 
-  document.getElementById('sg-tbody').innerHTML = pembelian?.length ? pembelian.map(p => `
+  const body = document.getElementById('sg-tbody');
+  if (!body) return;
+  body.innerHTML = pembelian?.length ? pembelian.map(p => `
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(p.tanggal)}</td>
-      <td>${p.spbe_id}</td>
+      <td>${_spbeNameMap[p.spbe_id] || p.spbe_id}</td>
       <td class="font-semibold">${UI.formatNumber(p.jumlah)}</td>
       <td class="text-slate-500">${UI.formatRupiah(p.harga_satuan)}</td>
       <td class="font-semibold">${UI.formatRupiah(p.total)}</td>
-      <td class="text-slate-500 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
+      <td class="text-slate-500 text-sm">${p.keterangan || '-'}</td>
       <td class="text-right">
         <button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button>
       </td>
@@ -702,8 +773,10 @@ function openPembelianModal() {
     </div>`;
   document.body.appendChild(modal);
   API.operator.getSPBE({ status: 'ACTIVE' }).then(res => {
+    const el = document.getElementById('bm-spbe');
+    if (!el) return; // modal sudah ditutup sebelum request selesai
     if (res.success) {
-      document.getElementById('bm-spbe').innerHTML = `<option value="">-- Pilih SPBE --</option>` + res.data.spbe.map(s => `<option value="${s.spbe_id}">${UI.escapeHtml(s.nama)}</option>`).join('');
+      el.innerHTML = `<option value="">-- Pilih SPBE --</option>` + res.data.spbe.map(s => `<option value="${s.spbe_id}">${s.nama}</option>`).join('');
     }
   });
 }
@@ -717,20 +790,32 @@ async function savePembelian() {
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = await API.operator.createPembelianStok(body);
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Pembelian berhasil dicatat.', 'success'); document.getElementById('beli-modal').remove(); fetchStok(); }
-  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+  if (res.success) {
+    UI.toast('Pembelian berhasil dicatat.', 'success');
+    document.getElementById('beli-modal')?.remove();
+    if (activeSection === 'stok-gudang') fetchStok();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 async function hapusPembelian(id) {
   if (!await UI.confirm('Hapus data pembelian ini?')) return;
   const res = await API.operator.deletePembelianStok({ pembelian_id: id });
-  if (res.success) { UI.toast('Pembelian dihapus.', 'success'); fetchStok(); }
-  else UI.toast(res.message, 'error');
+  if (res.success) {
+    UI.toast('Pembelian dihapus.', 'success');
+    if (activeSection === 'stok-gudang') fetchStok();
+  } else {
+    UI.toast(res.message, 'error');
+  }
 }
 
 // ============================================================
 // PANGKALAN
 // ============================================================
+
+let _allPangkalan = [];
 
 async function loadPangkalan() {
   const main = document.getElementById('main-content');
@@ -750,12 +835,13 @@ async function loadPangkalan() {
   await fetchPangkalan();
 }
 
-let _allPangkalan = [];
-
 async function fetchPangkalan() {
   const tbody = document.getElementById('pkln-tbody');
+  if (!tbody) return;
   tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
+
   const res = await API.operator.getPangkalan();
+  if (activeSection !== 'pangkalan') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   _allPangkalan = res.data.pangkalan;
   filterPangkalan();
@@ -766,18 +852,19 @@ function filterPangkalan() {
   const s = document.getElementById('pkln-status')?.value || '';
   const filtered = _allPangkalan.filter(p => (!q || p.nama.toLowerCase().includes(q) || p.id_reg.toLowerCase().includes(q)) && (!s || p.status === s));
   const tbody = document.getElementById('pkln-tbody');
+  if (!tbody) return;
   tbody.innerHTML = filtered.length ? filtered.map(p => `
     <tr>
-      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(p.nama)}</td>
-      <td class="font-mono text-xs text-slate-500">${UI.escapeHtml(p.id_reg)}</td>
+      <td class="font-medium text-slate-900 dark:text-white">${p.nama}</td>
+      <td class="font-mono text-xs text-slate-500">${p.id_reg}</td>
       <td>${UI.badge(p.tipe_pembayaran, null)}</td>
       <td class="text-sm">${UI.formatRupiah(p.harga_refill)}</td>
       <td class="text-sm">${UI.formatRupiah(p.harga_bagi_hasil)}</td>
       <td>${UI.badge(p.status, p.status)}</td>
       <td class="text-right">
         <div class="flex gap-1 justify-end">
-          <button class="btn-secondary text-xs py-1 px-2" onclick="openPangkalanModalById('${p.pangkalan_id}')">Edit</button>
-          <button class="btn-danger text-xs py-1 px-2"    onclick="hapusPangkalanById('${p.pangkalan_id}')">Nonaktifkan</button>
+          <button class="btn-secondary text-xs py-1 px-2" onclick="openPangkalanModal(${JSON.stringify(p).replace(/"/g,'&quot;')})">Edit</button>
+          <button class="btn-danger text-xs py-1 px-2"    onclick="hapusPangkalan('${p.pangkalan_id}','${p.nama}')">Nonaktifkan</button>
         </div>
       </td>
     </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada pangkalan.','🏪')}</td></tr>`;
@@ -795,23 +882,23 @@ function openPangkalanModal(data = null) {
       </div>
       <div class="p-5 space-y-4">
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">Nama Pangkalan *</label><input id="pm-nama" class="form-input" value="${UI.escapeHtml(data?.nama||'')}" placeholder="Nama Pangkalan"/></div>
-          <div><label class="form-label">ID Registrasi *</label><input id="pm-idreg" class="form-input" value="${UI.escapeHtml(data?.id_reg||'')}" placeholder="REG-001"/></div>
+          <div><label class="form-label">Nama Pangkalan *</label><input id="pkln-nama" class="form-input" value="${data?.nama||''}" placeholder="Nama Pangkalan"/></div>
+          <div><label class="form-label">ID Registrasi *</label><input id="pkln-idreg" class="form-input" value="${data?.id_reg||''}" placeholder="REG-001"/></div>
         </div>
-        <div><label class="form-label">Alamat</label><input id="pm-alamat" class="form-input" value="${UI.escapeHtml(data?.alamat||'')}" placeholder="Alamat lengkap..."/></div>
+        <div><label class="form-label">Alamat</label><input id="pkln-alamat" class="form-input" value="${data?.alamat||''}" placeholder="Alamat lengkap..."/></div>
         <div class="grid grid-cols-3 gap-3">
           <div><label class="form-label">Tipe Bayar</label>
-            <select id="pm-tipe" class="form-select">
+            <select id="pkln-tipe" class="form-select">
               <option ${data?.tipe_pembayaran==='REFILL'?'selected':''}>REFILL</option>
               <option ${data?.tipe_pembayaran==='BAGI_HASIL'?'selected':''}>BAGI_HASIL</option>
               <option ${data?.tipe_pembayaran==='KEDUANYA'?'selected':''}>KEDUANYA</option>
             </select>
           </div>
-          <div><label class="form-label">Harga Refill/tab</label><input id="pm-hrefill" type="number" class="form-input" value="${data?.harga_refill||0}" min="0"/></div>
-          <div><label class="form-label">Harga BH/tab</label><input id="pm-hbh" type="number" class="form-input" value="${data?.harga_bagi_hasil||0}" min="0"/></div>
+          <div><label class="form-label">Harga Refill/tab</label><input id="pkln-hrefill" type="number" class="form-input" value="${data?.harga_refill||0}" min="0"/></div>
+          <div><label class="form-label">Harga BH/tab</label><input id="pkln-hbh" type="number" class="form-input" value="${data?.harga_bagi_hasil||0}" min="0"/></div>
         </div>
-        <div id="pm-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
-        <button id="pm-btn" class="btn-primary w-full justify-center" onclick="savePangkalan('${data?.pangkalan_id||''}')">
+        <div id="pkln-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+        <button id="pkln-btn" class="btn-primary w-full justify-center" onclick="savePangkalan('${data?.pangkalan_id||''}')">
           ${data ? 'Simpan Perubahan' : 'Tambah Pangkalan'}
         </button>
       </div>
@@ -820,36 +907,33 @@ function openPangkalanModal(data = null) {
 }
 
 async function savePangkalan(id) {
-  const btn   = document.getElementById('pm-btn');
-  const errEl = document.getElementById('pm-err');
+  const btn   = document.getElementById('pkln-btn');
+  const errEl = document.getElementById('pkln-err');
   errEl.classList.add('hidden');
-  const body = { nama: document.getElementById('pm-nama').value.trim(), id_reg: document.getElementById('pm-idreg').value.trim(), alamat: document.getElementById('pm-alamat').value.trim(), tipe_pembayaran: document.getElementById('pm-tipe').value, harga_refill: Number(document.getElementById('pm-hrefill').value), harga_bagi_hasil: Number(document.getElementById('pm-hbh').value) };
+  const body = { nama: document.getElementById('pkln-nama').value.trim(), id_reg: document.getElementById('pkln-idreg').value.trim(), alamat: document.getElementById('pkln-alamat').value.trim(), tipe_pembayaran: document.getElementById('pkln-tipe').value, harga_refill: Number(document.getElementById('pkln-hrefill').value), harga_bagi_hasil: Number(document.getElementById('pkln-hbh').value) };
   if (!body.nama || !body.id_reg) { errEl.textContent = 'Nama dan ID Registrasi wajib diisi.'; errEl.classList.remove('hidden'); return; }
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = id ? await API.operator.updatePangkalan({ pangkalan_id: id, ...body }) : await API.operator.createPangkalan(body);
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast(id ? 'Pangkalan diupdate.' : 'Pangkalan ditambahkan.', 'success'); document.getElementById('pkln-modal').remove(); fetchPangkalan(); }
-  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
-}
-
-/** Cari pangkalan dari cache _allPangkalan berdasarkan ID, lalu buka modal edit. */
-function openPangkalanModalById(id) {
-  const data = _allPangkalan.find(p => p.pangkalan_id === id);
-  if (!data) { UI.toast('Data pangkalan tidak ditemukan.', 'error'); return; }
-  openPangkalanModal(data);
-}
-
-/** Cari pangkalan dari cache _allPangkalan berdasarkan ID, lalu konfirmasi nonaktifkan. */
-async function hapusPangkalanById(id) {
-  const data = _allPangkalan.find(p => p.pangkalan_id === id);
-  await hapusPangkalan(id, data ? data.nama : 'pangkalan ini');
+  if (res.success) {
+    UI.toast(id ? 'Pangkalan diupdate.' : 'Pangkalan ditambahkan.', 'success');
+    document.getElementById('pkln-modal')?.remove();
+    if (activeSection === 'pangkalan') fetchPangkalan();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 async function hapusPangkalan(id, nama) {
   if (!await UI.confirm(`Nonaktifkan pangkalan "${nama}"?`)) return;
   const res = await API.operator.deletePangkalan({ pangkalan_id: id });
-  if (res.success) { UI.toast('Pangkalan dinonaktifkan.', 'success'); fetchPangkalan(); }
-  else UI.toast(res.message, 'error');
+  if (res.success) {
+    UI.toast('Pangkalan dinonaktifkan.', 'success');
+    if (activeSection === 'pangkalan') fetchPangkalan();
+  } else {
+    UI.toast(res.message, 'error');
+  }
 }
 
 // ============================================================
@@ -867,34 +951,32 @@ async function loadSPBE() {
       <table><thead><tr><th>Nama SPBE</th><th>Alamat</th><th>Status</th><th class="text-right">Aksi</th></tr></thead>
       <tbody id="spbe-tbody"></tbody></table>
     </div>`;
+  await fetchSPBE();
+}
+
+async function fetchSPBE() {
+  const tbody = document.getElementById('spbe-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="4">${skLine()}</td></tr>`;
+
   const res = await API.operator.getSPBE();
+  if (activeSection !== 'spbe') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
-  window._allSPBE = res.data.spbe;
-  document.getElementById('spbe-tbody').innerHTML = res.data.spbe.length ? res.data.spbe.map(s => `
+
+  const body = document.getElementById('spbe-tbody');
+  if (!body) return;
+  body.innerHTML = res.data.spbe.length ? res.data.spbe.map(s => `
     <tr>
-      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(s.nama)}</td>
-      <td class="text-slate-500 text-sm">${UI.escapeHtml(s.alamat) || '-'}</td>
+      <td class="font-medium text-slate-900 dark:text-white">${s.nama}</td>
+      <td class="text-slate-500 text-sm">${s.alamat || '-'}</td>
       <td>${UI.badge(s.status, s.status)}</td>
       <td class="text-right">
         <div class="flex gap-1 justify-end">
-          <button class="btn-secondary text-xs py-1 px-2" onclick="openSPBEModalById('${s.spbe_id}')">Edit</button>
-          <button class="btn-danger text-xs py-1 px-2" onclick="hapusSPBEById('${s.spbe_id}')">Nonaktifkan</button>
+          <button class="btn-secondary text-xs py-1 px-2" onclick="openSPBEModal(${JSON.stringify(s).replace(/"/g,'&quot;')})">Edit</button>
+          <button class="btn-danger text-xs py-1 px-2" onclick="hapusSPBE('${s.spbe_id}','${s.nama}')">Nonaktifkan</button>
         </div>
       </td>
     </tr>`).join('') : `<tr><td colspan="4">${UI.emptyState('Belum ada SPBE.','⛽')}</td></tr>`;
-}
-
-/** Cari SPBE dari cache berdasarkan ID, lalu buka modal edit. */
-function openSPBEModalById(id) {
-  const data = (window._allSPBE || []).find(s => s.spbe_id === id);
-  if (!data) { UI.toast('Data SPBE tidak ditemukan.', 'error'); return; }
-  openSPBEModal(data);
-}
-
-/** Cari SPBE dari cache berdasarkan ID, lalu konfirmasi nonaktifkan. */
-async function hapusSPBEById(id) {
-  const data = (window._allSPBE || []).find(s => s.spbe_id === id);
-  await hapusSPBE(id, data ? data.nama : 'SPBE ini');
 }
 
 function openSPBEModal(data = null) {
@@ -908,8 +990,8 @@ function openSPBEModal(data = null) {
         <button class="btn-icon" onclick="document.getElementById('spbe-modal').remove()">✕</button>
       </div>
       <div class="p-5 space-y-4">
-        <div><label class="form-label">Nama SPBE *</label><input id="sm-nama" class="form-input" value="${UI.escapeHtml(data?.nama||'')}" placeholder="Nama SPBE"/></div>
-        <div><label class="form-label">Alamat</label><input id="sm-alamat" class="form-input" value="${UI.escapeHtml(data?.alamat||'')}" placeholder="Alamat SPBE"/></div>
+        <div><label class="form-label">Nama SPBE *</label><input id="sm-nama" class="form-input" value="${data?.nama||''}" placeholder="Nama SPBE"/></div>
+        <div><label class="form-label">Alamat</label><input id="sm-alamat" class="form-input" value="${data?.alamat||''}" placeholder="Alamat SPBE"/></div>
         <div id="sm-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
         <button id="sm-btn" class="btn-primary w-full justify-center" onclick="saveSPBE('${data?.spbe_id||''}')">
           ${data ? 'Simpan' : 'Tambah SPBE'}
@@ -929,15 +1011,25 @@ async function saveSPBE(id) {
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = id ? await API.operator.updateSPBE({ spbe_id: id, nama, alamat }) : await API.operator.createSPBE({ nama, alamat });
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast(id ? 'SPBE diupdate.' : 'SPBE ditambahkan.', 'success'); document.getElementById('spbe-modal').remove(); loadSPBE(); }
-  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+  if (res.success) {
+    UI.toast(id ? 'SPBE diupdate.' : 'SPBE ditambahkan.', 'success');
+    document.getElementById('spbe-modal')?.remove();
+    if (activeSection === 'spbe') fetchSPBE();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 async function hapusSPBE(id, nama) {
   if (!await UI.confirm(`Nonaktifkan SPBE "${nama}"?`)) return;
   const res = await API.operator.deleteSPBE({ spbe_id: id });
-  if (res.success) { UI.toast('SPBE dinonaktifkan.', 'success'); loadSPBE(); }
-  else UI.toast(res.message, 'error');
+  if (res.success) {
+    UI.toast('SPBE dinonaktifkan.', 'success');
+    if (activeSection === 'spbe') fetchSPBE();
+  } else {
+    UI.toast(res.message, 'error');
+  }
 }
 
 // ── Skeleton helpers ──
