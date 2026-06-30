@@ -277,7 +277,7 @@ async function openAbsenCamera() {
 
   UI.openModal('camera-modal');
   try {
-    await Camera.init(video);
+    await Camera.init(video, 'environment');
     document.getElementById('camera-capture-btn').onclick = async () => {
       const result = await Camera.capture();
       _absenPhotoB64 = result.base64;
