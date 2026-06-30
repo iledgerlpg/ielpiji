@@ -257,8 +257,7 @@ async function loadAbsensi() {
           </div>
         </div>
 
-        <!-- GPS Status -->
-        <div id="gps-status" class="flex items-center gap-3 py-3 px-4 rounded-xl bg-slate-50 dark:bg-slate-800">
+
           <div class="text-xl">📡</div>
           <div class="flex-1">
             <div class="text-sm font-medium text-slate-700 dark:text-slate-300">Lokasi GPS</div>
@@ -308,23 +307,6 @@ async function openAbsenCamera() {
   }
 }
 
-async function getGPSLocation() {
-  const btn = document.getElementById('gps-btn');
-  const txt = document.getElementById('gps-status-text');
-  UI.setLoading(btn, true, 'Mendeteksi...');
-  txt.textContent = 'Mendeteksi lokasi...';
-  try {
-    currentGPS = await Camera.getLocation(100, 20000);
-    txt.textContent = `✅ Terdeteksi (akurasi ±${currentGPS.akurasi}m)`;
-    document.getElementById('gps-status').classList.add('bg-green-50', 'dark:bg-green-900/20');
-    document.getElementById('gps-status').classList.remove('bg-slate-50', 'dark:bg-slate-800');
-    UI.toast(`Lokasi terdeteksi (akurasi ±${currentGPS.akurasi}m)`, 'success');
-  } catch (err) {
-    txt.textContent = '❌ Gagal: ' + err.message;
-    UI.toast(err.message, 'error');
-  }
-  UI.setLoading(btn, false);
-}
 
 async function submitAbsensi(tipe) {
   const btn   = document.getElementById('abs-submit-btn');
@@ -336,8 +318,13 @@ async function submitAbsensi(tipe) {
     errEl.classList.remove('hidden');
     return;
   }
-  if (!currentGPS) {
-    errEl.textContent = 'Lokasi GPS belum diambil. Klik "Ambil Lokasi" terlebih dahulu.';
+
+  UI.setLoading(btn, true, 'Mendeteksi lokasi...');
+  try {
+    currentGPS = await Camera.getLocation(100, 20000);
+  } catch (err) {
+    UI.setLoading(btn, false);
+    errEl.textContent = 'Gagal mendeteksi lokasi: ' + err.message;
     errEl.classList.remove('hidden');
     return;
   }
@@ -594,22 +581,6 @@ async function openLaporanCamera(photoType) {
   }
 }
 
-async function getLaporanGPS() {
-  const btn = document.getElementById('lp-gps-btn');
-  const txt = document.getElementById('lp-gps-text');
-  UI.setLoading(btn, true, 'Mendeteksi...');
-  txt.textContent = 'Mendeteksi lokasi...';
-  try {
-    _laporanGPS = await Camera.getLocation(150, 20000);
-    txt.textContent = `✅ Terdeteksi (akurasi ±${_laporanGPS.akurasi}m)`;
-    document.getElementById('lp-gps-status').classList.add('bg-green-50', 'dark:bg-green-900/20');
-    UI.toast(`Lokasi terdeteksi (±${_laporanGPS.akurasi}m)`, 'success');
-  } catch (err) {
-    txt.textContent = '❌ ' + err.message;
-    UI.toast(err.message, 'error');
-  }
-  UI.setLoading(btn, false);
-}
 
 async function submitLaporan() {
   const btn    = document.getElementById('lp-submit-btn');
@@ -627,7 +598,16 @@ async function submitLaporan() {
   if (!jumlahKirim)                              { errEl.textContent = 'Jumlah terkirim wajib diisi.'; errEl.classList.remove('hidden'); return; }
   if (!_laporanPhotos['PENGIRIMAN'])             { errEl.textContent = 'Foto pengiriman (tabung terkirim) wajib diambil.'; errEl.classList.remove('hidden'); return; }
   if (!_laporanPhotos['PANGKALAN'])              { errEl.textContent = 'Foto kondisi pangkalan wajib diambil.'; errEl.classList.remove('hidden'); return; }
-  if (!_laporanGPS)                              { errEl.textContent = 'Lokasi GPS belum diambil.'; errEl.classList.remove('hidden'); return; }
+
+  UI.setLoading(btn, true, 'Mendeteksi lokasi...');
+  try {
+    _laporanGPS = await Camera.getLocation(150, 20000);
+  } catch (err) {
+    UI.setLoading(btn, false);
+    errEl.textContent = 'Gagal mendeteksi lokasi: ' + err.message;
+    errEl.classList.remove('hidden');
+    return;
+  }
 
   UI.setLoading(btn, true, 'Mengupload foto...');
 
