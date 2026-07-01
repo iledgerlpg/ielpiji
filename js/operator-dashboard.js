@@ -112,6 +112,7 @@ async function loadDashboard() {
 async function fetchDashboard() {
   const tanggal = document.getElementById('dash-tgl')?.value || UI.todayInputValue();
   const res = await API.operator.getDashboard({ tanggal });
+  if (activeSection !== 'dashboard') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const d = res.data;
   document.getElementById('dash-stats').innerHTML = `
@@ -177,6 +178,7 @@ async function fetchJadwalHarian() {
   const params = { tanggal: document.getElementById('jh-tgl')?.value || undefined, bulan: document.getElementById('jh-bln')?.value || undefined };
   if (params.tanggal) delete params.bulan;
   const res = await API.operator.getJadwalHarian(params);
+  if (activeSection !== 'jadwal-harian') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   tbody.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
     <tr>
@@ -201,6 +203,13 @@ async function downloadTemplateJadwal(btnEl) {
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
     }
 
+    const [pangRes, spbeRes] = await Promise.all([
+      API.operator.getPangkalan({ status: 'ACTIVE' }),
+      API.operator.getSPBE({ status: 'ACTIVE' }),
+    ]);
+    const daftarPangkalan = pangRes.success ? (pangRes.data.pangkalan || []) : [];
+    const daftarSPBE      = spbeRes.success ? (spbeRes.data.spbe || []) : [];
+
     const wb = XLSX.utils.book_new();
 
     // ── Sheet 1: Petunjuk ──
@@ -210,8 +219,8 @@ async function downloadTemplateJadwal(btnEl) {
       ['Kolom', 'Keterangan'],
       ['tanggal', 'Format YYYY-MM-DD, contoh: 2024-01-15'],
       ['rit', 'Nomor rit (angka), contoh: 1'],
-      ['pangkalan_id', 'Salin dari menu Pangkalan (kolom ID di tabel)'],
-      ['spbe_id', 'Salin dari menu SPBE (kolom ID di tabel)'],
+      ['pangkalan', 'Nama pangkalan — HARUS SAMA PERSIS dengan sheet "Referensi Pangkalan"'],
+      ['spbe', 'Nama SPBE — HARUS SAMA PERSIS dengan sheet "Referensi SPBE"'],
       ['jumlah_kirim', 'Angka target pengiriman (tabung)'],
       ['jumlah_retur', 'Angka target retur (boleh 0)'],
       ['driver1_id', 'User ID driver utama (WAJIB diisi)'],
@@ -220,6 +229,7 @@ async function downloadTemplateJadwal(btnEl) {
       [''],
       ['⚠ Isi data mulai dari sheet "Data Jadwal", baris 2 (setelah header).'],
       ['⚠ JANGAN mengubah nama kolom pada header sheet "Data Jadwal".'],
+      ['⚠ Nama pangkalan/SPBE tidak boleh typo — cek daftar resmi di sheet Referensi.'],
     ];
     const wsPetunjuk = XLSX.utils.aoa_to_sheet(petunjukAOA);
     wsPetunjuk['!cols']   = [{ wch: 18 }, { wch: 60 }];
@@ -227,14 +237,35 @@ async function downloadTemplateJadwal(btnEl) {
     XLSX.utils.book_append_sheet(wb, wsPetunjuk, 'Petunjuk');
 
     // ── Sheet 2: Data Jadwal (header + 1 baris contoh) ──
-    const headers = ['tanggal','rit','pangkalan_id','spbe_id','jumlah_kirim','jumlah_retur','driver1_id','driver2_id','keterangan'];
-    const contoh  = ['2024-01-15', 1, 'ID_PANGKALAN_DISINI', 'ID_SPBE_DISINI', 100, 0, 'USER_ID_DRIVER1', 'USER_ID_DRIVER2', 'Opsional'];
+    const headers = ['tanggal','rit','pangkalan','spbe','jumlah_kirim','jumlah_retur','driver1_id','driver2_id','keterangan'];
+    const contoh  = [
+      '2024-01-15', 1,
+      daftarPangkalan[0]?.nama || 'NAMA_PANGKALAN_DISINI',
+      daftarSPBE[0]?.nama || 'NAMA_SPBE_DISINI',
+      100, 0, 'USER_ID_DRIVER1', 'USER_ID_DRIVER2', 'Opsional',
+    ];
     const wsData = XLSX.utils.aoa_to_sheet([headers, contoh]);
     wsData['!cols'] = [
-      { wch: 12 }, { wch: 6 }, { wch: 22 }, { wch: 22 },
+      { wch: 12 }, { wch: 6 }, { wch: 26 }, { wch: 22 },
       { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 24 },
     ];
     XLSX.utils.book_append_sheet(wb, wsData, 'Data Jadwal');
+
+    // ── Sheet 3: Referensi Pangkalan ──
+    const wsRefPang = XLSX.utils.aoa_to_sheet([
+      ['Nama Pangkalan'],
+      ...(daftarPangkalan.length ? daftarPangkalan.map(p => [p.nama]) : [['(Belum ada data pangkalan aktif)']]),
+    ]);
+    wsRefPang['!cols'] = [{ wch: 35 }];
+    XLSX.utils.book_append_sheet(wb, wsRefPang, 'Referensi Pangkalan');
+
+    // ── Sheet 4: Referensi SPBE ──
+    const wsRefSpbe = XLSX.utils.aoa_to_sheet([
+      ['Nama SPBE'],
+      ...(daftarSPBE.length ? daftarSPBE.map(s => [s.nama]) : [['(Belum ada data SPBE aktif)']]),
+    ]);
+    wsRefSpbe['!cols'] = [{ wch: 35 }];
+    XLSX.utils.book_append_sheet(wb, wsRefSpbe, 'Referensi SPBE');
 
     XLSX.writeFile(wb, 'template_jadwal_harian_ILPG.xlsx');
     UI.toast('Template Excel berhasil didownload.', 'success');
@@ -245,7 +276,7 @@ async function downloadTemplateJadwal(btnEl) {
   }
 }
 
-/** Upload & parse file Excel/CSV Jadwal Harian, kirim ke backend */
+/** Upload & parse file Excel/CSV Jadwal Harian, kirim ke backend (resolve nama pangkalan/SPBE → id) */
 async function uploadJadwalExcel(input) {
   const file = input.files[0];
   if (!file) return;
@@ -265,7 +296,7 @@ async function uploadJadwalExcel(input) {
 
     const headers = rows[0].map(h => String(h).trim().toLowerCase());
     const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
-    const reqCols  = ['tanggal','pangkalan_id','driver1_id'];
+    const reqCols  = ['tanggal','pangkalan','driver1_id'];
     const missing  = reqCols.filter(c => !headers.includes(c));
     if (missing.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -278,7 +309,7 @@ async function uploadJadwalExcel(input) {
       const obj = {};
       headers.forEach((h, i) => { obj[h] = String(row[i] ?? '').trim(); });
       return obj;
-    }).filter(r => r.tanggal && r.pangkalan_id && r.driver1_id);
+    }).filter(r => r.tanggal && r.pangkalan && r.driver1_id);
 
     if (!mapped.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -287,13 +318,47 @@ async function uploadJadwalExcel(input) {
       return;
     }
 
-    statusEl.textContent = `⏳ Mengirim ${mapped.length} baris ke server...`;
-    const res = await API.operator.importJadwalHarian({ rows: mapped });
+    // ── Resolve nama pangkalan/SPBE → id ──
+    statusEl.textContent = '⏳ Mencocokkan nama pangkalan & SPBE...';
+    const [pangRes, spbeRes] = await Promise.all([
+      API.operator.getPangkalan({ status: 'ACTIVE' }),
+      API.operator.getSPBE({ status: 'ACTIVE' }),
+    ]);
+    if (!pangRes.success || !spbeRes.success) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = '❌ Gagal memuat data pangkalan/SPBE untuk validasi.';
+      input.value = '';
+      return;
+    }
+    const norm = s => String(s || '').trim().toLowerCase();
+    const pangMap = new Map((pangRes.data.pangkalan || []).map(p => [norm(p.nama), p.pangkalan_id]));
+    const spbeMap = new Map((spbeRes.data.spbe || []).map(s => [norm(s.nama), s.spbe_id]));
+
+    const resolved  = [];
+    const notFound  = [];
+    mapped.forEach((r, idx) => {
+      const pangkalanId = pangMap.get(norm(r.pangkalan));
+      const spbeId       = r.spbe ? spbeMap.get(norm(r.spbe)) : '';
+      if (!pangkalanId) { notFound.push(`Baris ${idx + 2}: pangkalan "${r.pangkalan}" tidak ditemukan`); return; }
+      if (r.spbe && !spbeId) { notFound.push(`Baris ${idx + 2}: SPBE "${r.spbe}" tidak ditemukan`); return; }
+      const { pangkalan, spbe, ...rest } = r;
+      resolved.push({ ...rest, pangkalan_id: pangkalanId, spbe_id: spbeId || '' });
+    });
+
+    if (notFound.length) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.innerHTML = `❌ ${notFound.length} baris gagal dicocokkan:<br/>${notFound.slice(0, 8).map(m => UI.escapeHtml(m)).join('<br/>')}${notFound.length > 8 ? `<br/>...dan ${notFound.length - 8} lainnya.` : ''}<br/>Cek ejaan nama pada sheet Referensi.`;
+      input.value = '';
+      return;
+    }
+
+    statusEl.textContent = `⏳ Mengirim ${resolved.length} baris ke server...`;
+    const res = await API.operator.importJadwalHarian({ rows: resolved });
     input.value = '';
 
     if (res.success) {
       statusEl.className = 'mb-4 card bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-sm text-green-700';
-      statusEl.textContent = `✅ ${res.data.inserted} jadwal berhasil diimport dari ${mapped.length} baris.`;
+      statusEl.textContent = `✅ ${res.data.inserted} jadwal berhasil diimport dari ${resolved.length} baris.`;
       fetchJadwalHarian();
     } else {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -424,6 +489,7 @@ async function fetchLaporan() {
   };
   if (params.tanggal) delete params.bulan;
   const res = await API.operator.getLaporanPengiriman(params);
+  if (activeSection !== 'laporan-pengiriman') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   tbody.innerHTML = res.data.laporan.length ? res.data.laporan.map(l => `
     <tr>
@@ -492,6 +558,7 @@ async function fetchMonitoringKirim() {
   const tbody = document.getElementById('mk-tbody');
   tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
   const res = await API.operator.getMonitoringPengiriman({ bulan: month, tahun: year });
+  if (activeSection !== 'monitoring-kirim') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const data  = res.data.monitoring;
   const total = { sa: 0, jadwal: 0, kirim: 0, retur: 0 };
@@ -549,6 +616,7 @@ async function fetchMasterSA() {
   const bulan = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
   const [year, month] = bulan.split('-');
   const res = await API.operator.getMasterSA({ bulan: month, tahun: year });
+  if (activeSection !== 'master-sa') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const data = res.data.master_sa;
   const days = Array.from({length: 31}, (_, i) => i + 1);
@@ -769,6 +837,8 @@ async function fetchPembayaran(tipe) {
   const bulan = document.getElementById('bp-bln')?.value || UI.currentMonthValue();
   const fn    = tipe === 'REFILL' ? API.operator.getPembayaranRefill : API.operator.getPembayaranBagiHasil;
   const res   = await fn({ bulan });
+  const expectedSection = tipe === 'REFILL' ? 'bayar-refill' : 'bayar-bh';
+  if (activeSection !== expectedSection) return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const data = res.data.pembayaran || [];
@@ -930,6 +1000,7 @@ async function loadMonitoringBayar() {
 async function fetchMonitoringBayar() {
   const bulan = document.getElementById('mb-bln')?.value || UI.currentMonthValue();
   const res   = await API.operator.getMonitoringPembayaran({ bulan });
+  if (activeSection !== 'monitoring-bayar') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const { monitoring, grand_total } = res.data;
   const grandEl = document.getElementById('mb-grand');
@@ -980,6 +1051,7 @@ async function fetchStok() {
   const bulan = document.getElementById('sg-bln')?.value;
   document.getElementById('sg-tbody').innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
   const res = await API.operator.getStokGudang({ bulan });
+  if (activeSection !== 'stok-gudang') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const { total_pembelian, total_terkirim, total_retur, stok_gudang, pembelian } = res.data;
   const stokColor = stok_gudang < 0 ? 'text-red-600' : stok_gudang < 100 ? 'text-amber-600' : 'text-green-600';
@@ -1092,6 +1164,7 @@ async function fetchPangkalan() {
   const tbody = document.getElementById('pkln-tbody');
   tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
   const res = await API.operator.getPangkalan();
+  if (activeSection !== 'pangkalan') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   _allPangkalan = res.data.pangkalan;
   filterPangkalan();
@@ -1105,6 +1178,7 @@ function filterPangkalan() {
     (!s || p.status === s)
   );
   const tbody = document.getElementById('pkln-tbody');
+  if (!tbody) return;
   tbody.innerHTML = filtered.length ? filtered.map(p => `
     <tr>
       <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(p.nama)}</td>
@@ -1200,6 +1274,7 @@ async function loadSPBE() {
       <tbody id="spbe-tbody"></tbody></table>
     </div>`;
   const res = await API.operator.getSPBE();
+  if (activeSection !== 'spbe') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   window._allSPBE = res.data.spbe;
   document.getElementById('spbe-tbody').innerHTML = res.data.spbe.length ? res.data.spbe.map(s => `
