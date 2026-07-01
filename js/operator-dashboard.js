@@ -166,7 +166,7 @@ async function loadJadwalHarian() {
     </div>
     <div id="jh-import-status" class="hidden mb-4"></div>
     <div class="table-wrapper">
-      <table><thead><tr><th>Tanggal</th><th>Rit</th><th>Pangkalan</th><th>SPBE</th><th>Target Kirim</th><th>Driver</th><th class="text-right">Aksi</th></tr></thead>
+      <table><thead><tr><th>Tanggal</th><th>Rit</th><th>SPBE</th><th>Pangkalan</th><th>Target Kirim</th><th>Driver</th><th class="text-right">Aksi</th></tr></thead>
       <tbody id="jh-tbody"></tbody></table>
     </div>`;
   await fetchJadwalHarian();
