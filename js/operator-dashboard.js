@@ -1,3 +1,13 @@
+/**
+ * ILPG Frontend — operator-dashboard.js
+ *
+ * Perubahan dari revisi terakhir:
+ * 1. Stok gudang: retur TIDAK menambah balik stok (stok = pembelian - terkirim)
+ * 2. Bukti TF wajib jika ada nominal transfer, baik untuk Refill maupun Bagi Hasil
+ * 3. Upload Excel + Download template untuk Jadwal Harian
+ * 4. Upload Excel + Download template untuk Master SA
+ * 5. getDrivers() pakai API.operator.getDrivers() (endpoint baru khusus Operator)
+ */
 
 const SESSION = Auth.guard(['OPERATOR']);
 if (!SESSION) throw new Error('Unauthorized');
@@ -136,7 +146,7 @@ async function loadJadwalHarian() {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
       <div><h2 class="page-title">Jadwal Harian</h2><p class="page-sub">Atur jadwal pengiriman driver ke pangkalan.</p></div>
       <div class="flex gap-2 flex-wrap">
-        <button class="btn-secondary text-sm" onclick="downloadTemplateJadwal()">
+        <button class="btn-secondary text-sm" onclick="downloadTemplateJadwal(this)">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           Template Excel
         </button>
@@ -182,41 +192,57 @@ async function fetchJadwalHarian() {
     </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
 }
 
-/** Download template Excel kosong untuk Jadwal Harian */
-function downloadTemplateJadwal() {
-  const headers = ['tanggal','rit','pangkalan_id','spbe_id','jumlah_kirim','jumlah_retur','driver1_id','driver2_id','keterangan'];
-  const contoh  = ['2024-01-15','1','ID_PANGKALAN_DISINI','ID_SPBE_DISINI','100','0','USER_ID_DRIVER1','USER_ID_DRIVER2','Opsional'];
-  const petunjuk = [
-    ['PETUNJUK PENGISIAN TEMPLATE JADWAL HARIAN ILPG'],
-    [''],
-    ['Kolom tanggal    : Format YYYY-MM-DD, contoh: 2024-01-15'],
-    ['Kolom rit        : Nomor rit (angka), contoh: 1'],
-    ['Kolom pangkalan_id : Salin dari menu Pangkalan (kolom ID di tabel)'],
-    ['Kolom spbe_id    : Salin dari menu SPBE (kolom ID di tabel)'],
-    ['Kolom jumlah_kirim : Angka target pengiriman'],
-    ['Kolom jumlah_retur : Angka target retur (boleh 0)'],
-    ['Kolom driver1_id : User ID driver utama (wajib)'],
-    ['Kolom driver2_id : User ID kernet/driver 2 (boleh kosong)'],
-    ['Kolom keterangan : Catatan bebas (boleh kosong)'],
-    [''],
-    ['HAPUS baris petunjuk ini sebelum upload. Data dimulai dari baris 2 (setelah header).'],
-  ];
+/** Download template Excel (.xlsx) asli untuk Jadwal Harian, dengan sheet Petunjuk + Data */
+async function downloadTemplateJadwal(btnEl) {
+  const btn = btnEl || null;
+  try {
+    if (btn) UI.setLoading(btn, true, 'Menyiapkan...');
+    if (!window.XLSX) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    }
 
-  // Buat CSV dengan petunjuk + header + contoh data
-  const csvRows = [
-    ...petunjuk.map(r => r.map(c => `"${c}"`).join(',')),
-    '',
-    headers.join(','),
-    contoh.join(','),
-  ];
-  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = 'template_jadwal_harian_ILPG.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-  UI.toast('Template berhasil didownload.', 'success');
+    const wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: Petunjuk ──
+    const petunjukAOA = [
+      ['PETUNJUK PENGISIAN TEMPLATE JADWAL HARIAN — ILPG'],
+      [''],
+      ['Kolom', 'Keterangan'],
+      ['tanggal', 'Format YYYY-MM-DD, contoh: 2024-01-15'],
+      ['rit', 'Nomor rit (angka), contoh: 1'],
+      ['pangkalan_id', 'Salin dari menu Pangkalan (kolom ID di tabel)'],
+      ['spbe_id', 'Salin dari menu SPBE (kolom ID di tabel)'],
+      ['jumlah_kirim', 'Angka target pengiriman (tabung)'],
+      ['jumlah_retur', 'Angka target retur (boleh 0)'],
+      ['driver1_id', 'User ID driver utama (WAJIB diisi)'],
+      ['driver2_id', 'User ID kernet / driver 2 (boleh kosong)'],
+      ['keterangan', 'Catatan bebas (boleh kosong)'],
+      [''],
+      ['⚠ Isi data mulai dari sheet "Data Jadwal", baris 2 (setelah header).'],
+      ['⚠ JANGAN mengubah nama kolom pada header sheet "Data Jadwal".'],
+    ];
+    const wsPetunjuk = XLSX.utils.aoa_to_sheet(petunjukAOA);
+    wsPetunjuk['!cols']   = [{ wch: 18 }, { wch: 60 }];
+    wsPetunjuk['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+    XLSX.utils.book_append_sheet(wb, wsPetunjuk, 'Petunjuk');
+
+    // ── Sheet 2: Data Jadwal (header + 1 baris contoh) ──
+    const headers = ['tanggal','rit','pangkalan_id','spbe_id','jumlah_kirim','jumlah_retur','driver1_id','driver2_id','keterangan'];
+    const contoh  = ['2024-01-15', 1, 'ID_PANGKALAN_DISINI', 'ID_SPBE_DISINI', 100, 0, 'USER_ID_DRIVER1', 'USER_ID_DRIVER2', 'Opsional'];
+    const wsData = XLSX.utils.aoa_to_sheet([headers, contoh]);
+    wsData['!cols'] = [
+      { wch: 12 }, { wch: 6 }, { wch: 22 }, { wch: 22 },
+      { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 24 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsData, 'Data Jadwal');
+
+    XLSX.writeFile(wb, 'template_jadwal_harian_ILPG.xlsx');
+    UI.toast('Template Excel berhasil didownload.', 'success');
+  } catch (err) {
+    UI.toast(`Gagal membuat template: ${err.message}`, 'error');
+  } finally {
+    if (btn) UI.setLoading(btn, false);
+  }
 }
 
 /** Upload & parse file Excel/CSV Jadwal Harian, kirim ke backend */
@@ -498,7 +524,7 @@ async function loadMasterSA() {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
       <div><h2 class="page-title">Master SA</h2><p class="page-sub">Alokasi bulanan per pangkalan (tgl 1-31).</p></div>
       <div class="flex gap-2 flex-wrap">
-        <button class="btn-secondary text-sm" onclick="downloadTemplateMasterSA()">
+        <button class="btn-secondary text-sm" onclick="downloadTemplateMasterSA(this)">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           Template Excel
         </button>
@@ -548,35 +574,49 @@ async function fetchMasterSA() {
     </table>` : UI.emptyState('Belum ada data Master SA untuk bulan ini.','📊');
 }
 
-/** Download template Excel kosong untuk Master SA */
-function downloadTemplateMasterSA() {
-  const days = Array.from({length: 31}, (_, i) => `tgl_${String(i+1).padStart(2,'0')}`);
-  const headers = ['pangkalan_id', ...days];
-  const contoh  = ['ID_PANGKALAN_DISINI', ...Array(31).fill('0')];
-  const petunjuk = [
-    ['PETUNJUK PENGISIAN TEMPLATE MASTER SA ILPG'],
-    [''],
-    ['Kolom pangkalan_id : ID pangkalan (salin dari menu Pangkalan)'],
-    ['Kolom tgl_01 s/d tgl_31 : Jumlah alokasi tabung untuk tanggal tersebut (isi 0 jika tidak ada)'],
-    ['Satu baris = satu pangkalan untuk bulan yang dipilih'],
-    [''],
-    ['Pilih bulan target di filter sebelum mengklik Upload Excel'],
-    ['HAPUS baris petunjuk ini sebelum upload. Data dimulai dari baris 2 (setelah header).'],
-  ];
-  const csvRows = [
-    ...petunjuk.map(r => r.map(c => `"${c}"`).join(',')),
-    '',
-    headers.join(','),
-    contoh.join(','),
-  ];
-  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = 'template_master_sa_ILPG.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-  UI.toast('Template berhasil didownload.', 'success');
+/** Download template Excel (.xlsx) asli untuk Master SA, dengan sheet Petunjuk + Data */
+async function downloadTemplateMasterSA(btnEl) {
+  const btn = btnEl || null;
+  try {
+    if (btn) UI.setLoading(btn, true, 'Menyiapkan...');
+    if (!window.XLSX) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: Petunjuk ──
+    const petunjukAOA = [
+      ['PETUNJUK PENGISIAN TEMPLATE MASTER SA — ILPG'],
+      [''],
+      ['Kolom', 'Keterangan'],
+      ['pangkalan_id', 'ID pangkalan (salin dari menu Pangkalan)'],
+      ['tgl_01 s/d tgl_31', 'Jumlah alokasi tabung untuk tanggal tersebut (isi 0 jika tidak ada)'],
+      [''],
+      ['ℹ Satu baris = satu pangkalan untuk bulan yang dipilih.'],
+      ['⚠ Pilih bulan target di filter aplikasi SEBELUM klik Upload Excel.'],
+      ['⚠ Isi data mulai dari sheet "Data Master SA", baris 2. Jangan ubah nama header.'],
+    ];
+    const wsPetunjuk = XLSX.utils.aoa_to_sheet(petunjukAOA);
+    wsPetunjuk['!cols']   = [{ wch: 20 }, { wch: 60 }];
+    wsPetunjuk['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+    XLSX.utils.book_append_sheet(wb, wsPetunjuk, 'Petunjuk');
+
+    // ── Sheet 2: Data Master SA (pangkalan_id + tgl_01..tgl_31) ──
+    const days    = Array.from({ length: 31 }, (_, i) => `tgl_${String(i + 1).padStart(2, '0')}`);
+    const headers = ['pangkalan_id', ...days];
+    const contoh  = ['ID_PANGKALAN_DISINI', ...Array(31).fill(0)];
+    const wsData  = XLSX.utils.aoa_to_sheet([headers, contoh]);
+    wsData['!cols'] = [{ wch: 22 }, ...Array(31).fill({ wch: 7 })];
+    XLSX.utils.book_append_sheet(wb, wsData, 'Data Master SA');
+
+    XLSX.writeFile(wb, 'template_master_sa_ILPG.xlsx');
+    UI.toast('Template Excel berhasil didownload.', 'success');
+  } catch (err) {
+    UI.toast(`Gagal membuat template: ${err.message}`, 'error');
+  } finally {
+    if (btn) UI.setLoading(btn, false);
+  }
 }
 
 /** Upload & parse file Excel/CSV Master SA, kirim ke backend */
