@@ -1,12 +1,3 @@
- * ILPG Frontend — operator-dashboard.js
- *
- * Perubahan dari revisi terakhir:
- * 1. Stok gudang: retur TIDAK menambah balik stok (stok = pembelian - terkirim)
- * 2. Bukti TF wajib jika ada nominal transfer, baik untuk Refill maupun Bagi Hasil
- * 3. Upload Excel + Download template untuk Jadwal Harian
- * 4. Upload Excel + Download template untuk Master SA
- * 5. getDrivers() pakai API.operator.getDrivers() (endpoint baru khusus Operator)
- */
 
 const SESSION = Auth.guard(['OPERATOR']);
 if (!SESSION) throw new Error('Unauthorized');
