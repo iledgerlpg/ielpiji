@@ -184,8 +184,8 @@ async function fetchJadwalHarian() {
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(j.tanggal)}</td>
       <td class="font-semibold">Rit ${j.rit}</td>
-      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(j.pangkalan_nama)}</td>
       <td class="text-slate-500 text-xs">${UI.escapeHtml(j.spbe_nama)}</td>
+      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(j.pangkalan_nama)}</td>
       <td>${j.jumlah_kirim} <span class="text-slate-400 text-xs">tabung</span></td>
       <td class="text-sm">${UI.escapeHtml(j.driver1_nama)}${j.driver2_nama !== '-' ? ' + '+UI.escapeHtml(j.driver2_nama) : ''}</td>
       <td class="text-right">
