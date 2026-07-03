@@ -841,72 +841,92 @@ async function uploadMasterSAExcel(input) {
 }
 
 /** Form Modal Untuk Input / Edit Manual Master SA */
-async function openEditMasterSAModal(pangkalanId = null) {
+/** Form Modal Untuk Input / Edit Manual Master SA (Berdasarkan Tanggal) */
+async function openEditMasterSAModal() {
   const currentMonth = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
   const [tahun, bulan] = currentMonth.split('-');
-  let rowData = null;
 
-  if (pangkalanId && window._masterSAData) {
-    rowData = window._masterSAData.find(d => d.pangkalan_id === pangkalanId);
-  }
+  // 1. Ambil Data Master Pangkalan (biar semua pangkalan muncul)
+  const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
+  const pangkalanList = pangRes.success ? pangRes.data.pangkalan : [];
+
+  // 2. Siapkan data lokal (Gabung data Pangkalan dengan data Master SA yang sudah diupload/ada)
+  window._samLocalData = pangkalanList.map(p => {
+    const existing = (window._masterSAData || []).find(d => d.pangkalan_id === p.pangkalan_id) || {};
+    const row = { pangkalan_id: p.pangkalan_id, pangkalan_nama: p.nama };
+    
+    // Isi default tiap tanggal dengan data yang ada di server (atau 0 jika belum ada)
+    for(let i = 1; i <= 31; i++) {
+      const key = `tgl_${String(i).padStart(2, '0')}`;
+      row[key] = Number(existing[key] || 0);
+    }
+    return row;
+  });
 
   const modal = document.createElement('div');
   modal.id    = 'sam-modal';
   modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
   
-  const days = Array.from({length: 31}, (_, i) => i + 1);
-  const inputsHtml = days.map(d => {
-    const key = `tgl_${String(d).padStart(2,'0')}`;
-    const val = rowData ? (rowData[key] || 0) : 0;
-    return `
-      <div>
-        <label class="form-label text-xs mb-1">Tgl ${d}</label>
-        <input id="sam-${key}" type="number" class="form-input text-center text-sm p-1" value="${val}" min="0"/>
-      </div>
-    `;
-  }).join('');
+  // Bikin Option Tanggal 1 s/d 31
+  const tglOptions = Array.from({length: 31}, (_, i) => `<option value="${i+1}">Tanggal ${i+1}</option>`).join('');
 
   modal.innerHTML = `
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+      
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
         <h3 class="font-semibold text-slate-900 dark:text-white">
-          ${pangkalanId ? 'Edit' : 'Tambah'} Master SA — Periode ${bulan}/${tahun}
+          Update Alokasi Harian — ${bulan}/${tahun}
         </h3>
         <button class="btn-icon" onclick="document.getElementById('sam-modal').remove()">✕</button>
       </div>
-      <div class="p-5 overflow-y-auto flex-1 space-y-4">
-        <div>
-          <label class="form-label">Pangkalan *</label>
-          <select id="sam-pangkalan" class="form-select" ${pangkalanId ? 'disabled' : ''}>
-            <option value="">Memuat...</option>
-          </select>
-        </div>
-        <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-          <h4 class="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Alokasi Harian (Tabung)</h4>
-          <div class="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2">
-            ${inputsHtml}
-          </div>
-        </div>
-        <div id="sam-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+      
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
+        <label class="font-medium text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">Pilih Tanggal:</label>
+        <select id="sam-tgl" class="form-select w-40" onchange="window.renderSamList()">
+          ${tglOptions}
+        </select>
       </div>
-      <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800">
-        <button id="sam-btn" class="btn-primary w-full justify-center" onclick="saveMasterSAManual('${tahun}', '${bulan}')">
-          Simpan Alokasi
+
+      <div class="p-5 overflow-y-auto flex-1 bg-slate-50/50 dark:bg-slate-900">
+        <div id="sam-list" class="space-y-2">
+          <!-- List Pangkalan akan dirender di sini via JS -->
+        </div>
+        <div id="sam-err" class="hidden mt-4 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+      </div>
+
+      <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+        <button class="btn-secondary" onclick="document.getElementById('sam-modal').remove()">Batal</button>
+        <button id="sam-btn" class="btn-primary" onclick="saveMasterSAManual('${tahun}', '${bulan}')">
+          Simpan Data
         </button>
       </div>
     </div>`;
   
   document.body.appendChild(modal);
+  
+  // 3. Fungsi untuk me-render list pangkalan berdasarkan tanggal yang dipilih
+  window.renderSamList = function() {
+    const tglVal = document.getElementById('sam-tgl').value;
+    const key = `tgl_${String(tglVal).padStart(2, '0')}`;
+    
+    const html = window._samLocalData.map((row, idx) => `
+      <div class="flex items-center justify-between p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-600 transition-colors shadow-sm">
+        <div class="font-medium text-sm text-slate-700 dark:text-slate-200">
+          ${idx + 1}. ${UI.escapeHtml(row.pangkalan_nama)}
+        </div>
+        <div class="w-24">
+          <input type="number" class="form-input text-center text-sm font-semibold text-blue-600 dark:text-blue-400" 
+                 value="${row[key]}" min="0" 
+                 onchange="window._samLocalData[${idx}]['${key}'] = Number(this.value) || 0" />
+        </div>
+      </div>
+    `).join('');
+    
+    document.getElementById('sam-list').innerHTML = html;
+  };
 
-  // Load Dropdown Pangkalan
-  const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
-  if (pangRes.success) {
-    const sel = document.getElementById('sam-pangkalan');
-    sel.innerHTML = `<option value="">-- Pilih Pangkalan --</option>` + 
-      pangRes.data.pangkalan.map(p => 
-        `<option value="${p.pangkalan_id}" ${p.pangkalan_id === pangkalanId ? 'selected' : ''}>${UI.escapeHtml(p.nama)}</option>`
-      ).join('');
-  }
+  // Render list pertama kali (Tanggal 1)
+  window.renderSamList();
 }
 
 async function saveMasterSAManual(tahun, bulan) {
@@ -914,28 +934,23 @@ async function saveMasterSAManual(tahun, bulan) {
   const errEl = document.getElementById('sam-err');
   errEl.classList.add('hidden');
   
-  const pangkalanId = document.getElementById('sam-pangkalan').value;
-  if (!pangkalanId) {
-    errEl.textContent = 'Pilih pangkalan terlebih dahulu.';
-    errEl.classList.remove('hidden'); return;
-  }
-
-  const rowData = { pangkalan_id: pangkalanId };
-  for (let i = 1; i <= 31; i++) {
-    const key = `tgl_${String(i).padStart(2, '0')}`;
-    const el = document.getElementById(`sam-${key}`);
-    if (el) rowData[key] = Number(el.value) || 0;
-  }
-
   UI.setLoading(btn, true, 'Menyimpan...');
-  // Karena struktur API menerima array `rows`, kita kirim array berisi 1 object pangkalan
-  const res = await API.operator.importMasterSA({ rows: [rowData], bulan, tahun });
+  
+  // Bersihkan properti pangkalan_nama karena API importMasterSA hanya butuh pangkalan_id dan tgl_xx
+  const rowsToSave = window._samLocalData.map(r => {
+    const { pangkalan_nama, ...restData } = r; 
+    return restData;
+  });
+
+  // Kirim seluruh data (semua pangkalan, dengan 31 harinya) agar data lama tidak hilang, 
+  // tapi tanggal yang diedit barusan ikut terupdate.
+  const res = await API.operator.importMasterSA({ rows: rowsToSave, bulan, tahun });
   UI.setLoading(btn, false);
   
   if (res.success) {
-    UI.toast('Master SA berhasil disimpan.', 'success');
+    UI.toast('Data Master SA berhasil diupdate.', 'success');
     document.getElementById('sam-modal').remove();
-    fetchMasterSA();
+    fetchMasterSA(); // Refresh tabel di belakang
   } else {
     errEl.textContent = res.message;
     errEl.classList.remove('hidden');
@@ -1460,6 +1475,58 @@ async function saveSPBE(id) {
   UI.setLoading(btn, false);
   if (res.success) { UI.toast(id ? 'SPBE diupdate.' : 'SPBE ditambahkan.', 'success'); document.getElementById('spbe-modal').remove(); loadSPBE(); }
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+}
+// ============================================================
+// HELPER FUNCTIONS UNTUK EXCEL / CSV
+// ============================================================
+
+/** Memuat script eksternal (Library XLSX) secara dinamis */
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    // Jika script sudah pernah diload, langsung resolve
+    if (document.querySelector(`script[src="${src}"]`)) {
+      return resolve();
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Gagal memuat script: ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+/** Membaca file Excel/CSV dan mengubahnya menjadi Array 2 Dimensi */
+async function parseCSVOrExcel(file) {
+  // Pastikan library XLSX sudah ter-load
+  if (!window.XLSX) {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        // Cari sheet bernama 'Data Master SA' (sesuai template kita). 
+        // Jika tidak ada, pakai sheet pertama.
+        const sheetName = workbook.SheetNames.includes('Data Master SA') 
+          ? 'Data Master SA' 
+          : workbook.SheetNames[0];
+          
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Konversi sheet menjadi array of arrays (header: 1)
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        resolve(json);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error('Gagal membaca file dari browser.'));
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 // ── Skeleton helpers ──
