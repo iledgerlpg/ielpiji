@@ -644,7 +644,7 @@ async function loadLaporanPengiriman() {
       </div>
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium">Sampai Tgl:</label>
-        <input type="date" id="lp-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporanPengirimann()"/>
+        <input type="date" id="lp-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporanPengiriman()"/>
       </div>
       <button class="btn-secondary text-sm py-1.5 ml-auto" onclick="fetchLaporanPengiriman()">Tampilkan</button>
     </div>
@@ -674,25 +674,39 @@ async function fetchLaporanPengiriman() {
   // Proteksi jika user sudah keburu pindah menu sebelum data beres di-load
   if (activeSection !== 'laporan' && activeSection !== 'laporan-pengiriman') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
-  tbody.innerHTML = res.data.laporan.length ? res.data.laporan.map(l => `
-    <tr>
-      <td class="text-xs text-slate-500">${UI.formatDateShort(l.tanggal)}<br/><span class="font-mono">${l.jam_laporan || ''}</span></td>
-      <td class="font-medium text-slate-900 dark:text-white text-sm">${UI.escapeHtml(l.driver_nama)}</td>
-      <td class="text-sm">${UI.escapeHtml(l.pangkalan_nama)}</td>
-      <td class="font-semibold">${l.jumlah_kirim}</td>
-      <td class="text-slate-500">${l.jumlah_retur || 0}</td>
-      <td>${UI.badge(l.status, l.status)}</td>
-      <td class="text-xs space-x-1">
-        ${l.foto_pengiriman_url ? `<a href="${l.foto_pengiriman_url}" target="_blank" class="text-blue-500 hover:underline">📷</a>` : ''}
-        ${l.foto_pangkalan_url  ? `<a href="${l.foto_pangkalan_url}"  target="_blank" class="text-blue-500 hover:underline">🏪</a>` : ''}
-      </td>
-      <td class="text-right">
-        <div class="flex gap-1 justify-end">
-          <button class="btn-secondary text-xs py-1 px-2" onclick="verifikasiLaporanPengiriman('${l.laporan_id}')">Verifikasi</button>
-          <button class="btn-danger text-xs py-1 px-2"    onclick="hapusLaporanPengiriman('${l.laporan_id}')">Hapus</button>
-        </div>
-      </td>
-    </tr>`).join('') : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan.','📋')}</td></tr>`;
+container.innerHTML = `
+<table class="w-full">
+    <thead>
+        <tr>
+            <th>Tanggal</th>
+            <th>Driver</th>
+            <th>Pangkalan</th>
+            <th>Kirim</th>
+            <th>Retur</th>
+            <th>Status</th>
+            <th>Foto</th>
+            <th>Aksi</th>
+        </tr>
+    </thead>
+    <tbody>
+        ${
+            res.data.laporan.length
+            ? res.data.laporan.map(l=>`
+                <tr>
+                    <td>${UI.formatDateShort(l.tanggal)}</td>
+                    <td>${UI.escapeHtml(l.driver_nama)}</td>
+                    <td>${UI.escapeHtml(l.pangkalan_nama)}</td>
+                    <td>${l.jumlah_kirim}</td>
+                    <td>${l.jumlah_retur||0}</td>
+                    <td>${UI.badge(l.status,l.status)}</td>
+                    <td>...</td>
+                    <td>...</td>
+                </tr>
+            `).join('')
+            : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan','📋')}</td></tr>`
+        }
+    </tbody>
+</table>`;
 }
 
 async function verifikasiLaporanPengiriman(id) {
