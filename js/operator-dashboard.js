@@ -623,7 +623,7 @@ async function deleteJadwalHarian(id) {
 // LAPORAN PENGIRIMAN - Menggunakan loadLaporan & fetchLaporan
 // ============================================================
 
-async function loadLaporan() {
+async function loadLaporanPengiriman() {
   const main = document.getElementById('main-content');
   const today = new Date().toISOString().split('T')[0];
 
@@ -653,10 +653,10 @@ async function loadLaporan() {
        <div class="animate-pulse p-4 text-slate-400">Memuat data...</div>
     </div>`;
   
-  await fetchLaporan();
+  await fetchLaporanPengiriman();
 }
 
-async function fetchLaporan() {
+async function fetchLaporanPengiriman() {
   const start = document.getElementById('lp-start')?.value;
   const end   = document.getElementById('lp-end')?.value;
   
@@ -695,13 +695,13 @@ async function fetchLaporan() {
     </tr>`).join('') : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan.','📋')}</td></tr>`;
 }
 
-async function verifikasiLaporan(id) {
+async function verifikasiLaporanPengiriman(id) {
   const res = await API.operator.updateLaporanPengiriman({ laporan_id: id, status: 'VERIFIED' });
   if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporan(); }
   else UI.toast(res.message, 'error');
 }
 
-async function hapusLaporan(id) {
+async function hapusLaporanPengiriman(id) {
   if (!await UI.confirm('Hapus laporan ini?', 'Konfirmasi')) return;
   const res = await API.operator.deleteLaporanPengiriman({ laporan_id: id });
   if (res.success) { UI.toast('Laporan dihapus.', 'success'); fetchLaporan(); }
