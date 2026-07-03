@@ -54,9 +54,9 @@ function buildSidebar() {
   const nav = document.getElementById('sidebar-nav');
   const sections = [
     { label: 'Utama',         items: ['dashboard'] },
-    { label: 'Pengiriman',    items: ['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa'] },
-    { label: 'Pembayaran',    items: ['bayar-refill','bayar-bh','monitoring-bayar'] },
-    { label: 'Stok & Master', items: ['stok-gudang','pangkalan','spbe'] },
+    { label: 'iShipping',    items: ['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa'] },
+    { label: 'iOperasional',    items: ['bayar-refill','bayar-bh','monitoring-bayar','stok-gudang'] },
+    { label: 'Setting', items: ['pangkalan','spbe'] },
   ];
   nav.innerHTML = sections.map(sec => `
     <div class="nav-section-label">${sec.label}</div>
