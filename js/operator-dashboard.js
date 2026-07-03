@@ -498,40 +498,60 @@ async function deleteJadwalHarian(id) {
   if (res.success) { UI.toast('Jadwal dihapus.', 'success'); fetchJadwalHarian(); }
   else UI.toast(res.message, 'error');
 }
-
 // ============================================================
-// LAPORAN PENGIRIMAN
+// LAPORAN PENGIRIMAN - Menggunakan loadLaporan & fetchLaporan
 // ============================================================
 
 async function loadLaporan() {
   const main = document.getElementById('main-content');
+  const today = new Date().toISOString().split('T')[0];
+
   main.innerHTML = `
-    <div class="page-header"><h2 class="page-title">Laporan Pengiriman</h2><p class="page-sub">Daftar laporan pengiriman dari semua driver.</p></div>
-    <div class="filter-bar">
-      <input type="date"  id="lp-tgl"    class="form-input w-44" onchange="fetchLaporan()"/>
-      <input type="month" id="lp-bln"    class="form-input w-40" value="${UI.currentMonthValue()}" onchange="fetchLaporan()"/>
-      <select id="lp-status" class="form-select w-36" onchange="fetchLaporan()">
-        <option value="">Semua Status</option><option>SUBMITTED</option><option>VERIFIED</option><option>REVISED</option>
-      </select>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
+      <div>
+        <h2 class="page-title">Laporan Pengiriman</h2>
+        <p class="page-sub">Rekapitulasi riwayat pengiriman berdasarkan periode.</p>
+      </div>
+      <button class="btn-primary" onclick="exportLaporan()">Export Laporan</button>
     </div>
-    <div class="table-wrapper">
-      <table><thead><tr><th>Tanggal</th><th>Driver</th><th>Pangkalan</th><th>Kirim</th><th>Retur</th><th>Status</th><th>Foto</th><th class="text-right">Aksi</th></tr></thead>
-      <tbody id="lp-tbody"></tbody></table>
+    
+    <!-- Filter Rentang Tanggal -->
+    <div class="filter-bar flex flex-wrap items-center gap-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-4">
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-medium">Dari Tgl:</label>
+        <input type="date" id="lp-start" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporan()"/>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-medium">Sampai Tgl:</label>
+        <input type="date" id="lp-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporan()"/>
+      </div>
+      <button class="btn-secondary text-sm py-1.5 ml-auto" onclick="fetchLaporan()">Tampilkan</button>
+    </div>
+
+    <div id="lp-container" class="table-wrapper overflow-x-auto">
+       <div class="animate-pulse p-4 text-slate-400">Memuat data...</div>
     </div>`;
+  
   await fetchLaporan();
 }
 
 async function fetchLaporan() {
-  const tbody = document.getElementById('lp-tbody');
-  tbody.innerHTML = `<tr><td colspan="8">${skLine()}</td></tr>`;
-  const params = {
-    tanggal: document.getElementById('lp-tgl')?.value  || undefined,
-    bulan:   document.getElementById('lp-bln')?.value  || undefined,
-    status:  document.getElementById('lp-status')?.value || undefined,
-  };
-  if (params.tanggal) delete params.bulan;
-  const res = await API.operator.getLaporanPengiriman(params);
-  if (activeSection !== 'laporan-pengiriman') return;
+  const start = document.getElementById('lp-start')?.value;
+  const end   = document.getElementById('lp-end')?.value;
+  
+  if (start > end) { 
+    UI.toast('Rentang tanggal tidak valid.', 'warning'); 
+    return; 
+  }
+
+  const container = document.getElementById('lp-container');
+  container.innerHTML = '<div class="animate-pulse p-4 text-slate-400">Memuat data...</div>';
+
+  // Memanggil API dengan parameter rentang tanggal
+  const res = await API.operator.getLaporan({ start_date: start, end_date: end });
+  
+  // Proteksi jika user sudah keburu pindah menu sebelum data beres di-load
+  if (activeSection !== 'laporan' && activeSection !== 'laporan-pengiriman') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   tbody.innerHTML = res.data.laporan.length ? res.data.laporan.map(l => `
     <tr>
@@ -627,57 +647,97 @@ async function fetchMonitoringKirim() {
 // MASTER SA — Pakai Nama Pangkalan & Tombol Edit Manual
 // ============================================================
 
+// ============================================================
+// MASTER SA — Filter Rentang Tanggal di Halaman Utama
+// ============================================================
+
 async function loadMasterSA() {
   const main = document.getElementById('main-content');
+  const today = new Date().toISOString().split('T')[0]; // Default hari ini
+
   main.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
-      <div><h2 class="page-title">Master SA</h2><p class="page-sub">Alokasi bulanan per pangkalan (tgl 1-31).</p></div>
+      <div><h2 class="page-title">Master SA</h2><p class="page-sub">Alokasi harian per pangkalan.</p></div>
       <div class="flex gap-2 flex-wrap">
-        <button class="btn-secondary text-sm" onclick="downloadTemplateMasterSA(this)">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          Template Excel
-        </button>
+        <button class="btn-secondary text-sm" onclick="downloadTemplateMasterSA(this)">⬇️ Template Excel</button>
         <label class="btn-secondary text-sm cursor-pointer">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-          Upload Excel
+          ⬆️ Upload Excel
           <input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadMasterSAExcel(this)"/>
         </label>
-        <button class="btn-primary" onclick="openEditMasterSAModal()">+ Tambah/Edit Manual</button>
+        <button class="btn-primary" onclick="openEditMasterSAModal()">+ Edit Manual</button>
       </div>
     </div>
-    <div class="filter-bar">
-      <input type="month" id="sa-bln" class="form-input w-40" value="${UI.currentMonthValue()}" onchange="fetchMasterSA()"/>
+    
+    <!-- Filter Rentang Tanggal -->
+    <div class="filter-bar flex flex-wrap items-center gap-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-4">
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-medium">Dari Tgl:</label>
+        <input type="date" id="sa-start" class="form-input w-36 text-sm" value="${today}" onchange="fetchMasterSA()"/>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-medium">Sampai Tgl:</label>
+        <input type="date" id="sa-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchMasterSA()"/>
+      </div>
+      <button class="btn-secondary text-sm py-1.5 ml-auto" onclick="fetchMasterSA()">Tampilkan</button>
     </div>
+
     <div id="sa-import-status" class="hidden mb-4"></div>
     <div id="sa-container" class="table-wrapper overflow-x-auto">
       <div class="animate-pulse p-4 text-slate-400">Memuat data...</div>
     </div>`;
+    
   await fetchMasterSA();
 }
 
 async function fetchMasterSA() {
-  const bulan = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
-  const [year, month] = bulan.split('-');
-  const res = await API.operator.getMasterSA({ bulan: month, tahun: year });
+  const start = document.getElementById('sa-start')?.value;
+  const end   = document.getElementById('sa-end')?.value;
+
+  if (start > end) {
+    UI.toast('Tanggal awal tidak boleh lebih besar dari tanggal akhir.', 'warning');
+    return;
+  }
+
+  const startDate = new Date(start);
+  const endDate   = new Date(end);
+  
+  // Karena API getMasterSA memakai parameter bulan & tahun, kita ambil dari tanggal "Start"
+  const tahun = startDate.getFullYear();
+  const bulan = String(startDate.getMonth() + 1).padStart(2, '0');
+  
+  // Menentukan range kolom hari yang ditampilkan di tabel
+  const startDay = startDate.getDate();
+  let endDay = endDate.getDate();
+  
+  // Proteksi kalau user iseng milih rentang yang melintas beda bulan
+  if (startDate.getMonth() !== endDate.getMonth() || startDate.getFullYear() !== endDate.getFullYear()) {
+    UI.toast('Tampilan tabel dibatasi hingga akhir bulan dari tanggal awal yang dipilih.', 'info');
+    endDay = new Date(tahun, startDate.getMonth() + 1, 0).getDate();
+  }
+
+  const res = await API.operator.getMasterSA({ bulan, tahun });
   if (activeSection !== 'master-sa') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   
   const data = res.data.master_sa;
-  window._masterSAData = data; // Simpan untuk modal edit
+  window._masterSAData = data; 
   
-  const days = Array.from({length: 31}, (_, i) => i + 1);
+  // Bikin array tanggal dari startDay ke endDay (misal: 18, 19, 20)
+  const daysToShow = [];
+  for (let i = startDay; i <= endDay; i++) { daysToShow.push(i); }
+
   document.getElementById('sa-container').innerHTML = data.length ? `
     <table style="min-width:1000px">
       <thead><tr>
         <th>Pangkalan</th>
-        ${days.map(d => `<th class="text-center text-xs">${d}</th>`).join('')}
-        <th class="text-center">Total</th>
+        ${daysToShow.map(d => `<th class="text-center text-xs">Tgl ${d}</th>`).join('')}
+        <th class="text-center">Total (${startDay}-${endDay})</th>
         <th class="text-right">Aksi</th>
       </tr></thead>
       <tbody>
         ${data.map(row => {
           let total = 0;
-          const cells = days.map(d => {
+          const cells = daysToShow.map(d => {
             const key = `tgl_${String(d).padStart(2,'0')}`;
             const val = Number(row[key] || 0);
             total += val;
@@ -689,14 +749,14 @@ async function fetchMasterSA() {
               ${cells}
               <td class="text-center font-bold text-blue-600">${total}</td>
               <td class="text-right">
-                <button class="btn-secondary text-xs py-1 px-2" onclick="openEditMasterSAModal('${row.pangkalan_id}')">Edit</button>
+                <!-- Tombol ini langsung buka modal edit manual yang rentang tanggalnya fleksibel tadi -->
+                <button class="btn-secondary text-xs py-1 px-2" onclick="openEditMasterSAModal()">Edit</button>
               </td>
             </tr>`;
         }).join('')}
       </tbody>
-    </table>` : UI.emptyState('Belum ada data Master SA untuk bulan ini.','📊');
+    </table>` : UI.emptyState('Belum ada data alokasi untuk periode ini.','📊');
 }
-
 /** Download template Excel (.xlsx) pakai NAMA PANGKALAN */
 async function downloadTemplateMasterSA(btnEl) {
   const btn = btnEl || null;
