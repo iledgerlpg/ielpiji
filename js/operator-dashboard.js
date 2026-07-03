@@ -840,22 +840,20 @@ async function uploadMasterSAExcel(input) {
   }
 }
 
-/** Form Modal Untuk Input / Edit Manual Master SA */
-/** Form Modal Untuk Input / Edit Manual Master SA (Berdasarkan Tanggal) */
+/** Form Modal Untuk Input / Edit Manual Master SA (Berdasarkan Rentang Tanggal) */
 async function openEditMasterSAModal() {
   const currentMonth = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
   const [tahun, bulan] = currentMonth.split('-');
 
-  // 1. Ambil Data Master Pangkalan (biar semua pangkalan muncul)
+  // 1. Ambil Data Master Pangkalan
   const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
   const pangkalanList = pangRes.success ? pangRes.data.pangkalan : [];
 
-  // 2. Siapkan data lokal (Gabung data Pangkalan dengan data Master SA yang sudah diupload/ada)
+  // 2. Siapkan data lokal dengan nge-gabung data lama yang sudah diupload
   window._samLocalData = pangkalanList.map(p => {
     const existing = (window._masterSAData || []).find(d => d.pangkalan_id === p.pangkalan_id) || {};
     const row = { pangkalan_id: p.pangkalan_id, pangkalan_nama: p.nama };
     
-    // Isi default tiap tanggal dengan data yang ada di server (atau 0 jika belum ada)
     for(let i = 1; i <= 31; i++) {
       const key = `tgl_${String(i).padStart(2, '0')}`;
       row[key] = Number(existing[key] || 0);
@@ -867,29 +865,39 @@ async function openEditMasterSAModal() {
   modal.id    = 'sam-modal';
   modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
   
-  // Bikin Option Tanggal 1 s/d 31
-  const tglOptions = Array.from({length: 31}, (_, i) => `<option value="${i+1}">Tanggal ${i+1}</option>`).join('');
+  // Opsi tanggal 1 s/d 31
+  const tglOptions = Array.from({length: 31}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
 
   modal.innerHTML = `
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
       
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-        <h3 class="font-semibold text-slate-900 dark:text-white">
-          Update Alokasi Harian — ${bulan}/${tahun}
-        </h3>
+        <div>
+          <h3 class="font-semibold text-slate-900 dark:text-white">Update Alokasi Harian — ${bulan}/${tahun}</h3>
+          <p class="text-xs text-slate-500 mt-1">Isi alokasi berdasarkan rentang tanggal. Data lama akan ditimpa.</p>
+        </div>
         <button class="btn-icon" onclick="document.getElementById('sam-modal').remove()">✕</button>
       </div>
       
-      <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
-        <label class="font-medium text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">Pilih Tanggal:</label>
-        <select id="sam-tgl" class="form-select w-40" onchange="window.renderSamList()">
-          ${tglOptions}
-        </select>
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3">
+        <label class="font-medium text-sm text-slate-700 dark:text-slate-300">Rentang Tanggal:</label>
+        <div class="flex items-center gap-2">
+          <select id="sam-tgl-start" class="form-select w-20 text-center font-semibold" onchange="window.renderSamList()">
+            ${tglOptions}
+          </select>
+          <span class="text-sm font-medium text-slate-500">s/d</span>
+          <select id="sam-tgl-end" class="form-select w-20 text-center font-semibold" onchange="window.renderSamList()">
+            ${tglOptions}
+          </select>
+        </div>
+        <span id="sam-range-info" class="text-xs text-blue-600 dark:text-blue-400 font-medium ml-auto bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
+          <!-- Info dinamis -->
+        </span>
       </div>
 
       <div class="p-5 overflow-y-auto flex-1 bg-slate-50/50 dark:bg-slate-900">
         <div id="sam-list" class="space-y-2">
-          <!-- List Pangkalan akan dirender di sini via JS -->
+          <!-- List pangkalan -->
         </div>
         <div id="sam-err" class="hidden mt-4 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
       </div>
@@ -897,17 +905,45 @@ async function openEditMasterSAModal() {
       <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
         <button class="btn-secondary" onclick="document.getElementById('sam-modal').remove()">Batal</button>
         <button id="sam-btn" class="btn-primary" onclick="saveMasterSAManual('${tahun}', '${bulan}')">
-          Simpan Data
+          Simpan Rentang Data
         </button>
       </div>
     </div>`;
   
   document.body.appendChild(modal);
-  
-  // 3. Fungsi untuk me-render list pangkalan berdasarkan tanggal yang dipilih
+
+  // 3. Fungsi untuk mengupdate data lokal pada rentang yang dipilih
+  window.updateSamRange = function(idx, value) {
+    const start = parseInt(document.getElementById('sam-tgl-start').value);
+    const end   = parseInt(document.getElementById('sam-tgl-end').value);
+    const valNum = Number(value) || 0;
+    
+    // Looping tanggal dan timpa valuenya
+    for(let i = start; i <= end; i++) {
+      const key = `tgl_${String(i).padStart(2, '0')}`;
+      window._samLocalData[idx][key] = valNum;
+    }
+  };
+
+  // 4. Fungsi Render List Pangkalan
   window.renderSamList = function() {
-    const tglVal = document.getElementById('sam-tgl').value;
-    const key = `tgl_${String(tglVal).padStart(2, '0')}`;
+    let start = parseInt(document.getElementById('sam-tgl-start').value);
+    let end   = parseInt(document.getElementById('sam-tgl-end').value);
+    
+    // Mencegah tanggal akhir lebih kecil dari tanggal mulai
+    if(end < start) {
+      document.getElementById('sam-tgl-end').value = start;
+      end = start;
+    }
+    
+    // Update label informasi di pojok kanan
+    const info = start === end 
+      ? `Mengedit Tgl ${start}` 
+      : `Mengedit Tgl ${start} s/d ${end} (Akan diisi sama rata)`;
+    document.getElementById('sam-range-info').textContent = info;
+
+    // Ambil nilai bawaan dari tanggal 'start' untuk ditampilkan di input box
+    const keyStart = `tgl_${String(start).padStart(2, '0')}`;
     
     const html = window._samLocalData.map((row, idx) => `
       <div class="flex items-center justify-between p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-600 transition-colors shadow-sm">
@@ -916,8 +952,8 @@ async function openEditMasterSAModal() {
         </div>
         <div class="w-24">
           <input type="number" class="form-input text-center text-sm font-semibold text-blue-600 dark:text-blue-400" 
-                 value="${row[key]}" min="0" 
-                 onchange="window._samLocalData[${idx}]['${key}'] = Number(this.value) || 0" />
+                 value="${row[keyStart]}" min="0" 
+                 onchange="window.updateSamRange(${idx}, this.value)" />
         </div>
       </div>
     `).join('');
@@ -925,7 +961,7 @@ async function openEditMasterSAModal() {
     document.getElementById('sam-list').innerHTML = html;
   };
 
-  // Render list pertama kali (Tanggal 1)
+  // Render list pertama kali (Tgl 1 s/d 1)
   window.renderSamList();
 }
 
