@@ -51,22 +51,21 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function buildSidebar() {
-  // Kita tidak perlu lagi melakukan render otomatis via JS karena 
-  // struktur HTML (accordion) sudah kita definisikan secara manual di file HTML.
-  // Cukup tambahkan event listener atau logika untuk class 'active' saja.
-  
-  // Update class 'active' saat section berpindah
-  updateActiveMenu();
-}
-
-function updateActiveMenu() {
-  const currentUrl = window.location.hash.replace('#', '') || 'dashboard';
-  document.querySelectorAll('.nav-item').forEach(el => {
-    el.classList.remove('active');
-    if (el.getAttribute('onclick')?.includes(currentSectionId)) {
-      el.classList.add('active');
-    }
-  });
+  const nav = document.getElementById('sidebar-nav');
+  const sections = [
+    { label: 'Utama',         items: ['dashboard'] },
+    { label: 'iShipping',    items: ['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa'] },
+    { label: 'iOperasional',    items: ['bayar-refill','bayar-bh','monitoring-bayar','stok-gudang'] },
+    { label: 'Setting', items: ['pangkalan','spbe'] },
+  ];
+  nav.innerHTML = sections.map(sec => `
+    <div class="nav-section-label">${sec.label}</div>
+    ${sec.items.map(id => {
+      const item = NAV_ITEMS.find(n => n.id === id);
+      return `<button class="nav-item w-full text-left" id="nav-${id}" onclick="showSection('${id}')">
+        ${SVG[item.icon] || ''}<span class="nav-label">${item.label}</span>
+      </button>`;
+    }).join('')}`).join('');
 }
 
 function showSection(id) {
