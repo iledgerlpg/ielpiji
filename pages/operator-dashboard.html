@@ -71,23 +71,6 @@
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}.animate-pulse{animation:pulse 1.8s ease-in-out infinite}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
     @keyframes scaleIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}.animate-scale-in{animation:scaleIn .2s ease}
-
-    /* CSS Tambahan untuk Efek Animasi Slide Dropdown Menu */
-    .menu-container {
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .menu-container.open {
-      max-height: 500px;
-    }
-    .chevron-icon {
-      transition: transform 0.2s ease;
-    }
-    .open + .menu-container .chevron-icon, 
-    .nav-section-header.open .chevron-icon {
-      transform: rotate(90deg);
-    }
   </style>
 </head>
 <body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen">
@@ -100,58 +83,7 @@
     </div>
     <div class="nav-label"><div class="font-bold text-slate-900 dark:text-white text-sm">ILPG</div><div class="text-xs text-slate-400">Operator</div></div>
   </div>
-  
-  <!-- MENU SIDEBAR UTAMA -->
-  <nav class="flex-1 overflow-y-auto py-2 px-3 space-y-1" id="sidebar-nav">
-    
-    <!-- 1. DASHBOARD -->
-    <button class="nav-item active" onclick="switchSection('dashboard')">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V16zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V16z"/></svg>
-      <span>Dashboard</span>
-    </button>
-
-    <!-- 2. iSHIPPING -->
-    <div>
-      <div class="nav-section-header flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl pr-2" onclick="toggleMenuSection('menu-shipping', this)">
-        <span class="nav-section-label">iShipping</span>
-        <span class="chevron-icon text-[10px] text-slate-400">▶</span>
-      </div>
-      <div id="menu-shipping" class="menu-container pl-2 space-y-0.5 border-l border-slate-100 dark:border-slate-800 ml-3 mt-1">
-        <button class="nav-item" onclick="switchSection('jadwal-harian')">Jadwal Harian</button>
-        <button class="nav-item" onclick="switchSection('laporan-pengiriman')">Laporan Pengiriman</button>
-        <button class="nav-item" onclick="switchSection('monitoring-pengiriman')">Monitoring Pengiriman</button>
-        <button class="nav-item" onclick="switchSection('master-sa')">Master SA</button>
-      </div>
-    </div>
-
-    <!-- 3. iOPERASIONAL -->
-    <div>
-      <div class="nav-section-header flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl pr-2" onclick="toggleMenuSection('menu-operasional', this)">
-        <span class="nav-section-label">iOperasional</span>
-        <span class="chevron-icon text-[10px] text-slate-400">▶</span>
-      </div>
-      <div id="menu-operasional" class="menu-container pl-2 space-y-0.5 border-l border-slate-100 dark:border-slate-800 ml-3 mt-1">
-        <button class="nav-item" onclick="switchSection('pembayaran-refill')">Pembayaran Refill</button>
-        <button class="nav-item" onclick="switchSection('pembayaran-bagi-hasil')">Pembayaran Bagi Hasil</button>
-        <button class="nav-item" onclick="switchSection('monitoring-pembayaran')">Monitoring Pembayaran</button>
-        <button class="nav-item" onclick="switchSection('stok-gudang')">Stok Gudang</button>
-      </div>
-    </div>
-
-    <!-- 4. SETTING -->
-    <div>
-      <div class="nav-section-header flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl pr-2" onclick="toggleMenuSection('menu-setting', this)">
-        <span class="nav-section-label">Setting</span>
-        <span class="chevron-icon text-[10px] text-slate-400">▶</span>
-      </div>
-      <div id="menu-setting" class="menu-container pl-2 space-y-0.5 border-l border-slate-100 dark:border-slate-800 ml-3 mt-1">
-        <button class="nav-item" onclick="switchSection('pangkalan')">Pangkalan</button>
-        <button class="nav-item" onclick="switchSection('spbe')">SPBE</button>
-      </div>
-    </div>
-
-  </nav>
-  
+  <nav class="flex-1 overflow-y-auto py-2 px-3 space-y-0.5" id="sidebar-nav"></nav>
   <div class="border-t border-slate-200 dark:border-slate-800 p-3 shrink-0">
     <div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
       <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold shrink-0" data-user-avatar>O</div>
@@ -207,25 +139,6 @@
 <script src="/js/camera.js"></script>
 <script src="/js/operator-dashboard.js"></script>
 <script>
-  function toggleMenuSection(id, headerEl) {
-    const el = document.getElementById(id);
-    headerEl.classList.toggle('open');
-    el.classList.toggle('open');
-  }
-
-  function switchSection(sectionId) {
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    
-    const targetButton = event?.currentTarget;
-    if (targetButton) targetButton.classList.add('active');
-
-    if (window.loadSectionData) {
-      window.loadSectionData(sectionId);
-    } else {
-      console.log("Pindah ke halaman:", sectionId);
-    }
-  }
-
   function toggleSidebar(){const sb=document.getElementById('sidebar'),ov=document.getElementById('sidebar-overlay'),open=sb.classList.contains('-translate-x-full');sb.classList.toggle('-translate-x-full',!open);ov.classList.toggle('hidden',!open);}
   function toggleAvatarMenu(){document.getElementById('avatar-dropdown').classList.toggle('hidden');}
   document.addEventListener('click',e=>{if(!document.getElementById('avatar-menu')?.contains(e.target))document.getElementById('avatar-dropdown')?.classList.add('hidden');});
