@@ -624,7 +624,7 @@ async function fetchMonitoringKirim() {
 }
 
 // ============================================================
-// MASTER SA — dengan Upload & Download Excel
+// MASTER SA — Pakai Nama Pangkalan & Tombol Edit Manual
 // ============================================================
 
 async function loadMasterSA() {
@@ -642,6 +642,7 @@ async function loadMasterSA() {
           Upload Excel
           <input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadMasterSAExcel(this)"/>
         </label>
+        <button class="btn-primary" onclick="openEditMasterSAModal()">+ Tambah/Edit Manual</button>
       </div>
     </div>
     <div class="filter-bar">
@@ -660,14 +661,18 @@ async function fetchMasterSA() {
   const res = await API.operator.getMasterSA({ bulan: month, tahun: year });
   if (activeSection !== 'master-sa') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
+  
   const data = res.data.master_sa;
+  window._masterSAData = data; // Simpan untuk modal edit
+  
   const days = Array.from({length: 31}, (_, i) => i + 1);
   document.getElementById('sa-container').innerHTML = data.length ? `
-    <table style="min-width:900px">
+    <table style="min-width:1000px">
       <thead><tr>
         <th>Pangkalan</th>
         ${days.map(d => `<th class="text-center text-xs">${d}</th>`).join('')}
         <th class="text-center">Total</th>
+        <th class="text-right">Aksi</th>
       </tr></thead>
       <tbody>
         ${data.map(row => {
@@ -678,13 +683,21 @@ async function fetchMasterSA() {
             total += val;
             return `<td class="text-center text-xs ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">${val || ''}</td>`;
           }).join('');
-          return `<tr><td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(row.pangkalan_nama)}</td>${cells}<td class="text-center font-bold text-blue-600">${total}</td></tr>`;
+          return `
+            <tr>
+              <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(row.pangkalan_nama)}</td>
+              ${cells}
+              <td class="text-center font-bold text-blue-600">${total}</td>
+              <td class="text-right">
+                <button class="btn-secondary text-xs py-1 px-2" onclick="openEditMasterSAModal('${row.pangkalan_id}')">Edit</button>
+              </td>
+            </tr>`;
         }).join('')}
       </tbody>
     </table>` : UI.emptyState('Belum ada data Master SA untuk bulan ini.','📊');
 }
 
-/** Download template Excel (.xlsx) asli untuk Master SA */
+/** Download template Excel (.xlsx) pakai NAMA PANGKALAN */
 async function downloadTemplateMasterSA(btnEl) {
   const btn = btnEl || null;
   try {
@@ -693,6 +706,9 @@ async function downloadTemplateMasterSA(btnEl) {
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
     }
 
+    const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
+    const daftarPangkalan = pangRes.success ? (pangRes.data.pangkalan || []) : [];
+
     const wb = XLSX.utils.book_new();
 
     // ── Sheet 1: Petunjuk ──
@@ -700,7 +716,7 @@ async function downloadTemplateMasterSA(btnEl) {
       ['PETUNJUK PENGISIAN TEMPLATE MASTER SA — ILPG'],
       [''],
       ['Kolom', 'Keterangan'],
-      ['pangkalan_id', 'ID pangkalan (salin dari menu Pangkalan)'],
+      ['pangkalan_nama', 'Nama pangkalan — HARUS SAMA PERSIS dengan sheet "Referensi Pangkalan"'],
       ['tgl_01 s/d tgl_31', 'Jumlah alokasi tabung untuk tanggal tersebut (isi 0 jika tidak ada)'],
       [''],
       ['ℹ Satu baris = satu pangkalan untuk bulan yang dipilih.'],
@@ -712,13 +728,21 @@ async function downloadTemplateMasterSA(btnEl) {
     wsPetunjuk['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
     XLSX.utils.book_append_sheet(wb, wsPetunjuk, 'Petunjuk');
 
-    // ── Sheet 2: Data Master SA (pangkalan_id + tgl_01..tgl_31) ──
+    // ── Sheet 2: Data Master SA ──
     const days    = Array.from({ length: 31 }, (_, i) => `tgl_${String(i + 1).padStart(2, '0')}`);
-    const headers = ['pangkalan_id', ...days];
-    const contoh  = ['ID_PANGKALAN_DISINI', ...Array(31).fill(0)];
+    const headers = ['pangkalan_nama', ...days];
+    const contoh  = [daftarPangkalan[0]?.nama || 'NAMA_PANGKALAN_DISINI', ...Array(31).fill(0)];
     const wsData  = XLSX.utils.aoa_to_sheet([headers, contoh]);
-    wsData['!cols'] = [{ wch: 22 }, ...Array(31).fill({ wch: 7 })];
+    wsData['!cols'] = [{ wch: 30 }, ...Array(31).fill({ wch: 7 })];
     XLSX.utils.book_append_sheet(wb, wsData, 'Data Master SA');
+
+    // ── Sheet 3: Referensi Pangkalan ──
+    const wsRefPang = XLSX.utils.aoa_to_sheet([
+      ['Nama Pangkalan'],
+      ...(daftarPangkalan.length ? daftarPangkalan.map(p => [p.nama]) : [['(Belum ada data pangkalan aktif)']]),
+    ]);
+    wsRefPang['!cols'] = [{ wch: 35 }];
+    XLSX.utils.book_append_sheet(wb, wsRefPang, 'Referensi Pangkalan');
 
     XLSX.writeFile(wb, 'template_master_sa_ILPG.xlsx');
     UI.toast('Template Excel berhasil didownload.', 'success');
@@ -729,7 +753,7 @@ async function downloadTemplateMasterSA(btnEl) {
   }
 }
 
-/** Upload & parse file Excel/CSV Master SA, kirim ke backend */
+/** Upload & parse file Excel/CSV Master SA pakai NAMA PANGKALAN */
 async function uploadMasterSAExcel(input) {
   const file = input.files[0];
   if (!file) return;
@@ -749,16 +773,18 @@ async function uploadMasterSAExcel(input) {
     }
     const headers  = rows[0].map(h => String(h).trim().toLowerCase());
     const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
-    if (!headers.includes('pangkalan_id')) {
+    
+    if (!headers.includes('pangkalan_nama')) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.textContent = '❌ Kolom pangkalan_id tidak ditemukan. Pastikan menggunakan template resmi.';
+      statusEl.textContent = '❌ Kolom "pangkalan_nama" tidak ditemukan. Pastikan menggunakan template resmi terbaru.';
       input.value = ''; return;
     }
+    
     const mapped = dataRows.map(row => {
       const obj = {};
       headers.forEach((h, i) => { obj[h] = String(row[i] ?? '').trim(); });
       return obj;
-    }).filter(r => r.pangkalan_id);
+    }).filter(r => r.pangkalan_nama);
 
     if (!mapped.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -766,8 +792,37 @@ async function uploadMasterSAExcel(input) {
       input.value = ''; return;
     }
 
-    statusEl.textContent = `⏳ Mengirim ${mapped.length} pangkalan ke server untuk bulan ${bulanNum}/${tahun}...`;
-    const res = await API.operator.importMasterSA({ rows: mapped, bulan: bulanNum, tahun });
+    // Resolve nama pangkalan ke ID
+    statusEl.textContent = '⏳ Mencocokkan nama pangkalan...';
+    const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
+    if (!pangRes.success) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = '❌ Gagal memuat data master pangkalan untuk validasi.';
+      input.value = ''; return;
+    }
+
+    const norm = s => String(s || '').trim().toLowerCase();
+    const pangMap = new Map((pangRes.data.pangkalan || []).map(p => [norm(p.nama), p.pangkalan_id]));
+
+    const resolved = [];
+    const notFound = [];
+    mapped.forEach((r, idx) => {
+      const pangkalanId = pangMap.get(norm(r.pangkalan_nama));
+      if (!pangkalanId) { notFound.push(`Baris ${idx + 2}: Pangkalan "${r.pangkalan_nama}" tidak ditemukan`); return; }
+      
+      const { pangkalan_nama, ...rest } = r;
+      resolved.push({ pangkalan_id: pangkalanId, ...rest });
+    });
+
+    if (notFound.length) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.innerHTML = `❌ ${notFound.length} baris gagal dicocokkan:<br/>${notFound.slice(0, 8).map(m => UI.escapeHtml(m)).join('<br/>')}${notFound.length > 8 ? `<br/>...dan ${notFound.length - 8} lainnya.` : ''}<br/>Cek ejaan nama pada sheet Referensi.`;
+      input.value = '';
+      return;
+    }
+
+    statusEl.textContent = `⏳ Mengirim ${resolved.length} data Master SA ke server untuk bulan ${bulanNum}/${tahun}...`;
+    const res = await API.operator.importMasterSA({ rows: resolved, bulan: bulanNum, tahun });
     input.value = '';
 
     if (res.success) {
@@ -785,79 +840,107 @@ async function uploadMasterSAExcel(input) {
   }
 }
 
-// ============================================================
-// PARSER CSV/Excel (client-side, tanpa library eksternal)
-// ============================================================
+/** Form Modal Untuk Input / Edit Manual Master SA */
+async function openEditMasterSAModal(pangkalanId = null) {
+  const currentMonth = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
+  const [tahun, bulan] = currentMonth.split('-');
+  let rowData = null;
 
-/**
- * Parse file CSV atau Excel (.xlsx) ke array of arrays.
- * CSV: native browser parsing.
- * Excel: butuh SheetJS — akan dicoba dari CDN jika belum ada.
- * @param {File} file
- * @returns {Promise<string[][]>}
- */
-async function parseCSVOrExcel(file) {
-  const name = file.name.toLowerCase();
-
-  // ── CSV/TSV ──
-  if (name.endsWith('.csv') || name.endsWith('.tsv')) {
-    const text = await file.text();
-    return parseCSVText(text);
+  if (pangkalanId && window._masterSAData) {
+    rowData = window._masterSAData.find(d => d.pangkalan_id === pangkalanId);
   }
 
-  // ── Excel (.xlsx/.xls) — pakai SheetJS dari CDN ──
-  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-    // Muat SheetJS jika belum ada
-    if (!window.XLSX) {
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-    }
-    const ab   = await file.arrayBuffer();
-    const wb   = XLSX.read(ab, { type: 'array' });
-    const ws   = wb.Sheets[wb.SheetNames[0]];
-    return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const modal = document.createElement('div');
+  modal.id    = 'sam-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  
+  const days = Array.from({length: 31}, (_, i) => i + 1);
+  const inputsHtml = days.map(d => {
+    const key = `tgl_${String(d).padStart(2,'0')}`;
+    const val = rowData ? (rowData[key] || 0) : 0;
+    return `
+      <div>
+        <label class="form-label text-xs mb-1">Tgl ${d}</label>
+        <input id="sam-${key}" type="number" class="form-input text-center text-sm p-1" value="${val}" min="0"/>
+      </div>
+    `;
+  }).join('');
+
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h3 class="font-semibold text-slate-900 dark:text-white">
+          ${pangkalanId ? 'Edit' : 'Tambah'} Master SA — Periode ${bulan}/${tahun}
+        </h3>
+        <button class="btn-icon" onclick="document.getElementById('sam-modal').remove()">✕</button>
+      </div>
+      <div class="p-5 overflow-y-auto flex-1 space-y-4">
+        <div>
+          <label class="form-label">Pangkalan *</label>
+          <select id="sam-pangkalan" class="form-select" ${pangkalanId ? 'disabled' : ''}>
+            <option value="">Memuat...</option>
+          </select>
+        </div>
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+          <h4 class="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Alokasi Harian (Tabung)</h4>
+          <div class="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2">
+            ${inputsHtml}
+          </div>
+        </div>
+        <div id="sam-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+      </div>
+      <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800">
+        <button id="sam-btn" class="btn-primary w-full justify-center" onclick="saveMasterSAManual('${tahun}', '${bulan}')">
+          Simpan Alokasi
+        </button>
+      </div>
+    </div>`;
+  
+  document.body.appendChild(modal);
+
+  // Load Dropdown Pangkalan
+  const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
+  if (pangRes.success) {
+    const sel = document.getElementById('sam-pangkalan');
+    sel.innerHTML = `<option value="">-- Pilih Pangkalan --</option>` + 
+      pangRes.data.pangkalan.map(p => 
+        `<option value="${p.pangkalan_id}" ${p.pangkalan_id === pangkalanId ? 'selected' : ''}>${UI.escapeHtml(p.nama)}</option>`
+      ).join('');
+  }
+}
+
+async function saveMasterSAManual(tahun, bulan) {
+  const btn = document.getElementById('sam-btn');
+  const errEl = document.getElementById('sam-err');
+  errEl.classList.add('hidden');
+  
+  const pangkalanId = document.getElementById('sam-pangkalan').value;
+  if (!pangkalanId) {
+    errEl.textContent = 'Pilih pangkalan terlebih dahulu.';
+    errEl.classList.remove('hidden'); return;
   }
 
-  throw new Error('Format file tidak didukung. Gunakan .csv atau .xlsx');
-}
-
-/** Parse teks CSV menjadi array of arrays (handle quoted fields) */
-function parseCSVText(text) {
-  const rows   = [];
-  const lines  = text.split(/\r?\n/);
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const cells = [];
-    let cell    = '';
-    let inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuote && line[i+1] === '"') { cell += '"'; i++; }
-        else inQuote = !inQuote;
-      } else if (ch === ',' && !inQuote) {
-        cells.push(cell); cell = '';
-      } else {
-        cell += ch;
-      }
-    }
-    cells.push(cell);
-    rows.push(cells);
+  const rowData = { pangkalan_id: pangkalanId };
+  for (let i = 1; i <= 31; i++) {
+    const key = `tgl_${String(i).padStart(2, '0')}`;
+    const el = document.getElementById(`sam-${key}`);
+    if (el) rowData[key] = Number(el.value) || 0;
   }
-  return rows;
-}
 
-/** Muat script eksternal secara dinamis */
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-    const s   = document.createElement('script');
-    s.src     = src;
-    s.onload  = resolve;
-    s.onerror = () => reject(new Error(`Gagal memuat library dari ${src}`));
-    document.head.appendChild(s);
-  });
+  UI.setLoading(btn, true, 'Menyimpan...');
+  // Karena struktur API menerima array `rows`, kita kirim array berisi 1 object pangkalan
+  const res = await API.operator.importMasterSA({ rows: [rowData], bulan, tahun });
+  UI.setLoading(btn, false);
+  
+  if (res.success) {
+    UI.toast('Master SA berhasil disimpan.', 'success');
+    document.getElementById('sam-modal').remove();
+    fetchMasterSA();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
-
 // ============================================================
 // PEMBAYARAN — bukti TF wajib jika ada nominal transfer
 // ============================================================
