@@ -701,15 +701,15 @@ async function fetchMasterSA() {
   const startDate = new Date(start);
   const endDate   = new Date(end);
   
-  // Karena API getMasterSA memakai parameter bulan & tahun, kita ambil dari tanggal "Start"
   const tahun = startDate.getFullYear();
   const bulan = String(startDate.getMonth() + 1).padStart(2, '0');
   
-  // Menentukan range kolom hari yang ditampilkan di tabel
+  // Format Nama Bulan untuk Header Atas (contoh: "Juli 2026")
+  const namaBulan = startDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  
   const startDay = startDate.getDate();
   let endDay = endDate.getDate();
   
-  // Proteksi kalau user iseng milih rentang yang melintas beda bulan
   if (startDate.getMonth() !== endDate.getMonth() || startDate.getFullYear() !== endDate.getFullYear()) {
     UI.toast('Tampilan tabel dibatasi hingga akhir bulan dari tanggal awal yang dipilih.', 'info');
     endDay = new Date(tahun, startDate.getMonth() + 1, 0).getDate();
@@ -722,18 +722,29 @@ async function fetchMasterSA() {
   const data = res.data.master_sa;
   window._masterSAData = data; 
   
-  // Bikin array tanggal dari startDay ke endDay (misal: 18, 19, 20)
+  // Ambil deretan hari yang akan ditampilkan
   const daysToShow = [];
   for (let i = startDay; i <= endDay; i++) { daysToShow.push(i); }
 
   document.getElementById('sa-container').innerHTML = data.length ? `
-    <table style="min-width:1000px">
-      <thead><tr>
-        <th>Pangkalan</th>
-        ${daysToShow.map(d => `<th class="text-center text-xs">Tgl ${d}</th>`).join('')}
-        <th class="text-center">Total (${startDay}-${endDay})</th>
-        <th class="text-right">Aksi</th>
-      </tr></thead>
+    <table style="min-width:1000px" class="border-collapse border border-slate-200 dark:border-slate-700">
+      <thead>
+        <!-- Baris Pertama: Nama Bulan Menghubungkan Semua Kolom Tanggal -->
+        <tr>
+          <th rowspan="2" class="align-middle border border-slate-200 dark:border-slate-700">Pangkalan</th>
+          <th colspan="${daysToShow.length}" class="text-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-xs tracking-wider text-slate-700 dark:text-slate-300 py-1">
+            ${namaBulan.toUpperCase()}
+          </th>
+          <th rowspan="2" class="text-center align-middle border border-slate-200 dark:border-slate-700">Total</th>
+        </tr>
+        <!-- Baris Kedua: Format Angka Tanggal Dua Digit (01, 02, 03) -->
+        <tr>
+          ${daysToShow.map(d => {
+            const tglDuaDigit = String(d).padStart(2, '0');
+            return `<th class="text-center text-xs border border-slate-200 dark:border-slate-700 font-semibold">${tglDuaDigit}</th>`;
+          }).join('')}
+        </tr>
+      </thead>
       <tbody>
         ${data.map(row => {
           let total = 0;
@@ -741,17 +752,14 @@ async function fetchMasterSA() {
             const key = `tgl_${String(d).padStart(2,'0')}`;
             const val = Number(row[key] || 0);
             total += val;
-            return `<td class="text-center text-xs ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">${val || ''}</td>`;
+            return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">${val || ''}</td>`;
           }).join('');
+          
           return `
-            <tr>
-              <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(row.pangkalan_nama)}</td>
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <td class="font-medium text-slate-900 dark:text-white border border-slate-100 dark:border-slate-800">${UI.escapeHtml(row.pangkalan_nama)}</td>
               ${cells}
-              <td class="text-center font-bold text-blue-600">${total}</td>
-              <td class="text-right">
-                <!-- Tombol ini langsung buka modal edit manual yang rentang tanggalnya fleksibel tadi -->
-                <button class="btn-secondary text-xs py-1 px-2" onclick="openEditMasterSAModal()">Edit</button>
-              </td>
+              <td class="text-center font-bold text-blue-600 border border-slate-100 dark:border-slate-800">${total}</td>
             </tr>`;
         }).join('')}
       </tbody>
