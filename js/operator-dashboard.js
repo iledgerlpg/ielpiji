@@ -726,18 +726,62 @@ async function fetchMasterSA() {
   const daysToShow = [];
   for (let i = startDay; i <= endDay; i++) { daysToShow.push(i); }
 
+  // Array untuk menampung total per kolom tanggal
+  const dailyTotals = {};
+  daysToShow.forEach(d => { dailyTotals[d] = 0; });
+  let grandTotal = 0;
+
+  // Render Body Tabel & Hitung Total Per Hari
+  const bodyHtml = data.map(row => {
+    let rowTotal = 0;
+    const cells = daysToShow.map(d => {
+      const key = `tgl_${String(d).padStart(2,'0')}`;
+      const val = Number(row[key] || 0);
+      
+      // Akumulasikan ke total hari kerja bersangkutan
+      dailyTotals[d] += val;
+      rowTotal += val;
+      
+      return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">${val || ''}</td>`;
+    }).join('');
+    
+    grandTotal += rowTotal;
+    
+    return `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+        <td class="font-medium text-slate-900 dark:text-white border border-slate-100 dark:border-slate-800">${UI.escapeHtml(row.pangkalan_nama)}</td>
+        ${cells}
+        <td class="text-center font-bold text-blue-600 border border-slate-100 dark:border-slate-800">${rowTotal}</td>
+      </tr>`;
+  }).join('');
+
+  // Render Baris Total Bawah (Footer)
+  const footerHtml = `
+    <tr class="bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+      <td class="p-2 border border-slate-200 dark:border-slate-700">TOTAL HARIAN</td>
+      ${daysToShow.map(d => `
+        <td class="text-center text-xs border border-slate-200 dark:border-slate-700 text-blue-700 dark:text-blue-400">
+          ${dailyTotals[d] || 0}
+        </td>
+      `).join('')}
+      <td class="text-center border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400">
+        ${grandTotal}
+      </td>
+    </tr>`;
+
+  // Satukan komponen ke dalam tabel
   document.getElementById('sa-container').innerHTML = data.length ? `
     <table style="min-width:1000px" class="border-collapse border border-slate-200 dark:border-slate-700">
       <thead>
-        <!-- Baris Pertama: Nama Bulan Menghubungkan Semua Kolom Tanggal -->
+        <!-- Baris Pertama: Nama Bulan -->
         <tr>
           <th rowspan="2" class="align-middle border border-slate-200 dark:border-slate-700">Pangkalan</th>
-          <th colspan="${daysToShow.length}" class="text-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-xs tracking-wider text-slate-700 dark:text-slate-300 py-1">
+          <th colspan="${daysToShow.length}" class="text-center bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 font-bold text-xs tracking-wider text-slate-700 dark:text-slate-200 py-1">
             ${namaBulan.toUpperCase()}
           </th>
           <th rowspan="2" class="text-center align-middle border border-slate-200 dark:border-slate-700">Total</th>
         </tr>
-        <!-- Baris Kedua: Format Angka Tanggal Dua Digit (01, 02, 03) -->
+        <!-- Baris Kedua: Format Angka Tanggal (01, 02, 03) -->
         <tr>
           ${daysToShow.map(d => {
             const tglDuaDigit = String(d).padStart(2, '0');
@@ -746,23 +790,11 @@ async function fetchMasterSA() {
         </tr>
       </thead>
       <tbody>
-        ${data.map(row => {
-          let total = 0;
-          const cells = daysToShow.map(d => {
-            const key = `tgl_${String(d).padStart(2,'0')}`;
-            const val = Number(row[key] || 0);
-            total += val;
-            return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">${val || ''}</td>`;
-          }).join('');
-          
-          return `
-            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-              <td class="font-medium text-slate-900 dark:text-white border border-slate-100 dark:border-slate-800">${UI.escapeHtml(row.pangkalan_nama)}</td>
-              ${cells}
-              <td class="text-center font-bold text-blue-600 border border-slate-100 dark:border-slate-800">${total}</td>
-            </tr>`;
-        }).join('')}
+        ${bodyHtml}
       </tbody>
+      <tfoot>
+        ${footerHtml}
+      </tfoot>
     </table>` : UI.emptyState('Belum ada data alokasi untuk periode ini.','📊');
 }
 /** Download template Excel (.xlsx) pakai NAMA PANGKALAN */
