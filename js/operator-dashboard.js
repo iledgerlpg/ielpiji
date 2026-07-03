@@ -74,102 +74,119 @@ function toggleSidebarGroup(group){
   buildSidebar();
   document.getElementById(`nav-${activeSection}`)?.classList.add('active');
 }
+function toggleGroup(group) {
+  SIDEBAR_OPEN[group] = !SIDEBAR_OPEN[group];
 
-function buildSidebar(){
-  const nav=document.getElementById('sidebar-nav');
+  const body = document.getElementById(`group-${group}`);
+  const arrow = document.getElementById(`arrow-${group}`);
 
-  nav.innerHTML=`
+  if (!body) return;
 
-    <!-- Dashboard -->
-    <button class="nav-item w-full text-left"
-      id="nav-dashboard"
-      onclick="showSection('dashboard')">
-      ${SVG.home}
-      <span class="nav-label">Dashboard</span>
-    </button>
+  body.classList.toggle('hidden');
 
-    <!-- iShipping -->
-    <div class="nav-group">
+  if (arrow) {
+    arrow.style.transform = SIDEBAR_OPEN[group]
+      ? 'rotate(90deg)'
+      : 'rotate(0deg)';
+  }
+}
+const SIDEBAR_OPEN = {
+  shipping: true,
+  operasional: false,
+  setting: false
+};
+function buildSidebar() {
 
+  const nav = document.getElementById('sidebar-nav');
+
+  const sections = [
+    {
+      id:'shipping',
+      label:'iShipping',
+      items:['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa']
+    },
+    {
+      id:'operasional',
+      label:'iOperasional',
+      items:['bayar-refill','bayar-bh','monitoring-bayar','stok-gudang']
+    },
+    {
+      id:'setting',
+      label:'Setting',
+      items:['pangkalan','spbe']
+    }
+  ];
+
+  nav.innerHTML = `
       <button class="nav-item w-full text-left"
-        onclick="toggleSidebarGroup('shipping')">
-        ${SVG.truck}
-        <span class="nav-label">iShipping</span>
+        id="nav-dashboard"
+        onclick="showSection('dashboard')">
 
-        <svg class="ml-auto transition-transform ${SIDEBAR_STATE.shipping?'rotate-90':''}"
-          width="16" height="16" fill="none" stroke="currentColor"
-          viewBox="0 0 24 24">
-          <path stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 5l7 7-7 7"/>
-        </svg>
+        ${SVG.home}
+        <span class="nav-label">Dashboard</span>
 
       </button>
 
-      <div class="nav-children ${SIDEBAR_STATE.shipping?'open':''}">
-        ${buildChild('jadwal-harian')}
-        ${buildChild('laporan-pengiriman')}
-        ${buildChild('monitoring-kirim')}
-        ${buildChild('master-sa')}
+      ${sections.map(sec=>`
+
+      <div class="nav-group">
+
+        <button
+          class="nav-item w-full text-left"
+          onclick="toggleGroup('${sec.id}')">
+
+          ${
+            sec.id==='shipping'
+            ? SVG.truck
+            : sec.id==='operasional'
+            ? SVG.box
+            : SVG.store
+          }
+
+          <span class="nav-label">${sec.label}</span>
+
+          <span
+            id="arrow-${sec.id}"
+            style="
+              margin-left:auto;
+              transition:.25s;
+              transform:${SIDEBAR_OPEN[sec.id]?'rotate(90deg)':'rotate(0deg)'};
+            ">
+            ▶
+          </span>
+
+        </button>
+
+        <div
+          id="group-${sec.id}"
+          class="${SIDEBAR_OPEN[sec.id]?'':'hidden'}">
+
+          ${
+            sec.items.map(id=>{
+
+              const item=NAV_ITEMS.find(n=>n.id===id);
+
+              return `
+                <button
+                  class="nav-item w-full text-left"
+                  id="nav-${id}"
+                  onclick="showSection('${id}')"
+                  style="padding-left:42px">
+
+                  ${SVG[item.icon]}
+                  <span class="nav-label">${item.label}</span>
+
+                </button>
+              `;
+
+            }).join('')
+          }
+
+        </div>
+
       </div>
 
-    </div>
-
-    <!-- iOperasional -->
-    <div class="nav-group">
-
-      <button class="nav-item w-full text-left"
-        onclick="toggleSidebarGroup('operasional')">
-        ${SVG.box}
-        <span class="nav-label">iOperasional</span>
-
-        <svg class="ml-auto transition-transform ${SIDEBAR_STATE.operasional?'rotate-90':''}"
-          width="16" height="16" fill="none" stroke="currentColor"
-          viewBox="0 0 24 24">
-          <path stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 5l7 7-7 7"/>
-        </svg>
-
-      </button>
-
-      <div class="nav-children ${SIDEBAR_STATE.operasional?'open':''}">
-        ${buildChild('bayar-refill')}
-        ${buildChild('bayar-bh')}
-        ${buildChild('monitoring-bayar')}
-        ${buildChild('stok-gudang')}
-      </div>
-
-    </div>
-
-    <!-- Setting -->
-    <div class="nav-group">
-
-      <button class="nav-item w-full text-left"
-        onclick="toggleSidebarGroup('setting')">
-        ${SVG.store}
-        <span class="nav-label">Setting</span>
-
-        <svg class="ml-auto transition-transform ${SIDEBAR_STATE.setting?'rotate-90':''}"
-          width="16" height="16" fill="none" stroke="currentColor"
-          viewBox="0 0 24 24">
-          <path stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 5l7 7-7 7"/>
-        </svg>
-
-      </button>
-
-      <div class="nav-children ${SIDEBAR_STATE.setting?'open':''}">
-        ${buildChild('pangkalan')}
-        ${buildChild('spbe')}
-      </div>
-
-    </div>
-
+      `).join('')}
   `;
 }
 function showSection(id) {
