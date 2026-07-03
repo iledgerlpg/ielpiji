@@ -198,7 +198,7 @@ function showSection(id) {
   const loaders = {
     'dashboard':          loadDashboard,
     'jadwal-harian':      loadJadwalHarian,
-    'laporan-pengiriman': loadLaporan,
+    'laporan-pengiriman': loadLaporanPengiriman,
     'monitoring-kirim':   loadMonitoringKirim,
     'master-sa':          loadMasterSA,
     'bayar-refill':       () => loadPembayaran('REFILL'),
@@ -640,13 +640,13 @@ async function loadLaporanPengiriman() {
     <div class="filter-bar flex flex-wrap items-center gap-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-4">
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium">Dari Tgl:</label>
-        <input type="date" id="lp-start" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporan()"/>
+        <input type="date" id="lp-start" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporanPengiriman()"/>
       </div>
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium">Sampai Tgl:</label>
-        <input type="date" id="lp-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporan()"/>
+        <input type="date" id="lp-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporanPengirimann()"/>
       </div>
-      <button class="btn-secondary text-sm py-1.5 ml-auto" onclick="fetchLaporan()">Tampilkan</button>
+      <button class="btn-secondary text-sm py-1.5 ml-auto" onclick="fetchLaporanPengiriman()">Tampilkan</button>
     </div>
 
     <div id="lp-container" class="table-wrapper overflow-x-auto">
@@ -669,7 +669,7 @@ async function fetchLaporanPengiriman() {
   container.innerHTML = '<div class="animate-pulse p-4 text-slate-400">Memuat data...</div>';
 
   // Memanggil API dengan parameter rentang tanggal
-  const res = await API.operator.getLaporan({ start_date: start, end_date: end });
+  const res = await API.operator.getLaporanPengiriman({ start_date: start, end_date: end });
   
   // Proteksi jika user sudah keburu pindah menu sebelum data beres di-load
   if (activeSection !== 'laporan' && activeSection !== 'laporan-pengiriman') return;
@@ -688,8 +688,8 @@ async function fetchLaporanPengiriman() {
       </td>
       <td class="text-right">
         <div class="flex gap-1 justify-end">
-          <button class="btn-secondary text-xs py-1 px-2" onclick="verifikasiLaporan('${l.laporan_id}')">Verifikasi</button>
-          <button class="btn-danger text-xs py-1 px-2"    onclick="hapusLaporan('${l.laporan_id}')">Hapus</button>
+          <button class="btn-secondary text-xs py-1 px-2" onclick="verifikasiLaporanPengiriman('${l.laporan_id}')">Verifikasi</button>
+          <button class="btn-danger text-xs py-1 px-2"    onclick="hapusLaporanPengiriman('${l.laporan_id}')">Hapus</button>
         </div>
       </td>
     </tr>`).join('') : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan.','📋')}</td></tr>`;
@@ -697,14 +697,14 @@ async function fetchLaporanPengiriman() {
 
 async function verifikasiLaporanPengiriman(id) {
   const res = await API.operator.updateLaporanPengiriman({ laporan_id: id, status: 'VERIFIED' });
-  if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporan(); }
+  if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporanPengiriman(); }
   else UI.toast(res.message, 'error');
 }
 
 async function hapusLaporanPengiriman(id) {
   if (!await UI.confirm('Hapus laporan ini?', 'Konfirmasi')) return;
   const res = await API.operator.deleteLaporanPengiriman({ laporan_id: id });
-  if (res.success) { UI.toast('Laporan dihapus.', 'success'); fetchLaporan(); }
+  if (res.success) { UI.toast('Laporan dihapus.', 'success'); fetchLaporanPengiriman(); }
   else UI.toast(res.message, 'error');
 }
 
