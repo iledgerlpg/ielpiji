@@ -1581,7 +1581,7 @@ async function fetchStok() {
   document.getElementById('sg-tbody').innerHTML = pembelian?.length ? pembelian.map(p => `
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(p.tanggal)}</td>
-      <td>${UI.escapeHtml(p.nama_spbe || p.spbe_id)}</td>
+      <td>${UI.escapeHtml(p.nama_spbe)}</td>
       <td class="font-semibold">${UI.formatNumber(p.jumlah)}</td>
       <td class="text-slate-500 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
       <td class="text-right">
