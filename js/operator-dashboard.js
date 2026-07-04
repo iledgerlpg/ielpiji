@@ -1563,10 +1563,10 @@ async function fetchStok() {
   });
 
   // Render Tabel
-  const tbody = document.getElementById('tbody-stok-gudang');
+  const tbody = document.getElementById('sg-tbody');
   
   if (stokData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4">Belum ada data pembelian stok.</td></tr>`;
+tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4">Belum ada data pembelian stok.</td></tr>`;
     return;
   }
 
