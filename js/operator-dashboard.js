@@ -656,7 +656,23 @@ async function loadLaporanPengiriman() {
   await fetchLaporanPengiriman();
 }
 
-// 1. FUNGSI HELPER UNTUK MENGAMBIL ID FILE GOOGLE DRIVE
+// 1. Membersihkan URL Google Drive
+function cleanImageUrl(url) {
+    if (!url) return '';
+    
+    // Jika sudah format direct link, biarkan saja
+    if (url.includes('uc?export=view')) return url;
+    
+    // Jika format lama, baru kita konversi
+    if (url.includes('drive.google.com')) {
+        return url.replace('/view?usp=sharing', '/uc?export=view')
+                  .replace('/file/d/', '/uc?id=')
+                  .replace('/view', '');
+    }
+    return url;
+}
+
+// 2. Mengambil ID File
 function extractFileId(url) {
     if (!url) return null;
     const directId = url.match(/id=([A-Za-z0-9_-]+)/);
@@ -664,16 +680,25 @@ function extractFileId(url) {
     return directId ? directId[1] : (fileId ? fileId[1] : null);
 }
 
-// 2. FUNGSI UNTUK MERENDER THUMBNAIL
-function renderThumb(url, altText) {
-    const id = extractFileId(url);
-    if (!id) return ''; // Jika kosong, tidak usah render apa-apa
+// 3. Merender Thumbnail dengan Pengaman (Fallback)
+function renderThumb(url, altText = 'Foto') {
+    // Jalankan pembersihan URL dulu
+    const cleanedUrl = cleanImageUrl(url);
+    const id = extractFileId(cleanedUrl);
     
-    // Mengubahnya menjadi link thumbnail resmi Google Drive
+    if (!id) return ''; // Kosongkan jika tidak ada ID agar tidak muncul strip bertumpuk
+    
+    // Link thumbnail untuk preview, Link uc?export=view untuk full image
     const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
+    const fullUrl = `https://drive.google.com/uc?export=view&id=${id}`;
     
-    return `<a href="${url}" target="_blank" title="Foto ${altText}" class="hover:opacity-80 transition-transform transform hover:scale-110 duration-200">
-                <img src="${thumbUrl}" alt="${altText}" class="h-7 w-7 md:h-8 md:w-8 object-cover rounded shadow border border-slate-300 dark:border-slate-600" loading="lazy" onerror="this.onerror=null; this.src='https://placehold.co/100x100?text=Error';" />
+    // Ditambahkan onerror agar jika diblokir Google, gambar tidak pecah
+    return `<a href="${fullUrl}" target="_blank" title="${altText}" class="hover:opacity-80 transition transform hover:scale-105 duration-200">
+                <img src="${thumbUrl}" 
+                     alt="${altText}" 
+                     class="h-10 w-10 md:h-12 md:w-12 object-cover rounded shadow mx-auto border border-slate-200 dark:border-slate-700" 
+                     loading="lazy" 
+                     onerror="this.onerror=null; this.src='https://placehold.co/100x100/e2e8f0/64748b?text=Foto';" />
             </a>`;
 }
 
