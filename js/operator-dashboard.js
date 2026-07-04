@@ -681,26 +681,22 @@ function extractFileId(url) {
 }
 
 // 3. Merender Thumbnail dengan Pengaman (Fallback)
-function renderThumb(url, altText = 'Foto') {
-    // Jalankan pembersihan URL dulu
-    const cleanedUrl = cleanImageUrl(url);
-    const id = extractFileId(cleanedUrl);
-    
-    if (!id) return ''; // Kosongkan jika tidak ada ID agar tidak muncul strip bertumpuk
-    
-    // Link thumbnail untuk preview, Link uc?export=view untuk full image
-    const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
-    const fullUrl = `https://drive.google.com/uc?export=view&id=${id}`;
-    
-    // Ditambahkan onerror agar jika diblokir Google, gambar tidak pecah
-    return `<a href="${fullUrl}" target="_blank" title="${altText}" class="hover:opacity-80 transition transform hover:scale-105 duration-200">
+function renderThumb(url) {
+      const id = extractFileId(url);
+      if (!id) return '-';
+      
+      const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
+      // Gunakan link /view untuk href agar lebih aman dari blokir download otomatis
+      const viewUrl = `https://drive.google.com/file/d/${id}/view`;
+      
+      return `<a href="${viewUrl}" target="_blank">
                 <img src="${thumbUrl}" 
-                     alt="${altText}" 
-                     class="h-10 w-10 md:h-12 md:w-12 object-cover rounded shadow mx-auto border border-slate-200 dark:border-slate-700" 
+                     class="h-20 rounded shadow mx-auto object-cover" 
                      loading="lazy" 
-                     onerror="this.onerror=null; this.src='https://placehold.co/100x100/e2e8f0/64748b?text=Foto';" />
-            </a>`;
-}
+                     onerror="this.onerror=null; this.src='https://placehold.co/100x100/e2e8f0/64748b?text=Cek+Foto';"
+                     alt="Bukti" />
+              </a>`;
+    }
 
 // 3. FUNGSI UTAMA LAPORAN PENGIRIMAN
 async function fetchLaporanPengiriman() {
