@@ -1549,6 +1549,44 @@ async function loadStokGudang() {
     </div>`;
   await fetchStok();
 }
+async function fetchStok() {
+  const bulan = document.getElementById('sg-bln')?.value;
+  
+  // Colspan diubah jadi 5 karena kolom harga dan total dihapus
+  document.getElementById('sg-tbody').innerHTML = `<tr><td colspan="5">${skLine()}</td></tr>`;
+  
+  const res = await API.operator.getStokGudang({ bulan });
+  if (activeSection !== 'stok-gudang') return;
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
+  
+  const { total_pembelian, total_terkirim, total_retur, stok_gudang, pembelian } = res.data;
+  const stokColor = stok_gudang < 0 ? 'text-red-600' : stok_gudang < 100 ? 'text-amber-600' : 'text-green-600';
+
+  document.getElementById('sg-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">📦</div><div><div class="stat-label">Total Pembelian</div><div class="stat-value">${UI.formatNumber(total_pembelian)}</div></div></div>
+    <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">🚚</div><div><div class="stat-label">Total Terkirim</div><div class="stat-value">${UI.formatNumber(total_terkirim)}</div></div></div>
+    <div class="stat-card"><div class="stat-icon bg-slate-100 dark:bg-slate-800">↩️</div><div>
+      <div class="stat-label">Total Retur</div>
+      <div class="stat-value text-slate-500">${UI.formatNumber(total_retur)}</div>
+      <div class="text-xs text-slate-400 mt-0.5">tidak masuk stok</div>
+    </div></div>
+    <div class="stat-card"><div class="stat-icon bg-amber-100 dark:bg-amber-900/40">🏭</div><div>
+      <div class="stat-label">Stok Gudang</div>
+      <div class="stat-value ${stokColor}">${UI.formatNumber(stok_gudang)}</div>
+      <div class="text-xs text-slate-400 mt-0.5">pembelian − terkirim</div>
+    </div></div>`;
+
+  document.getElementById('sg-tbody').innerHTML = pembelian?.length ? pembelian.map(p => `
+    <tr>
+      <td class="text-xs text-slate-500">${UI.formatDateShort(p.tanggal)}</td>
+      <td>${UI.escapeHtml(p.nama_spbe)}</td>
+      <td class="font-semibold">${UI.formatNumber(p.jumlah)}</td>
+      <td class="text-slate-500 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
+      <td class="text-right">
+        <button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button>
+      </td>
+    </tr>`).join('') : `<tr><td colspan="5">${UI.emptyState('Belum ada pembelian.','📦')}</td></tr>`;
+}
 function getStokGudang(ctx, params) {
   const pembelianSheet = getTenantSheet(ctx.pt_id, SHEETS.PEMBELIAN_STOK);
   const laporanSheet   = getTenantSheet(ctx.pt_id, SHEETS.LAPORAN_PENGIRIMAN);
