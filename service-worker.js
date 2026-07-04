@@ -104,21 +104,23 @@ async function cacheFirstWithNetwork(request) {
   }
 }
 
-async function networkFirstWithCache(request) {
+async function cacheFirstWithNetwork(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
   try {
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(API_CACHE);
+      const cache = await caches.open(STATIC_CACHE);
       cache.put(request, response.clone());
     }
     return response;
   } catch {
-    const cached = await caches.match(request);
-    return cached || new Response(JSON.stringify({
-      success: false, code: 503,
-      message: 'Tidak ada koneksi internet. Data mungkin belum terbaru.',
-      data: null,
-    }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+    // Jika offline dan tidak ada cache, return halaman utama ('/')
+    const offlinePage = await caches.match('/'); // <--- UBAH DI SINI
+    return offlinePage || new Response('Offline - Tidak ada koneksi internet.', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
   }
 }
 
