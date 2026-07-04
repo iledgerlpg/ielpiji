@@ -1535,7 +1535,7 @@ async function loadStokGudang() {
     <div id="sg-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">${skCards(4)}</div>
     <h3 class="font-semibold text-slate-900 dark:text-white mb-3">Riwayat Pembelian</h3>
     <div class="table-wrapper">
-      <table><thead><tr><th>Tanggal</th><th>SPBE</th><th>Jumlah</th><th>Total</th><th>Keterangan</th><th class="text-right">Aksi</th></tr></thead>
+      <table><thead><tr><th>No.</th><th>Tanggal</th><th>SPBE</th><th>Jumlah</th><th>Total</th><th>Keterangan</th><th class="text-right">Aksi</th></tr></thead>
       <tbody id="sg-tbody"></tbody></table>
     </div>`;
   await fetchStok();
