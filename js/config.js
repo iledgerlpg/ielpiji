@@ -7,5 +7,5 @@
 window.ILPG_CONFIG = {
   // Ganti dengan URL Web App hasil Deploy di Google Apps Script.
   // Cara dapatkan: GAS Script Editor → Deploy → Manage deployments → copy "Web app URL"
-  API_URL: 'https://script.google.com/macros/s/AKfycbwQJtbWFtlTVUTGEFkzhVG13gUaLyzSzshd70MYVVtToE0p71q8o2vcW29FmJi1vlL84w/exec',
+  API_URL: 'https://script.google.com/macros/s/AKfycbyX6-0yA1SYfEfxwBzMplIBodnWqpg83koaY-dixnI18CdMbxasME4cY9xDTm7wA-kDsQ/exec',
 };
