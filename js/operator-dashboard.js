@@ -656,7 +656,7 @@ async function loadLaporanPengiriman() {
   await fetchLaporanPengiriman();
 }
 
-// --- FUNGSI HELPER FOTO GOOGLE DRIVE ---
+// 1. FUNGSI HELPER UNTUK MENGAMBIL ID FILE GOOGLE DRIVE
 function extractFileId(url) {
     if (!url) return null;
     const directId = url.match(/id=([A-Za-z0-9_-]+)/);
@@ -664,20 +664,20 @@ function extractFileId(url) {
     return directId ? directId[1] : (fileId ? fileId[1] : null);
 }
 
-function renderThumb(url) {
+// 2. FUNGSI UNTUK MERENDER THUMBNAIL
+function renderThumb(url, altText) {
     const id = extractFileId(url);
-    if (!id) return ''; // Dibuat kosong agar tidak menumpuk tanda strip
+    if (!id) return ''; // Jika kosong, tidak usah render apa-apa
     
-    // Link thumbnail untuk preview, Link uc?export=view untuk full image
+    // Mengubahnya menjadi link thumbnail resmi Google Drive
     const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
-    const fullUrl = `https://drive.google.com/uc?export=view&id=${id}`;
     
-    return `<a href="${fullUrl}" target="_blank" class="hover:opacity-80 transition transform hover:scale-105 duration-200">
-                <img src="${thumbUrl}" class="h-10 w-10 md:h-12 md:w-12 object-cover rounded shadow mx-auto border border-slate-200 dark:border-slate-700" loading="lazy" alt="Foto" />
+    return `<a href="${url}" target="_blank" title="Foto ${altText}" class="hover:opacity-80 transition-transform transform hover:scale-110 duration-200">
+                <img src="${thumbUrl}" alt="${altText}" class="h-7 w-7 md:h-8 md:w-8 object-cover rounded shadow border border-slate-300 dark:border-slate-600" loading="lazy" onerror="this.onerror=null; this.src='https://placehold.co/100x100?text=Error';" />
             </a>`;
 }
 
-// --- FUNGSI RENDER TABEL ---
+// 3. FUNGSI UTAMA LAPORAN PENGIRIMAN
 async function fetchLaporanPengiriman() {
   const start = document.getElementById('lp-start')?.value;
   const end   = document.getElementById('lp-end')?.value;
@@ -689,10 +689,8 @@ async function fetchLaporanPengiriman() {
   const container = document.getElementById('lp-container');
   container.innerHTML = '<div class="animate-pulse p-4 text-slate-400">Memuat data...</div>';
   
-  // Memanggil API dengan parameter rentang tanggal
   const res = await API.operator.getLaporanPengiriman({ start_date: start, end_date: end });
   
-  // Proteksi jika user sudah keburu pindah menu sebelum data beres di-load
   if (activeSection !== 'laporan' && activeSection !== 'laporan-pengiriman') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
@@ -700,21 +698,20 @@ async function fetchLaporanPengiriman() {
 <table class="w-full text-sm">
     <thead>
         <tr class="text-slate-500 dark:text-slate-400">
-            <th class="text-left p-2">Tanggal</th>
-            <th class="text-left p-2">Driver</th>
-            <th class="text-left p-2">Pangkalan</th>
-            <th class="text-center p-2">Kirim</th>
-            <th class="text-center p-2">Retur</th>
-            <th class="text-center p-2">Status</th>
-            <th class="text-center p-2">Foto</th>
-            <th class="text-right p-2">Aksi</th>
+            <th class="text-left p-2 border-b border-slate-200 dark:border-slate-700">Tanggal</th>
+            <th class="text-left p-2 border-b border-slate-200 dark:border-slate-700">Driver</th>
+            <th class="text-left p-2 border-b border-slate-200 dark:border-slate-700">Pangkalan</th>
+            <th class="text-center p-2 border-b border-slate-200 dark:border-slate-700">Kirim</th>
+            <th class="text-center p-2 border-b border-slate-200 dark:border-slate-700">Retur</th>
+            <th class="text-center p-2 border-b border-slate-200 dark:border-slate-700">Status</th>
+            <th class="text-center p-2 border-b border-slate-200 dark:border-slate-700">Foto</th>
+            <th class="text-right p-2 border-b border-slate-200 dark:border-slate-700">Aksi</th>
         </tr>
     </thead>
     <tbody>
         ${
             res.data.laporan.length
             ? res.data.laporan.map(l => {
-                // Pengecekan: apakah minimal ada 1 url foto yang tersimpan
                 const hasPhoto = l.foto_pengiriman_url || l.foto_retur_url || l.foto_pangkalan_url;
                 
                 return `
@@ -726,13 +723,13 @@ async function fetchLaporanPengiriman() {
                     <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-center">${l.jumlah_retur || 0}</td>
                     <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-center">${UI.badge(l.status, l.status)}</td>
                     
-                    <!-- Eksekusi fungsi renderThumb buatan Anda -->
+                    <!-- Eksekusi fungsi renderThumb -->
                     <td class="p-2 border-b border-slate-200 dark:border-slate-700">
                         <div class="flex gap-1.5 justify-center items-center">
                             ${hasPhoto ? `
-                                ${renderThumb(l.foto_pengiriman_url)}
-                                ${renderThumb(l.foto_retur_url)}
-                                ${renderThumb(l.foto_pangkalan_url)}
+                                ${renderThumb(l.foto_pengiriman_url, 'Kirim')}
+                                ${renderThumb(l.foto_retur_url, 'Retur')}
+                                ${renderThumb(l.foto_pangkalan_url, 'Pangkalan')}
                             ` : `<span class="text-slate-400 text-xs">-</span>`}
                         </div>
                     </td>
