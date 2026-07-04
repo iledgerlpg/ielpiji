@@ -1521,7 +1521,34 @@ async function fetchMonitoringBayar() {
 // ============================================================
 // STOK GUDANG — retur tidak menambah balik stok
 // ============================================================
-
+async function loadStokGudang() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+      <div><h2 class="page-title">Stok Gudang</h2><p class="page-sub">Stok = Total Pembelian − Total Terkirim. Retur tidak menambah balik stok gudang.</p></div>
+      <button class="btn-primary" onclick="openPembelianModal()">+ Tambah Pembelian</button>
+    </div>
+    <div class="filter-bar">
+      <input type="month" id="sg-bln" class="form-input w-40" value="${UI.currentMonthValue()}" onchange="fetchStok()"/>
+    </div>
+    <div id="sg-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">${skCards(4)}</div>
+    <h3 class="font-semibold text-slate-900 dark:text-white mb-3">Riwayat Pembelian</h3>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>SPBE</th>
+            <th>Jumlah</th>
+            <th>Keterangan</th>
+            <th class="text-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="sg-tbody"></tbody>
+      </table>
+    </div>`;
+  await fetchStok();
+}
 function getStokGudang(ctx, params) {
   const pembelianSheet = getTenantSheet(ctx.pt_id, SHEETS.PEMBELIAN_STOK);
   const laporanSheet   = getTenantSheet(ctx.pt_id, SHEETS.LAPORAN_PENGIRIMAN);
