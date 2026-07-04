@@ -6,5 +6,5 @@
 /assets/*             /assets/:splat       200
 
 # Redirect lama (backward compat)
-/login                /pages/login.html    301
+/login                /pages/login   301
 /dashboard            /index.html          302
