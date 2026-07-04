@@ -59,7 +59,7 @@ const Auth = (() => {
   };
 
   function getDashboardUrl(role) {
-    return ROLE_DASHBOARDS[role] || '/pages/login.html';
+    return ROLE_DASHBOARDS[role] || '/pages/login';
   }
 
   // ============================================================
@@ -92,7 +92,7 @@ const Auth = (() => {
   function handleUnauthorized() {
     clearSession();
     UI.toast('Sesi berakhir. Silakan login kembali.', 'warning');
-    setTimeout(() => window.location.replace('/pages/login.html'), 1500);
+    setTimeout(() => window.location.replace('/pages/login'), 15000);
   }
 
   // ============================================================
