@@ -1522,145 +1522,89 @@ async function fetchMonitoringBayar() {
 // STOK GUDANG — retur tidak menambah balik stok
 // ============================================================
 
-async function loadStokGudang() {
-  const main = document.getElementById('main-content');
-  main.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
-      <div><h2 class="page-title">Stok Gudang</h2><p class="page-sub">Stok = Total Pembelian − Total Terkirim. Retur tidak menambah balik stok gudang.</p></div>
-      <button class="btn-primary" onclick="openPembelianModal()">+ Tambah Pembelian</button>
-    </div>
-    <div class="filter-bar">
-      <input type="month" id="sg-bln" class="form-input w-40" value="${UI.currentMonthValue()}" onchange="fetchStok()"/>
-    </div>
-    <div id="sg-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">${skCards(4)}</div>
-    <h3 class="font-semibold text-slate-900 dark:text-white mb-3">Riwayat Pembelian</h3>
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Tanggal</th>
-            <th>SPBE</th>
-            <th>Jumlah</th>
-            <th>Keterangan</th>
-            <th class="text-right">Aksi</th>
-          </tr>
-        </thead>
-        <tbody id="sg-tbody"></tbody>
-      </table>
-    </div>`;
-  await fetchStok();
-}
+function getStokGudang(ctx, params) {
+  const pembelianSheet = getTenantSheet(ctx.pt_id, SHEETS.PEMBELIAN_STOK);
+  const laporanSheet   = getTenantSheet(ctx.pt_id, SHEETS.LAPORAN_PENGIRIMAN);
+  const spbeSheet      = getTenantSheet(ctx.pt_id, SHEETS.MASTER_SPBE);
 
-async function fetchStok() {
-  const bulan = document.getElementById('sg-bln')?.value;
-  
-  // Colspan diubah jadi 5 karena kolom harga dan total dihapus
-  document.getElementById('sg-tbody').innerHTML = `<tr><td colspan="5">${skLine()}</td></tr>`;
-  
-  const res = await API.operator.getStokGudang({ bulan });
-  if (activeSection !== 'stok-gudang') return;
-  if (!res.success) { UI.toast(res.message, 'error'); return; }
-  
-  const { total_pembelian, total_terkirim, total_retur, stok_gudang, pembelian } = res.data;
-  const stokColor = stok_gudang < 0 ? 'text-red-600' : stok_gudang < 100 ? 'text-amber-600' : 'text-green-600';
+  let pembelian = pembelianSheet ? sheetToObjects(pembelianSheet).map(p => ({ ...p, tanggal: normalizeDateStr(p.tanggal) })) : [];
+  let laporan   = laporanSheet ? sheetToObjects(laporanSheet).map(l => ({ ...l, tanggal: normalizeDateStr(l.tanggal) })) : [];
+  const masterSpbe = spbeSheet ? sheetToObjects(spbeSheet) : [];
 
-  document.getElementById('sg-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">📦</div><div><div class="stat-label">Total Pembelian</div><div class="stat-value">${UI.formatNumber(total_pembelian)}</div></div></div>
-    <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">🚚</div><div><div class="stat-label">Total Terkirim</div><div class="stat-value">${UI.formatNumber(total_terkirim)}</div></div></div>
-    <div class="stat-card"><div class="stat-icon bg-slate-100 dark:bg-slate-800">↩️</div><div>
-      <div class="stat-label">Total Retur</div>
-      <div class="stat-value text-slate-500">${UI.formatNumber(total_retur)}</div>
-      <div class="text-xs text-slate-400 mt-0.5">tidak masuk stok</div>
-    </div></div>
-    <div class="stat-card"><div class="stat-icon bg-amber-100 dark:bg-amber-900/40">🏭</div><div>
-      <div class="stat-label">Stok Gudang</div>
-      <div class="stat-value ${stokColor}">${UI.formatNumber(stok_gudang)}</div>
-      <div class="text-xs text-slate-400 mt-0.5">pembelian − terkirim</div>
-    </div></div>`;
+  const spbeMap = {};
+  masterSpbe.forEach(s => {
+    spbeMap[s.spbe_id] = s.nama;
+  });
 
-  document.getElementById('sg-tbody').innerHTML = pembelian?.length ? pembelian.map(p => `
-    <tr>
-      <td class="text-xs text-slate-500">${UI.formatDateShort(p.tanggal)}</td>
-      <td>${UI.escapeHtml(p.nama_spbe)}</td>
-      <td class="font-semibold">${UI.formatNumber(p.jumlah)}</td>
-      <td class="text-slate-500 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
-      <td class="text-right">
-        <button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button>
-      </td>
-    </tr>`).join('') : `<tr><td colspan="5">${UI.emptyState('Belum ada pembelian.','📦')}</td></tr>`;
-}
+  if (params.bulan) {
+    pembelian = pembelian.filter(p => p.tanggal.startsWith(params.bulan));
+    laporan   = laporan.filter(l => l.tanggal.startsWith(params.bulan));
+  }
 
-function openPembelianModal() {
-  const modal = document.createElement('div');
-  modal.id    = 'beli-modal';
-  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
-  modal.innerHTML = `
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-        <h3 class="font-semibold text-slate-900 dark:text-white">Tambah Pembelian Stok</h3>
-        <button class="btn-icon" onclick="document.getElementById('beli-modal').remove()">✕</button>
-      </div>
-      <div class="p-5 space-y-4">
-        <div><label class="form-label">SPBE *</label><select id="bm-spbe" class="form-select"><option value="">Memuat...</option></select></div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">Tanggal *</label><input id="bm-tgl" type="date" class="form-input" value="${UI.todayInputValue()}"/></div>
-          <div><label class="form-label">Jumlah (tabung) *</label><input id="bm-jml" type="number" class="form-input" placeholder="0" min="1"/></div>
-        </div>
-        <div><label class="form-label">Harga/tabung *</label><input id="bm-harga" type="number" class="form-input" placeholder="0" min="0"/></div>
-        <div><label class="form-label">Keterangan</label><input id="bm-ket" class="form-input" placeholder="Opsional..."/></div>
-        <div id="bm-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
-        <button id="bm-btn" class="btn-primary w-full justify-center" onclick="savePembelian()">Simpan Pembelian</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-  API.operator.getSPBE({ status: 'ACTIVE' }).then(res => {
-    if (res.success) {
-      document.getElementById('bm-spbe').innerHTML =
-        `<option value="">-- Pilih SPBE --</option>` +
-        res.data.spbe.map(s => `<option value="${s.spbe_id}">${UI.escapeHtml(s.nama)}</option>`).join('');
-    }
+  const totalBeli  = pembelian.reduce((s, p) => s + Number(p.jumlah || 0), 0);
+  const totalKirim = laporan.reduce((s, l) => s + Number(l.jumlah_kirim || 0), 0);
+  const totalRetur = laporan.reduce((s, l) => s + Number(l.jumlah_retur || 0), 0);
+
+  const stokGudang = totalBeli - totalKirim;
+
+  const pembelianDenganNama = pembelian.map(p => ({
+    ...p,
+    nama_spbe: spbeMap[p.spbe_id] || p.spbe_id || '-'
+  })).sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+
+  return sendSuccess({
+    total_pembelian: totalBeli,
+    total_terkirim: totalKirim,
+    total_retur: totalRetur,
+    stok_gudang: stokGudang,
+    pembelian: pembelianDenganNama
   });
 }
 
-async function savePembelian() {
-  const btn   = document.getElementById('bm-btn');
-  const errEl = document.getElementById('bm-err');
-  errEl.classList.add('hidden');
-  
-  // harga_satuan sudah dihapus dari body
-  const body  = { 
-    spbe_id: document.getElementById('bm-spbe').value, 
-    tanggal: document.getElementById('bm-tgl').value, 
-    jumlah: Number(document.getElementById('bm-jml').value), 
-    keterangan: document.getElementById('bm-ket').value.trim() 
-  };
-  
-  // Validasi diubah, hapus pengecekan !body.harga_satuan
-  if (!body.spbe_id || !body.jumlah) { 
-    errEl.textContent = 'SPBE dan jumlah wajib diisi.'; 
-    errEl.classList.remove('hidden'); 
-    return; 
-  }
-  
-  UI.setLoading(btn, true, 'Menyimpan...');
-  const res = await API.operator.createPembelianStok(body);
-  UI.setLoading(btn, false);
-  
-  if (res.success) { 
-    UI.toast('Pembelian berhasil dicatat.', 'success'); 
-    document.getElementById('beli-modal').remove(); 
-    fetchStok(); // Langsung refresh data stok
-  } else { 
-    errEl.textContent = res.message; 
-    errEl.classList.remove('hidden'); 
-  }
+function createPembelianStok(ctx, body) {
+  const v = validateRequired(body, ['spbe_id', 'tanggal', 'jumlah']);
+  if (!v.valid) return sendError(400, `Field wajib: ${v.missing.join(', ')}`);
+
+  const sheet = getTenantSheet(ctx.pt_id, SHEETS.PEMBELIAN_STOK);
+  const jumlah = Number(body.jumlah);
+
+  appendRow(sheet, {
+    pembelian_id: generateUUID(),
+    spbe_id: body.spbe_id, // FIX: sebelumnya salah nyimpen body.nama_spbe
+    tanggal: body.tanggal,
+    jumlah: jumlah,
+    keterangan: sanitizeString(body.keterangan || ''),
+    created_by: ctx.user_id,
+  });
+
+  return sendSuccess(null, 'Pembelian stok berhasil dicatat.');
 }
 
-async function hapusPembelian(id) {
-  if (!await UI.confirm('Hapus data pembelian ini?')) return;
-  const res = await API.operator.deletePembelianStok({ pembelian_id: id });
-  if (res.success) { UI.toast('Pembelian dihapus.', 'success'); fetchStok(); }
-  else UI.toast(res.message, 'error');
+function updatePembelianStok(ctx, body) {
+  if (!body.pembelian_id) return sendError(400, 'pembelian_id wajib.');
+  const sheet = getTenantSheet(ctx.pt_id, SHEETS.PEMBELIAN_STOK);
+  const row = findRow(sheet, 'pembelian_id', body.pembelian_id);
+
+  if (!row) return sendError(404, 'Data pembelian tidak ditemukan.');
+
+  const jumlah = body.jumlah ? Number(body.jumlah) : Number(row.data.jumlah);
+
+  updateRow(sheet, row.row, {
+    spbe_id: body.spbe_id !== undefined ? body.spbe_id : row.data.spbe_id,
+    jumlah: jumlah,
+    keterangan: body.keterangan !== undefined ? sanitizeString(body.keterangan) : row.data.keterangan
+  });
+
+  return sendSuccess(null, 'Pembelian stok berhasil diupdate.');
+}
+
+function deletePembelianStok(ctx, body) {
+  if (!body.pembelian_id) return sendError(400, 'pembelian_id wajib.');
+  const sheet = getTenantSheet(ctx.pt_id, SHEETS.PEMBELIAN_STOK);
+  const row = findRow(sheet, 'pembelian_id', body.pembelian_id);
+  if (!row) return sendError(404, 'Data tidak ditemukan.');
+  deleteRow(sheet, row.row);
+  return sendSuccess(null, 'Data pembelian berhasil dihapus.');
 }
 
 // ============================================================
