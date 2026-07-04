@@ -619,10 +619,10 @@ async function deleteJadwalHarian(id) {
   if (res.success) { UI.toast('Jadwal dihapus.', 'success'); fetchJadwalHarian(); }
   else UI.toast(res.message, 'error');
 }
-// ============================================================
-// LAPORAN PENGIRIMAN - Menggunakan loadLaporan & fetchLaporan
-// ============================================================
+// --- 1. VARIABEL GLOBAL UNTUK MENYIMPAN DATA SEMENTARA ---
+let globalLaporanData = []; 
 
+// --- 2. FUNGSI LOAD UI HALAMAN (Ditambah Filter Bar) ---
 async function loadLaporanPengiriman() {
   const main = document.getElementById('main-content');
   const today = new Date().toISOString().split('T')[0];
@@ -636,34 +636,54 @@ async function loadLaporanPengiriman() {
       <button class="btn-primary" onclick="exportLaporan()">Export Laporan</button>
     </div>
     
-    <!-- Filter Rentang Tanggal -->
-    <div class="filter-bar flex flex-wrap items-center gap-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-4">
-      <div class="flex items-center gap-2">
-        <label class="text-sm font-medium">Dari Tgl:</label>
+    <!-- Filter Bar (Tgl, Driver, Pangkalan, Status) -->
+    <div class="filter-bar flex flex-wrap items-end gap-4 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-4 shadow-sm">
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-slate-500">Dari Tgl</label>
         <input type="date" id="lp-start" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporanPengiriman()"/>
       </div>
-      <div class="flex items-center gap-2">
-        <label class="text-sm font-medium">Sampai Tgl:</label>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-slate-500">Sampai Tgl</label>
         <input type="date" id="lp-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporanPengiriman()"/>
       </div>
-      <button class="btn-secondary text-sm py-1.5 ml-auto" onclick="fetchLaporanPengiriman()">Tampilkan</button>
+      
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-slate-500">Filter Driver/Kernet</label>
+        <select id="lp-driver" class="form-input w-40 text-sm cursor-pointer" onchange="renderTabelLaporan()">
+          <option value="">Semua</option>
+        </select>
+      </div>
+      
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-slate-500">Filter Pangkalan</label>
+        <select id="lp-pangkalan" class="form-input w-40 text-sm cursor-pointer" onchange="renderTabelLaporan()">
+          <option value="">Semua</option>
+        </select>
+      </div>
+      
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-slate-500">Status Verifikasi</label>
+        <select id="lp-status" class="form-input w-32 text-sm cursor-pointer" onchange="renderTabelLaporan()">
+          <option value="">Semua</option>
+          <option value="VERIFIED">Verified</option>
+          <option value="PENDING">Pending</option>
+        </select>
+      </div>
+      
+      <button class="btn-secondary text-sm py-2 px-4 ml-auto font-medium" onclick="fetchLaporanPengiriman()">Refresh API</button>
     </div>
 
-    <div id="lp-container" class="table-wrapper overflow-x-auto">
+    <div id="lp-container" class="table-wrapper overflow-x-auto bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
        <div class="animate-pulse p-4 text-slate-400">Memuat data...</div>
     </div>`;
   
   await fetchLaporanPengiriman();
 }
 
-// 1. Membersihkan URL Google Drive
+// --- 3. HELPER GAMBAR GOOGLE DRIVE ---
 function cleanImageUrl(url) {
     if (!url) return '';
-    
-    // Jika sudah format direct link, biarkan saja
     if (url.includes('uc?export=view')) return url;
-    
-    // Jika format lama, baru kita konversi
     if (url.includes('drive.google.com')) {
         return url.replace('/view?usp=sharing', '/uc?export=view')
                   .replace('/file/d/', '/uc?id=')
@@ -672,7 +692,6 @@ function cleanImageUrl(url) {
     return url;
 }
 
-// 2. Mengambil ID File
 function extractFileId(url) {
     if (!url) return null;
     const directId = url.match(/id=([A-Za-z0-9_-]+)/);
@@ -680,15 +699,11 @@ function extractFileId(url) {
     return directId ? directId[1] : (fileId ? fileId[1] : null);
 }
 
-// 3. Merender Thumbnail dengan Pengaman (Fallback)
 function renderThumb(url) {
       const id = extractFileId(url);
       if (!id) return '-';
       
-      // sz=w400 untuk resolusi thumbnail yang tajam di kotak besar
       const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
-      
-      // Link baru sesuai request: langsung tembak ke raw image tanpa UI Google Drive
       const directViewUrl = `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
       
       return `<a href="${directViewUrl}" target="_blank" class="block overflow-hidden rounded shadow mx-auto h-32 w-32">
@@ -698,9 +713,9 @@ function renderThumb(url) {
                      onerror="this.onerror=null; this.src='https://placehold.co/150x150/e2e8f0/64748b?text=Cek+Foto';"
                      alt="Bukti" />
               </a>`;
-    }
+}
 
-// 3. FUNGSI UTAMA LAPORAN PENGIRIMAN
+// --- 4. FUNGSI FETCH DATA (Tarik dari API & Update List Dropdown) ---
 async function fetchLaporanPengiriman() {
   const start = document.getElementById('lp-start')?.value;
   const end   = document.getElementById('lp-end')?.value;
@@ -709,67 +724,129 @@ async function fetchLaporanPengiriman() {
     UI.toast('Rentang tanggal tidak valid.', 'warning'); 
     return; 
   }
+  
   const container = document.getElementById('lp-container');
-  container.innerHTML = '<div class="animate-pulse p-4 text-slate-400">Memuat data...</div>';
+  if(container) container.innerHTML = '<div class="animate-pulse p-4 text-slate-400">Memuat data...</div>';
   
   const res = await API.operator.getLaporanPengiriman({ start_date: start, end_date: end });
   
   if (activeSection !== 'laporan' && activeSection !== 'laporan-pengiriman') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
-  container.innerHTML = `
-<table class="w-full text-sm">
-    <thead>
-        <tr class="text-slate-500 dark:text-slate-400">
-            <th class="text-left p-2 border-b border-slate-200 dark:border-slate-700">Tanggal</th>
-            <th class="text-left p-2 border-b border-slate-200 dark:border-slate-700">Driver</th>
-            <th class="text-left p-2 border-b border-slate-200 dark:border-slate-700">Pangkalan</th>
-            <th class="text-center p-2 border-b border-slate-200 dark:border-slate-700">Kirim</th>
-            <th class="text-center p-2 border-b border-slate-200 dark:border-slate-700">Retur</th>
-            <th class="text-center p-2 border-b border-slate-200 dark:border-slate-700">Status</th>
-            <th class="text-center p-2 border-b border-slate-200 dark:border-slate-700">Foto</th>
-            <th class="text-right p-2 border-b border-slate-200 dark:border-slate-700">Aksi</th>
-        </tr>
-    </thead>
-    <tbody>
-        ${
-            res.data.laporan.length
-            ? res.data.laporan.map(l => {
-                const hasPhoto = l.foto_pengiriman_url || l.foto_retur_url || l.foto_pangkalan_url;
-                
-                return `
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.formatDateShort(l.tanggal)}</td>
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 font-medium">${UI.escapeHtml(l.driver_nama)}</td>
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.escapeHtml(l.pangkalan_nama)}</td>
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-center font-semibold">${l.jumlah_kirim}</td>
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-center">${l.jumlah_retur || 0}</td>
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-center">${UI.badge(l.status, l.status)}</td>
-                    
-                    <!-- Eksekusi fungsi renderThumb -->
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">
-                        <div class="flex gap-1.5 justify-center items-center">
-                            ${hasPhoto ? `
-                                ${renderThumb(l.foto_pengiriman_url, 'Kirim')}
-                                ${renderThumb(l.foto_retur_url, 'Retur')}
-                                ${renderThumb(l.foto_pangkalan_url, 'Pangkalan')}
-                            ` : `<span class="text-slate-400 text-xs">-</span>`}
-                        </div>
-                    </td>
-                    
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-right">
-                        <div class="flex gap-3 items-center justify-end">
-                            ${l.status !== 'VERIFIED' ? `<button class="text-blue-600 hover:text-blue-800 text-xs font-semibold" onclick="verifikasiLaporanPengiriman('${l.laporan_id}')">Verifikasi</button>` : ''}
-                            <button class="text-red-600 hover:text-red-800 text-xs font-semibold" onclick="hapusLaporanPengiriman('${l.laporan_id}')">Hapus</button>
-                        </div>
-                    </td>
-                </tr>
-            `}).join('')
-            : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan','📋')}</td></tr>`
-        }
-    </tbody>
-</table>`;
+  // Simpan ke variabel global
+  globalLaporanData = res.data.laporan || [];
+
+  // --- Update opsi dropdown Driver dan Pangkalan otomatis ---
+  const driverSelect = document.getElementById('lp-driver');
+  const pangkalanSelect = document.getElementById('lp-pangkalan');
+  
+  if (driverSelect && pangkalanSelect) {
+      const currentDriver = driverSelect.value;
+      const currentPangkalan = pangkalanSelect.value;
+
+      // Ambil nama unik, hilangkan yang kosong, dan urutkan abjad
+      const uniqueDrivers = [...new Set(globalLaporanData.map(item => item.driver_nama).filter(Boolean))].sort();
+      const uniquePangkalan = [...new Set(globalLaporanData.map(item => item.pangkalan_nama).filter(Boolean))].sort();
+
+      driverSelect.innerHTML = '<option value="">Semua</option>' + uniqueDrivers.map(d => `<option value="${d}">${d}</option>`).join('');
+      pangkalanSelect.innerHTML = '<option value="">Semua</option>' + uniquePangkalan.map(p => `<option value="${p}">${p}</option>`).join('');
+      
+      // Kembalikan filter sebelumnya jika masih valid
+      if (uniqueDrivers.includes(currentDriver)) driverSelect.value = currentDriver;
+      if (uniquePangkalan.includes(currentPangkalan)) pangkalanSelect.value = currentPangkalan;
+  }
+
+  // Panggil fungsi render tabel
+  renderTabelLaporan();
 }
+
+// --- 5. FUNGSI RENDER TABEL (Dengan Filter Client-Side) ---
+function renderTabelLaporan() {
+    const container = document.getElementById('lp-container');
+    if (!container) return;
+
+    // Ambil nilai dari filter
+    const filterDriver = document.getElementById('lp-driver')?.value;
+    const filterPangkalan = document.getElementById('lp-pangkalan')?.value;
+    const filterStatus = document.getElementById('lp-status')?.value;
+
+    // Proses saring data (Filter)
+    const filteredData = globalLaporanData.filter(l => {
+        const matchDriver = !filterDriver || l.driver_nama === filterDriver;
+        const matchPangkalan = !filterPangkalan || l.pangkalan_nama === filterPangkalan;
+        const matchStatus = !filterStatus || l.status === filterStatus;
+        return matchDriver && matchPangkalan && matchStatus;
+    });
+
+    container.innerHTML = `
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                <th class="text-left p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Tanggal</th>
+                <th class="text-left p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Driver</th>
+                <th class="text-left p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Pangkalan</th>
+                <th class="text-center p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Kirim</th>
+                <th class="text-center p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Retur</th>
+                <th class="text-center p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Status</th>
+                <th class="text-center p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Foto</th>
+                <th class="text-right p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${
+                filteredData.length
+                ? filteredData.map(l => {
+                    const hasPhoto = l.foto_pengiriman_url || l.foto_retur_url || l.foto_pangkalan_url;
+                    
+                    return `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">${UI.formatDateShort(l.tanggal)}</td>
+                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 font-medium">${UI.escapeHtml(l.driver_nama)}</td>
+                        <td class="p-3 border-b border-slate-200 dark:border-slate-700">${UI.escapeHtml(l.pangkalan_nama)}</td>
+                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 text-center font-semibold text-indigo-600">${l.jumlah_kirim}</td>
+                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 text-center">${l.jumlah_retur || 0}</td>
+                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 text-center">${UI.badge(l.status, l.status)}</td>
+                        
+                        <td class="p-3 border-b border-slate-200 dark:border-slate-700">
+                            <div class="flex gap-2 justify-center items-center">
+                                ${hasPhoto ? `
+                                    ${renderThumb(l.foto_pengiriman_url)}
+                                    ${renderThumb(l.foto_retur_url)}
+                                    ${renderThumb(l.foto_pangkalan_url)}
+                                ` : `<span class="text-slate-400 text-xs italic">Tidak ada foto</span>`}
+                            </div>
+                        </td>
+                        
+                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 text-right align-middle">
+                            <div class="flex gap-2 items-center justify-end">
+                                <!-- TOMBOL EDIT BARU -->
+                                <button class="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs font-semibold shadow-sm transition" onclick="editLaporanPengiriman('${l.laporan_id}')">✏️ Edit</button>
+                                
+                                ${l.status !== 'VERIFIED' ? `<button class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-sm transition" onclick="verifikasiLaporanPengiriman('${l.laporan_id}')">✔️ Verif</button>` : ''}
+                                
+                                <button class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold shadow-sm transition" onclick="hapusLaporanPengiriman('${l.laporan_id}')">🗑️ Hapus</button>
+                            </div>
+                        </td>
+                    </tr>
+                `}).join('')
+                : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan atau tidak sesuai filter','📋')}</td></tr>`
+            }
+        </tbody>
+    </table>`;
+}
+
+// --- 6. FUNGSI AKSI LAPORAN ---
+function editLaporanPengiriman(id) {
+  // Ambil data spesifik dari globalLaporanData berdasarkan ID
+  const dataLaporan = globalLaporanData.find(l => l.laporan_id === id);
+  if (!dataLaporan) return;
+  
+  // TODO: Tampilkan Modal Edit di sini sama seperti di Master Data
+  // Akang bisa masukkan logika modal edit-nya di dalam fungsi ini
+  console.log("Data yang akan diedit:", dataLaporan);
+  UI.toast(`Buka form edit untuk driver: ${dataLaporan.driver_nama}`, 'info');
+}
+
 async function verifikasiLaporanPengiriman(id) {
   const res = await API.operator.updateLaporanPengiriman({ laporan_id: id, status: 'VERIFIED' });
   if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporanPengiriman(); }
@@ -782,7 +859,6 @@ async function hapusLaporanPengiriman(id) {
   if (res.success) { UI.toast('Laporan dihapus.', 'success'); fetchLaporanPengiriman(); }
   else UI.toast(res.message, 'error');
 }
-
 // ============================================================
 // MONITORING PENGIRIMAN
 // ============================================================
