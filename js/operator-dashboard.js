@@ -1535,18 +1535,32 @@ async function loadStokGudang() {
     <div id="sg-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">${skCards(4)}</div>
     <h3 class="font-semibold text-slate-900 dark:text-white mb-3">Riwayat Pembelian</h3>
     <div class="table-wrapper">
-      <table><thead><tr><th>Tanggal</th><th>SPBE</th><th>Jumlah</th><th>Harga/tab</th><th>Total</th><th>Keterangan</th><th class="text-right">Aksi</th></tr></thead>
-      <tbody id="sg-tbody"></tbody></table>
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>SPBE</th>
+            <th>Jumlah</th>
+            <th>Keterangan</th>
+            <th class="text-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="sg-tbody"></tbody>
+      </table>
     </div>`;
   await fetchStok();
 }
 
 async function fetchStok() {
   const bulan = document.getElementById('sg-bln')?.value;
-  document.getElementById('sg-tbody').innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
+  
+  // Colspan diubah jadi 5 karena kolom harga dan total dihapus
+  document.getElementById('sg-tbody').innerHTML = `<tr><td colspan="5">${skLine()}</td></tr>`;
+  
   const res = await API.operator.getStokGudang({ bulan });
   if (activeSection !== 'stok-gudang') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
+  
   const { total_pembelian, total_terkirim, total_retur, stok_gudang, pembelian } = res.data;
   const stokColor = stok_gudang < 0 ? 'text-red-600' : stok_gudang < 100 ? 'text-amber-600' : 'text-green-600';
 
@@ -1567,13 +1581,13 @@ async function fetchStok() {
   document.getElementById('sg-tbody').innerHTML = pembelian?.length ? pembelian.map(p => `
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(p.tanggal)}</td>
-      <td>${UI.escapeHtml(p.spbe_id)}</td>
+      <td>${UI.escapeHtml(p.nama_spbe || p.spbe_id)}</td>
       <td class="font-semibold">${UI.formatNumber(p.jumlah)}</td>
-      <td class="text-slate-500">${UI.formatRupiah(p.harga_satuan)}</td>
-      <td class="font-semibold">${UI.formatRupiah(p.total)}</td>
       <td class="text-slate-500 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
-      <td class="text-right"><button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button></td>
-    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada pembelian.','📦')}</td></tr>`;
+      <td class="text-right">
+        <button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button>
+      </td>
+    </tr>`).join('') : `<tr><td colspan="5">${UI.emptyState('Belum ada pembelian.','📦')}</td></tr>`;
 }
 
 function openPembelianModal() {
