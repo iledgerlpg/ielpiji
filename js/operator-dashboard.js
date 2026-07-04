@@ -839,7 +839,7 @@ async function fetchMasterSA() {
   const tahun = startDate.getFullYear();
   const bulan = String(startDate.getMonth() + 1).padStart(2, '0');
   
-  // Format Nama Bulan untuk Header Atas (contoh: "Juli 2026")
+  // Format Nama Bulan untuk Header Atas
   const namaBulan = startDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
   
   const startDay = startDate.getDate();
@@ -850,30 +850,40 @@ async function fetchMasterSA() {
     endDay = new Date(tahun, startDate.getMonth() + 1, 0).getDate();
   }
 
-  const res = await API.operator.getMasterSA({ bulan, tahun });
+  const bulanStr = `${tahun}-${bulan}`;
+
+  // Ambil Data Master SA, Data SPBE, dan Data Pembelian (Stok Gudang) secara paralel
+  const [res, spbeRes, stokRes] = await Promise.all([
+    API.operator.getMasterSA({ bulan, tahun }),
+    API.operator.getSPBE({ status: 'ACTIVE' }),
+    API.operator.getStokGudang({ bulan: bulanStr })
+  ]);
+
   if (activeSection !== 'master-sa') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   
   const data = res.data.master_sa;
   window._masterSAData = data; 
   
+  const spbeList = spbeRes.success ? spbeRes.data.spbe : [];
+  const pembelianList = stokRes.success ? stokRes.data.pembelian : [];
+  
   // Ambil deretan hari yang akan ditampilkan
   const daysToShow = [];
   for (let i = startDay; i <= endDay; i++) { daysToShow.push(i); }
 
-  // Array untuk menampung total per kolom tanggal
+  // Array untuk menampung total harian SA (Alokasi)
   const dailyTotals = {};
   daysToShow.forEach(d => { dailyTotals[d] = 0; });
   let grandTotal = 0;
 
-  // Render Body Tabel & Hitung Total Per Hari
+  // 1. Render Baris Pangkalan & Hitung Total Harian
   const bodyHtml = data.map(row => {
     let rowTotal = 0;
     const cells = daysToShow.map(d => {
       const key = `tgl_${String(d).padStart(2,'0')}`;
       const val = Number(row[key] || 0);
       
-      // Akumulasikan ke total hari kerja bersangkutan
       dailyTotals[d] += val;
       rowTotal += val;
       
@@ -884,14 +894,73 @@ async function fetchMasterSA() {
     
     return `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-        <td class="font-medium text-slate-900 dark:text-white border border-slate-100 dark:border-slate-800">${UI.escapeHtml(row.pangkalan_nama)}</td>
+        <td class="font-medium text-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 p-2">${UI.escapeHtml(row.pangkalan_nama)}</td>
         ${cells}
         <td class="text-center font-bold text-blue-600 border border-slate-100 dark:border-slate-800">${rowTotal}</td>
       </tr>`;
   }).join('');
 
-  // Render Baris Total Bawah (Footer)
+  // 2. Kalkulasi Data SPBE dan Pembelian per Hari
+  const spbeData = {};
+  spbeList.forEach(s => {
+    spbeData[s.spbe_id] = { nama: s.nama, daily: {}, total: 0 };
+    daysToShow.forEach(d => spbeData[s.spbe_id].daily[d] = 0);
+  });
+
+  if (pembelianList && pembelianList.length) {
+    pembelianList.forEach(p => {
+      const pDay = parseInt(p.tanggal.split('-')[2], 10); // Ambil tanggal dari YYYY-MM-DD
+      if (spbeData[p.spbe_id] && spbeData[p.spbe_id].daily[pDay] !== undefined) {
+         spbeData[p.spbe_id].daily[pDay] += Number(p.jumlah);
+         spbeData[p.spbe_id].total += Number(p.jumlah);
+      }
+    });
+  }
+
+  // Hitung Total Pembelian SPBE per hari
+  const dailyTotalSPBE = {};
+  let grandTotalSPBE = 0;
+  daysToShow.forEach(d => {
+     let sum = 0;
+     spbeList.forEach(s => { sum += spbeData[s.spbe_id].daily[d]; });
+     dailyTotalSPBE[d] = sum;
+     grandTotalSPBE += sum;
+  });
+
+  // Hitung Stock Gudang per hari (Total Pembelian SPBE - Total Harian)
+  const dailyStock = {};
+  let runningStock = 0;
+  daysToShow.forEach((d, index) => {
+     const tHarian = dailyTotals[d] || 0;
+     const tSpbe = dailyTotalSPBE[d] || 0;
+     
+     if (index === 0) {
+        // Hari pertama: Total SPBE hari ini - Total Harian hari ini
+        runningStock = tSpbe - tHarian;
+     } else {
+        // Hari berikutnya: Stock Kemarin + Total SPBE hari ini - Total Harian hari ini
+        runningStock = runningStock + tSpbe - tHarian;
+     }
+     dailyStock[d] = runningStock;
+  });
+
+  // 3. Render Baris Tambahan (SPBE, Total SPBE, Stock Gudang)
+  let spbeRowsHtml = '';
+  spbeList.forEach(s => {
+     const cells = daysToShow.map(d => {
+         const val = spbeData[s.spbe_id].daily[d];
+         return `<td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${val > 0 ? 'text-green-600 font-semibold' : 'text-slate-400'}">${val || 0}</td>`;
+     }).join('');
+     spbeRowsHtml += `
+        <tr class="bg-slate-50 dark:bg-slate-800/40">
+           <td class="font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 p-2">⤷ SPBE: ${UI.escapeHtml(s.nama)}</td>
+           ${cells}
+           <td class="text-center font-bold text-green-600 border border-slate-200 dark:border-slate-700">${spbeData[s.spbe_id].total}</td>
+        </tr>`;
+  });
+
   const footerHtml = `
+    <!-- Total Harian Master SA -->
     <tr class="bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
       <td class="p-2 border border-slate-200 dark:border-slate-700">TOTAL HARIAN</td>
       ${daysToShow.map(d => `
@@ -902,25 +971,41 @@ async function fetchMasterSA() {
       <td class="text-center border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400">
         ${grandTotal}
       </td>
-    </tr>`;
+    </tr>
+
+    <!-- List SPBE -->
+    ${spbeRowsHtml}
+
+    <!-- Total Pembelian SPBE -->
+    <tr class="bg-green-50 dark:bg-green-900/30 font-bold text-green-700 dark:text-green-400">
+      <td class="p-2 border border-slate-200 dark:border-slate-700">TOTAL PEMBELIAN SPBE</td>
+      ${daysToShow.map(d => `<td class="text-center text-xs border border-slate-200 dark:border-slate-700">${dailyTotalSPBE[d] || 0}</td>`).join('')}
+      <td class="text-center border border-slate-200 dark:border-slate-700">${grandTotalSPBE}</td>
+    </tr>
+
+    <!-- Stock Gudang -->
+    <tr class="bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-400">
+      <td class="p-2 border border-slate-200 dark:border-slate-700">STOCK GUDANG</td>
+      ${daysToShow.map(d => `<td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${dailyStock[d] < 0 ? 'text-red-500' : ''}">${dailyStock[d]}</td>`).join('')}
+      <td class="text-center border border-slate-200 dark:border-slate-700">-</td>
+    </tr>
+  `;
 
   // Satukan komponen ke dalam tabel
   document.getElementById('sa-container').innerHTML = data.length ? `
-    <table style="min-width:1000px" class="border-collapse border border-slate-200 dark:border-slate-700">
+    <table style="min-width:1000px" class="border-collapse border border-slate-200 dark:border-slate-700 w-full">
       <thead>
-        <!-- Baris Pertama: Nama Bulan -->
         <tr>
-          <th rowspan="2" class="align-middle border border-slate-200 dark:border-slate-700">Pangkalan</th>
+          <th rowspan="2" class="align-middle border border-slate-200 dark:border-slate-700 p-2">Pangkalan</th>
           <th colspan="${daysToShow.length}" class="text-center bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 font-bold text-xs tracking-wider text-slate-700 dark:text-slate-200 py-1">
             ${namaBulan.toUpperCase()}
           </th>
           <th rowspan="2" class="text-center align-middle border border-slate-200 dark:border-slate-700">Total</th>
         </tr>
-        <!-- Baris Kedua: Format Angka Tanggal (01, 02, 03) -->
         <tr>
           ${daysToShow.map(d => {
             const tglDuaDigit = String(d).padStart(2, '0');
-            return `<th class="text-center text-xs border border-slate-200 dark:border-slate-700 font-semibold">${tglDuaDigit}</th>`;
+            return `<th class="text-center text-xs border border-slate-200 dark:border-slate-700 font-semibold w-8">${tglDuaDigit}</th>`;
           }).join('')}
         </tr>
       </thead>
