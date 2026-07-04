@@ -656,6 +656,28 @@ async function loadLaporanPengiriman() {
   await fetchLaporanPengiriman();
 }
 
+// --- FUNGSI HELPER FOTO GOOGLE DRIVE ---
+function extractFileId(url) {
+    if (!url) return null;
+    const directId = url.match(/id=([A-Za-z0-9_-]+)/);
+    const fileId = url.match(/\/d\/([A-Za-z0-9_-]+)/);
+    return directId ? directId[1] : (fileId ? fileId[1] : null);
+}
+
+function renderThumb(url) {
+    const id = extractFileId(url);
+    if (!id) return ''; // Dibuat kosong agar tidak menumpuk tanda strip
+    
+    // Link thumbnail untuk preview, Link uc?export=view untuk full image
+    const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
+    const fullUrl = `https://drive.google.com/uc?export=view&id=${id}`;
+    
+    return `<a href="${fullUrl}" target="_blank" class="hover:opacity-80 transition transform hover:scale-105 duration-200">
+                <img src="${thumbUrl}" class="h-10 w-10 md:h-12 md:w-12 object-cover rounded shadow mx-auto border border-slate-200 dark:border-slate-700" loading="lazy" alt="Foto" />
+            </a>`;
+}
+
+// --- FUNGSI RENDER TABEL ---
 async function fetchLaporanPengiriman() {
   const start = document.getElementById('lp-start')?.value;
   const end   = document.getElementById('lp-end')?.value;
@@ -675,50 +697,54 @@ async function fetchLaporanPengiriman() {
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   container.innerHTML = `
-<table class="w-full">
+<table class="w-full text-sm">
     <thead>
-        <tr>
-            <th>Tanggal</th>
-            <th>Driver</th>
-            <th>Pangkalan</th>
-            <th>Kirim</th>
-            <th>Retur</th>
-            <th>Status</th>
-            <th>Foto</th>
-            <th>Aksi</th>
+        <tr class="text-slate-500 dark:text-slate-400">
+            <th class="text-left p-2">Tanggal</th>
+            <th class="text-left p-2">Driver</th>
+            <th class="text-left p-2">Pangkalan</th>
+            <th class="text-center p-2">Kirim</th>
+            <th class="text-center p-2">Retur</th>
+            <th class="text-center p-2">Status</th>
+            <th class="text-center p-2">Foto</th>
+            <th class="text-right p-2">Aksi</th>
         </tr>
     </thead>
     <tbody>
         ${
             res.data.laporan.length
-            ? res.data.laporan.map(l => `
+            ? res.data.laporan.map(l => {
+                // Pengecekan: apakah minimal ada 1 url foto yang tersimpan
+                const hasPhoto = l.foto_pengiriman_url || l.foto_retur_url || l.foto_pangkalan_url;
+                
+                return `
                 <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.formatDateShort(l.tanggal)}</td>
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.escapeHtml(l.driver_nama)}</td>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 font-medium">${UI.escapeHtml(l.driver_nama)}</td>
                     <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.escapeHtml(l.pangkalan_nama)}</td>
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${l.jumlah_kirim}</td>
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${l.jumlah_retur || 0}</td>
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.badge(l.status, l.status)}</td>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-center font-semibold">${l.jumlah_kirim}</td>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-center">${l.jumlah_retur || 0}</td>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-center">${UI.badge(l.status, l.status)}</td>
                     
-                    <!-- Kolom Foto dengan Thumbnail -->
+                    <!-- Eksekusi fungsi renderThumb buatan Anda -->
                     <td class="p-2 border-b border-slate-200 dark:border-slate-700">
-                        <div class="flex gap-1.5 items-center">
-                            ${l.foto_pengiriman_url ? `<a href="${l.foto_pengiriman_url}" target="_blank" title="Foto Pengiriman"><img src="${l.foto_pengiriman_url}" alt="Kirim" class="w-7 h-7 object-cover rounded border border-slate-300 hover:scale-110 transition-transform"></a>` : ''}
-                            ${l.foto_retur_url ? `<a href="${l.foto_retur_url}" target="_blank" title="Foto Retur"><img src="${l.foto_retur_url}" alt="Retur" class="w-7 h-7 object-cover rounded border border-slate-300 hover:scale-110 transition-transform"></a>` : ''}
-                            ${l.foto_pangkalan_url ? `<a href="${l.foto_pangkalan_url}" target="_blank" title="Foto Pangkalan"><img src="${l.foto_pangkalan_url}" alt="Pangkalan" class="w-7 h-7 object-cover rounded border border-slate-300 hover:scale-110 transition-transform"></a>` : ''}
-                            ${(!l.foto_pengiriman_url && !l.foto_retur_url && !l.foto_pangkalan_url) ? '<span class="text-xs text-slate-400">-</span>' : ''}
+                        <div class="flex gap-1.5 justify-center items-center">
+                            ${hasPhoto ? `
+                                ${renderThumb(l.foto_pengiriman_url)}
+                                ${renderThumb(l.foto_retur_url)}
+                                ${renderThumb(l.foto_pangkalan_url)}
+                            ` : `<span class="text-slate-400 text-xs">-</span>`}
                         </div>
                     </td>
                     
-                    <!-- Kolom Aksi -->
-                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">
-                        <div class="flex gap-2 items-center">
-                            ${l.status !== 'VERIFIED' ? `<button class="text-blue-600 hover:text-blue-800 text-xs font-medium" onclick="verifikasiLaporanPengiriman('${l.laporan_id}')">Verifikasi</button>` : ''}
-                            <button class="text-red-600 hover:text-red-800 text-xs font-medium" onclick="hapusLaporanPengiriman('${l.laporan_id}')">Hapus</button>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700 text-right">
+                        <div class="flex gap-3 items-center justify-end">
+                            ${l.status !== 'VERIFIED' ? `<button class="text-blue-600 hover:text-blue-800 text-xs font-semibold" onclick="verifikasiLaporanPengiriman('${l.laporan_id}')">Verifikasi</button>` : ''}
+                            <button class="text-red-600 hover:text-red-800 text-xs font-semibold" onclick="hapusLaporanPengiriman('${l.laporan_id}')">Hapus</button>
                         </div>
                     </td>
                 </tr>
-            `).join('')
+            `}).join('')
             : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan','📋')}</td></tr>`
         }
     </tbody>
