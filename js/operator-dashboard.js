@@ -2,11 +2,11 @@
  * ILPG Frontend — operator-dashboard.js
  *
  * Perubahan dari revisi terakhir:
- * 1. Urutan tabel Jadwal Harian: Tanggal, SPBE, Rit, Pangkalan, Target Kirim, Retur, Driver 1, Driver 2/Kernet, Aksi.
- * 2. Upload Excel + Download template untuk Jadwal Harian menggunakan NAMA Driver (bukan ID).
- * 3. Input Rit diubah menjadi string bebas (DO1, DO2, Stock Gudang, dsb).
- * 4. Stok gudang: retur TIDAK menambah balik stok.
- * 5. Bukti TF wajib jika ada nominal transfer.
+ * 1. Stok gudang: retur TIDAK menambah balik stok (stok = pembelian - terkirim)
+ * 2. Bukti TF wajib jika ada nominal transfer, baik untuk Refill maupun Bagi Hasil
+ * 3. Upload Excel + Download template untuk Jadwal Harian
+ * 4. Upload Excel + Download template untuk Master SA
+ * 5. getDrivers() pakai API.operator.getDrivers() (endpoint baru khusus Operator)
  */
 
 const SESSION = Auth.guard(['OPERATOR']);
@@ -50,145 +50,24 @@ document.addEventListener('DOMContentLoaded', () => {
   showSection('dashboard');
 });
 
-const SIDEBAR_STATE = {
-  shipping: false,
-  operasional: false,
-  setting: false
-};
-
-function buildChild(id){
-  const item = NAV_ITEMS.find(n=>n.id===id);
-
-  return `
-    <button class="nav-item nav-child w-full text-left"
-      id="nav-${id}"
-      onclick="showSection('${id}')">
-      ${SVG[item.icon]}
-      <span class="nav-label">${item.label}</span>
-    </button>
-  `;
-}
-
-function toggleSidebarGroup(group){
-  SIDEBAR_STATE[group]=!SIDEBAR_STATE[group];
-  buildSidebar();
-  document.getElementById(`nav-${activeSection}`)?.classList.add('active');
-}
-function toggleGroup(group) {
-  SIDEBAR_OPEN[group] = !SIDEBAR_OPEN[group];
-
-  const body = document.getElementById(`group-${group}`);
-  const arrow = document.getElementById(`arrow-${group}`);
-
-  if (!body) return;
-
-  body.classList.toggle('hidden');
-
-  if (arrow) {
-    arrow.style.transform = SIDEBAR_OPEN[group]
-      ? 'rotate(90deg)'
-      : 'rotate(0deg)';
-  }
-}
-const SIDEBAR_OPEN = {
-  shipping: true,
-  operasional: false,
-  setting: false
-};
 function buildSidebar() {
-
   const nav = document.getElementById('sidebar-nav');
-
   const sections = [
-    {
-      id:'shipping',
-      label:'iShipping',
-      items:['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa']
-    },
-    {
-      id:'operasional',
-      label:'iOperasional',
-      items:['bayar-refill','bayar-bh','monitoring-bayar','stok-gudang']
-    },
-    {
-      id:'setting',
-      label:'Setting',
-      items:['pangkalan','spbe']
-    }
+    { label: 'Utama',         items: ['dashboard'] },
+    { label: 'Pengiriman',    items: ['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa'] },
+    { label: 'Pembayaran',    items: ['bayar-refill','bayar-bh','monitoring-bayar'] },
+    { label: 'Stok & Master', items: ['stok-gudang','pangkalan','spbe'] },
   ];
-
-  nav.innerHTML = `
-      <button class="nav-item w-full text-left"
-        id="nav-dashboard"
-        onclick="showSection('dashboard')">
-
-        ${SVG.home}
-        <span class="nav-label">Dashboard</span>
-
-      </button>
-
-      ${sections.map(sec=>`
-
-      <div class="nav-group">
-
-        <button
-          class="nav-item w-full text-left"
-          onclick="toggleGroup('${sec.id}')">
-
-          ${
-            sec.id==='shipping'
-            ? SVG.truck
-            : sec.id==='operasional'
-            ? SVG.box
-            : SVG.store
-          }
-
-          <span class="nav-label">${sec.label}</span>
-
-          <span
-            id="arrow-${sec.id}"
-            style="
-              margin-left:auto;
-              transition:.25s;
-              transform:${SIDEBAR_OPEN[sec.id]?'rotate(90deg)':'rotate(0deg)'};
-            ">
-            ▶
-          </span>
-
-        </button>
-
-        <div
-          id="group-${sec.id}"
-          class="${SIDEBAR_OPEN[sec.id]?'':'hidden'}">
-
-          ${
-            sec.items.map(id=>{
-
-              const item=NAV_ITEMS.find(n=>n.id===id);
-
-              return `
-                <button
-                  class="nav-item w-full text-left"
-                  id="nav-${id}"
-                  onclick="showSection('${id}')"
-                  style="padding-left:42px">
-
-                  ${SVG[item.icon]}
-                  <span class="nav-label">${item.label}</span>
-
-                </button>
-              `;
-
-            }).join('')
-          }
-
-        </div>
-
-      </div>
-
-      `).join('')}
-  `;
+  nav.innerHTML = sections.map(sec => `
+    <div class="nav-section-label">${sec.label}</div>
+    ${sec.items.map(id => {
+      const item = NAV_ITEMS.find(n => n.id === id);
+      return `<button class="nav-item w-full text-left" id="nav-${id}" onclick="showSection('${id}')">
+        ${SVG[item.icon] || ''}<span class="nav-label">${item.label}</span>
+      </button>`;
+    }).join('')}`).join('');
 }
+
 function showSection(id) {
   activeSection = id;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -198,7 +77,7 @@ function showSection(id) {
   const loaders = {
     'dashboard':          loadDashboard,
     'jadwal-harian':      loadJadwalHarian,
-    'laporan-pengiriman': loadLaporanPengiriman,
+    'laporan-pengiriman': loadLaporan,
     'monitoring-kirim':   loadMonitoringKirim,
     'master-sa':          loadMasterSA,
     'bayar-refill':       () => loadPembayaran('REFILL'),
@@ -233,7 +112,6 @@ async function loadDashboard() {
 async function fetchDashboard() {
   const tanggal = document.getElementById('dash-tgl')?.value || UI.todayInputValue();
   const res = await API.operator.getDashboard({ tanggal });
-  if (activeSection !== 'dashboard') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const d = res.data;
   document.getElementById('dash-stats').innerHTML = `
@@ -245,7 +123,7 @@ async function fetchDashboard() {
     ? d.driver_belum_lapor.map(x => `
         <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
           <div><div class="text-sm font-medium text-slate-900 dark:text-white">${UI.escapeHtml(x.driver_nama)}</div>
-          <div class="text-xs text-slate-500">${UI.escapeHtml(x.pangkalan_nama)} · Rit/DO: ${UI.escapeHtml(x.rit)}</div></div>
+          <div class="text-xs text-slate-500">${UI.escapeHtml(x.pangkalan_nama)} · Rit ${x.rit}</div></div>
           <button class="btn-secondary text-xs py-1 px-2" onclick="showSection('laporan-pengiriman')">Detail</button>
         </div>`).join('')
     : UI.emptyState('Semua driver sudah lapor! 🎉', '✅');
@@ -259,7 +137,7 @@ async function fetchDashboard() {
 }
 
 // ============================================================
-// JADWAL HARIAN — Urutan Baru & Upload/Download pakai Nama Driver
+// JADWAL HARIAN — dengan Upload & Download Excel
 // ============================================================
 
 async function loadJadwalHarian() {
@@ -268,7 +146,7 @@ async function loadJadwalHarian() {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
       <div><h2 class="page-title">Jadwal Harian</h2><p class="page-sub">Atur jadwal pengiriman driver ke pangkalan.</p></div>
       <div class="flex gap-2 flex-wrap">
-        <button class="btn-secondary text-sm" onclick="downloadTemplateJadwal(this)">
+        <button class="btn-secondary text-sm" onclick="downloadTemplateJadwal()">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           Template Excel
         </button>
@@ -287,17 +165,7 @@ async function loadJadwalHarian() {
     </div>
     <div id="jh-import-status" class="hidden mb-4"></div>
     <div class="table-wrapper">
-      <table><thead><tr>
-        <th>Tanggal</th>
-        <th>SPBE</th>
-        <th>Rit</th>
-        <th>Nama Pangkalan</th>
-        <th>Target Kirim</th>
-        <th>Retur</th>
-        <th>Driver 1</th>
-        <th>Driver 2 / Kernet</th>
-        <th class="text-right">Aksi</th>
-      </tr></thead>
+      <table><thead><tr><th>Tanggal</th><th>Rit</th><th>Pangkalan</th><th>SPBE</th><th>Target Kirim</th><th>Driver</th><th class="text-right">Aksi</th></tr></thead>
       <tbody id="jh-tbody"></tbody></table>
     </div>`;
   await fetchJadwalHarian();
@@ -305,125 +173,160 @@ async function loadJadwalHarian() {
 
 async function fetchJadwalHarian() {
   const tbody = document.getElementById('jh-tbody');
-  tbody.innerHTML = `<tr><td colspan="9">${skLine()}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
   const params = { tanggal: document.getElementById('jh-tgl')?.value || undefined, bulan: document.getElementById('jh-bln')?.value || undefined };
   if (params.tanggal) delete params.bulan;
   const res = await API.operator.getJadwalHarian(params);
-  if (activeSection !== 'jadwal-harian') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
+  window._allJadwal = res.data.jadwal;
   tbody.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(j.tanggal)}</td>
-      <td class="text-slate-500 text-xs">${UI.escapeHtml(j.spbe_nama)}</td>
-      <td class="font-semibold">${UI.escapeHtml(j.rit)}</td>
+      <td class="font-semibold">Rit ${j.rit}</td>
       <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(j.pangkalan_nama)}</td>
+      <td class="text-slate-500 text-xs">${UI.escapeHtml(j.spbe_nama)}</td>
       <td>${j.jumlah_kirim} <span class="text-slate-400 text-xs">tabung</span></td>
-      <td>${j.jumlah_retur || 0} <span class="text-slate-400 text-xs">tabung</span></td>
-      <td class="text-sm">${UI.escapeHtml(j.driver1_nama)}</td>
-      <td class="text-sm">${j.driver2_nama && j.driver2_nama !== '-' ? UI.escapeHtml(j.driver2_nama) : '-'}</td>
+      <td class="text-sm">${UI.escapeHtml(j.driver1_nama)}${j.driver2_nama !== '-' ? ' + '+UI.escapeHtml(j.driver2_nama) : ''}</td>
       <td class="text-right">
-        <button class="btn-danger text-xs py-1 px-2" onclick="deleteJadwalHarian('${j.jadwal_id}')">Hapus</button>
+        <div class="flex gap-1 justify-end">
+          <button class="btn-secondary text-xs py-1 px-2" onclick="editJadwalHarian('${j.jadwal_id}')">Edit</button>
+          <button class="btn-danger text-xs py-1 px-2"    onclick="deleteJadwalHarian('${j.jadwal_id}')">Hapus</button>
+        </div>
       </td>
-    </tr>`).join('') : `<tr><td colspan="9">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
 }
 
-/** Download template Excel (.xlsx) asli untuk Jadwal Harian */
-async function downloadTemplateJadwal(btnEl) {
-  const btn = btnEl || null;
-  try {
-    if (btn) UI.setLoading(btn, true, 'Menyiapkan...');
-    if (!window.XLSX) {
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+async function editJadwalHarian(id) {
+  const jadwal = (window._allJadwal || []).find(j => j.jadwal_id === id);
+  if (!jadwal) { UI.toast('Data jadwal tidak ditemukan.', 'error'); return; }
+
+  const modal = document.createElement('div');
+  modal.id    = 'jh-edit-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+        <h3 class="font-semibold text-slate-900 dark:text-white">Edit Jadwal Harian</h3>
+        <button class="btn-icon" onclick="document.getElementById('jh-edit-modal').remove()">✕</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Tanggal *</label><input id="je-tgl" type="date" class="form-input" value="${jadwal.tanggal}"/></div>
+          <div><label class="form-label">Rit *</label><input id="je-rit" type="number" class="form-input" value="${jadwal.rit}" min="1"/></div>
+        </div>
+        <div><label class="form-label">Pangkalan *</label><select id="je-pangkalan" class="form-select"><option value="">Memuat...</option></select></div>
+        <div><label class="form-label">SPBE *</label><select id="je-spbe" class="form-select"><option value="">Memuat...</option></select></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Target Kirim *</label><input id="je-kirim" type="number" class="form-input" value="${jadwal.jumlah_kirim}" min="0"/></div>
+          <div><label class="form-label">Target Retur</label><input id="je-retur" type="number" class="form-input" value="${jadwal.jumlah_retur || 0}" min="0"/></div>
+        </div>
+        <div><label class="form-label">Driver 1 *</label><select id="je-driver1" class="form-select"><option value="">Memuat...</option></select></div>
+        <div><label class="form-label">Driver 2 / Kernet</label><select id="je-driver2" class="form-select"><option value="">-- Opsional --</option></select></div>
+        <div><label class="form-label">Keterangan</label><input id="je-ket" class="form-input" value="${UI.escapeHtml(jadwal.keterangan || '')}" placeholder="Opsional..."/></div>
+        <div id="je-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+        <button id="je-btn" class="btn-primary w-full justify-center" onclick="saveEditJadwal('${id}')">Simpan Perubahan</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // Load dropdowns lalu pre-select nilai saat ini
+  const [pangRes, spbeRes, driverRes] = await Promise.all([
+    API.operator.getPangkalan({ status: 'ACTIVE' }),
+    API.operator.getSPBE({ status: 'ACTIVE' }),
+    API.operator.getDrivers(),
+  ]);
+
+  const fillAndSelect = (elId, items, valKey, labelKey, selectedVal) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = `<option value="">-- Pilih --</option>` +
+      (items || []).map(i => `<option value="${i[valKey]}" ${i[valKey] === selectedVal ? 'selected' : ''}>${UI.escapeHtml(i[labelKey])}</option>`).join('');
+  };
+
+  if (pangRes.success)  fillAndSelect('je-pangkalan', pangRes.data.pangkalan, 'pangkalan_id', 'nama', jadwal.pangkalan_id);
+  if (spbeRes.success)  fillAndSelect('je-spbe',      spbeRes.data.spbe,      'spbe_id',      'nama', jadwal.spbe_id);
+  if (driverRes.success) {
+    const drivers = driverRes.data.drivers;
+    fillAndSelect('je-driver1', drivers, 'user_id', 'nama', jadwal.driver1_id);
+    const d2 = document.getElementById('je-driver2');
+    if (d2) {
+      d2.innerHTML = `<option value="">-- Opsional --</option>` +
+        drivers.map(d => `<option value="${d.user_id}" ${d.user_id === jadwal.driver2_id ? 'selected' : ''}>${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
     }
-
-    const [pangRes, spbeRes, driverRes] = await Promise.all([
-      API.operator.getPangkalan({ status: 'ACTIVE' }),
-      API.operator.getSPBE({ status: 'ACTIVE' }),
-      API.operator.getDrivers(),
-    ]);
-    const daftarPangkalan = pangRes.success ? (pangRes.data.pangkalan || []) : [];
-    const daftarSPBE      = spbeRes.success ? (spbeRes.data.spbe || []) : [];
-    const daftarDriver    = driverRes.success ? (driverRes.data.drivers || []) : [];
-
-    const wb = XLSX.utils.book_new();
-
-    // ── Sheet 1: Petunjuk ──
-    const petunjukAOA = [
-      ['PETUNJUK PENGISIAN TEMPLATE JADWAL HARIAN — ILPG'],
-      [''],
-      ['Kolom', 'Keterangan'],
-      ['tanggal', 'Format YYYY-MM-DD, contoh: 2024-01-15'],
-      ['spbe', 'Nama SPBE — HARUS SAMA PERSIS dengan sheet "Referensi SPBE"'],
-      ['rit', 'Nomor atau nama rit (contoh: 1, DO1, Stock Gudang)'],
-      ['pangkalan', 'Nama pangkalan — HARUS SAMA PERSIS dengan sheet "Referensi Pangkalan"'],
-      ['jumlah_kirim', 'Angka target pengiriman (tabung)'],
-      ['jumlah_retur', 'Angka target retur (boleh 0)'],
-      ['driver1_nama', 'Nama driver utama (WAJIB) — SAMA PERSIS dengan sheet "Referensi Driver"'],
-      ['driver2_nama', 'Nama kernet / driver 2 (boleh kosong) — SAMA PERSIS dengan sheet "Referensi Driver"'],
-      ['keterangan', 'Catatan bebas (boleh kosong)'],
-      [''],
-      ['⚠ Isi data mulai dari sheet "Data Jadwal", baris 2 (setelah header).'],
-      ['⚠ JANGAN mengubah nama kolom pada header sheet "Data Jadwal".'],
-      ['⚠ Nama pangkalan/SPBE/Driver tidak boleh typo — cek daftar resmi di sheet Referensi.'],
-    ];
-    const wsPetunjuk = XLSX.utils.aoa_to_sheet(petunjukAOA);
-    wsPetunjuk['!cols']   = [{ wch: 18 }, { wch: 75 }];
-    wsPetunjuk['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
-    XLSX.utils.book_append_sheet(wb, wsPetunjuk, 'Petunjuk');
-
-    // ── Sheet 2: Data Jadwal (header + 1 baris contoh) ──
-    const headers = ['tanggal','spbe','rit','pangkalan','jumlah_kirim','jumlah_retur','driver1_nama','driver2_nama','keterangan'];
-    const contoh  = [
-      '2024-01-15', 
-      daftarSPBE[0]?.nama || 'NAMA_SPBE_DISINI', 
-      'DO1',
-      daftarPangkalan[0]?.nama || 'NAMA_PANGKALAN_DISINI',
-      100, 0, 
-      daftarDriver[0]?.nama || 'NAMA_DRIVER_1', 
-      '', 
-      'Opsional',
-    ];
-    const wsData = XLSX.utils.aoa_to_sheet([headers, contoh]);
-    wsData['!cols'] = [
-      { wch: 12 }, { wch: 22 }, { wch: 15 }, { wch: 26 },
-      { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 24 },
-    ];
-    XLSX.utils.book_append_sheet(wb, wsData, 'Data Jadwal');
-
-    // ── Sheet 3: Referensi Pangkalan ──
-    const wsRefPang = XLSX.utils.aoa_to_sheet([
-      ['Nama Pangkalan'],
-      ...(daftarPangkalan.length ? daftarPangkalan.map(p => [p.nama]) : [['(Belum ada data pangkalan aktif)']]),
-    ]);
-    wsRefPang['!cols'] = [{ wch: 35 }];
-    XLSX.utils.book_append_sheet(wb, wsRefPang, 'Referensi Pangkalan');
-
-    // ── Sheet 4: Referensi SPBE ──
-    const wsRefSpbe = XLSX.utils.aoa_to_sheet([
-      ['Nama SPBE'],
-      ...(daftarSPBE.length ? daftarSPBE.map(s => [s.nama]) : [['(Belum ada data SPBE aktif)']]),
-    ]);
-    wsRefSpbe['!cols'] = [{ wch: 35 }];
-    XLSX.utils.book_append_sheet(wb, wsRefSpbe, 'Referensi SPBE');
-
-    // ── Sheet 5: Referensi Driver ──
-    const wsRefDriver = XLSX.utils.aoa_to_sheet([
-      ['Nama Driver / Kernet'],
-      ...(daftarDriver.length ? daftarDriver.map(d => [d.nama]) : [['(Belum ada data driver)']]),
-    ]);
-    wsRefDriver['!cols'] = [{ wch: 35 }];
-    XLSX.utils.book_append_sheet(wb, wsRefDriver, 'Referensi Driver');
-
-    XLSX.writeFile(wb, 'template_jadwal_harian_ILPG.xlsx');
-    UI.toast('Template Excel berhasil didownload.', 'success');
-  } catch (err) {
-    UI.toast(`Gagal membuat template: ${err.message}`, 'error');
-  } finally {
-    if (btn) UI.setLoading(btn, false);
   }
 }
 
-/** Upload & parse file Excel/CSV Jadwal Harian */
+async function saveEditJadwal(id) {
+  const btn   = document.getElementById('je-btn');
+  const errEl = document.getElementById('je-err');
+  errEl.classList.add('hidden');
+  const body = {
+    jadwal_id:    id,
+    tanggal:      document.getElementById('je-tgl').value,
+    rit:          Number(document.getElementById('je-rit').value),
+    pangkalan_id: document.getElementById('je-pangkalan').value,
+    spbe_id:      document.getElementById('je-spbe').value,
+    jumlah_kirim: Number(document.getElementById('je-kirim').value),
+    jumlah_retur: Number(document.getElementById('je-retur').value || 0),
+    driver1_id:   document.getElementById('je-driver1').value,
+    driver2_id:   document.getElementById('je-driver2').value,
+    keterangan:   document.getElementById('je-ket').value.trim(),
+  };
+  if (!body.tanggal || !body.pangkalan_id || !body.spbe_id || !body.jumlah_kirim || !body.driver1_id) {
+    errEl.textContent = 'Tanggal, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
+    errEl.classList.remove('hidden'); return;
+  }
+  UI.setLoading(btn, true, 'Menyimpan...');
+  const res = await API.operator.updateJadwalHarian(body);
+  UI.setLoading(btn, false);
+  if (res.success) {
+    UI.toast('Jadwal berhasil diupdate.', 'success');
+    document.getElementById('jh-edit-modal').remove();
+    fetchJadwalHarian();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+/** Download template Excel kosong untuk Jadwal Harian */
+function downloadTemplateJadwal() {
+  const headers = ['tanggal','rit','pangkalan_id','spbe_id','jumlah_kirim','jumlah_retur','driver1_id','driver2_id','keterangan'];
+  const contoh  = ['2024-01-15','1','ID_PANGKALAN_DISINI','ID_SPBE_DISINI','100','0','USER_ID_DRIVER1','USER_ID_DRIVER2','Opsional'];
+  const petunjuk = [
+    ['PETUNJUK PENGISIAN TEMPLATE JADWAL HARIAN ILPG'],
+    [''],
+    ['Kolom tanggal    : Format YYYY-MM-DD, contoh: 2024-01-15'],
+    ['Kolom rit        : Nomor rit (angka), contoh: 1'],
+    ['Kolom pangkalan_id : Salin dari menu Pangkalan (kolom ID di tabel)'],
+    ['Kolom spbe_id    : Salin dari menu SPBE (kolom ID di tabel)'],
+    ['Kolom jumlah_kirim : Angka target pengiriman'],
+    ['Kolom jumlah_retur : Angka target retur (boleh 0)'],
+    ['Kolom driver1_id : User ID driver utama (wajib)'],
+    ['Kolom driver2_id : User ID kernet/driver 2 (boleh kosong)'],
+    ['Kolom keterangan : Catatan bebas (boleh kosong)'],
+    [''],
+    ['HAPUS baris petunjuk ini sebelum upload. Data dimulai dari baris 2 (setelah header).'],
+  ];
+
+  // Buat CSV dengan petunjuk + header + contoh data
+  const csvRows = [
+    ...petunjuk.map(r => r.map(c => `"${c}"`).join(',')),
+    '',
+    headers.join(','),
+    contoh.join(','),
+  ];
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'template_jadwal_harian_ILPG.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  UI.toast('Template berhasil didownload.', 'success');
+}
+
+/** Upload & parse file Excel/CSV Jadwal Harian, kirim ke backend */
 async function uploadJadwalExcel(input) {
   const file = input.files[0];
   if (!file) return;
@@ -443,7 +346,7 @@ async function uploadJadwalExcel(input) {
 
     const headers = rows[0].map(h => String(h).trim().toLowerCase());
     const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
-    const reqCols  = ['tanggal','spbe','rit','pangkalan','driver1_nama'];
+    const reqCols  = ['tanggal','pangkalan_id','driver1_id'];
     const missing  = reqCols.filter(c => !headers.includes(c));
     if (missing.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -456,7 +359,7 @@ async function uploadJadwalExcel(input) {
       const obj = {};
       headers.forEach((h, i) => { obj[h] = String(row[i] ?? '').trim(); });
       return obj;
-    }).filter(r => r.tanggal && r.pangkalan && r.spbe && r.driver1_nama);
+    }).filter(r => r.tanggal && r.pangkalan_id && r.driver1_id);
 
     if (!mapped.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -465,63 +368,13 @@ async function uploadJadwalExcel(input) {
       return;
     }
 
-    // ── Resolve nama pangkalan/SPBE/Driver → id ──
-    statusEl.textContent = '⏳ Mencocokkan nama pangkalan, SPBE & Driver...';
-    const [pangRes, spbeRes, driverRes] = await Promise.all([
-      API.operator.getPangkalan({ status: 'ACTIVE' }),
-      API.operator.getSPBE({ status: 'ACTIVE' }),
-      API.operator.getDrivers(),
-    ]);
-    
-    if (!pangRes.success || !spbeRes.success || !driverRes.success) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.textContent = '❌ Gagal memuat data master untuk validasi.';
-      input.value = '';
-      return;
-    }
-
-    const norm = s => String(s || '').trim().toLowerCase();
-    const pangMap   = new Map((pangRes.data.pangkalan || []).map(p => [norm(p.nama), p.pangkalan_id]));
-    const spbeMap   = new Map((spbeRes.data.spbe || []).map(s => [norm(s.nama), s.spbe_id]));
-    const driverMap = new Map((driverRes.data.drivers || []).map(d => [norm(d.nama), d.user_id]));
-
-    const resolved  = [];
-    const notFound  = [];
-    mapped.forEach((r, idx) => {
-      const pangkalanId = pangMap.get(norm(r.pangkalan));
-      const spbeId      = spbeMap.get(norm(r.spbe));
-      const driver1Id   = driverMap.get(norm(r.driver1_nama));
-      const driver2Id   = r.driver2_nama ? driverMap.get(norm(r.driver2_nama)) : '';
-
-      if (!pangkalanId) { notFound.push(`Baris ${idx + 2}: Pangkalan "${r.pangkalan}" tidak ditemukan`); return; }
-      if (!spbeId) { notFound.push(`Baris ${idx + 2}: SPBE "${r.spbe}" tidak ditemukan`); return; }
-      if (!driver1Id) { notFound.push(`Baris ${idx + 2}: Driver 1 "${r.driver1_nama}" tidak ditemukan`); return; }
-      if (r.driver2_nama && !driver2Id) { notFound.push(`Baris ${idx + 2}: Kernet/Driver 2 "${r.driver2_nama}" tidak ditemukan`); return; }
-      
-      const { pangkalan, spbe, driver1_nama, driver2_nama, ...rest } = r;
-      resolved.push({ 
-        ...rest, 
-        pangkalan_id: pangkalanId, 
-        spbe_id: spbeId,
-        driver1_id: driver1Id,
-        driver2_id: driver2Id
-      });
-    });
-
-    if (notFound.length) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.innerHTML = `❌ ${notFound.length} baris gagal dicocokkan:<br/>${notFound.slice(0, 8).map(m => UI.escapeHtml(m)).join('<br/>')}${notFound.length > 8 ? `<br/>...dan ${notFound.length - 8} lainnya.` : ''}<br/>Cek ejaan nama pada sheet Referensi.`;
-      input.value = '';
-      return;
-    }
-
-    statusEl.textContent = `⏳ Mengirim ${resolved.length} baris ke server...`;
-    const res = await API.operator.importJadwalHarian({ rows: resolved });
+    statusEl.textContent = `⏳ Mengirim ${mapped.length} baris ke server...`;
+    const res = await API.operator.importJadwalHarian({ rows: mapped });
     input.value = '';
 
     if (res.success) {
       statusEl.className = 'mb-4 card bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-sm text-green-700';
-      statusEl.textContent = `✅ ${res.data.inserted} jadwal berhasil diimport dari ${resolved.length} baris.`;
+      statusEl.textContent = `✅ ${res.data.inserted} jadwal berhasil diimport dari ${mapped.length} baris.`;
       fetchJadwalHarian();
     } else {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -547,7 +400,7 @@ function openJadwalModal() {
       <div class="p-5 space-y-4">
         <div class="grid grid-cols-2 gap-3">
           <div><label class="form-label">Tanggal *</label><input id="jm-tgl" type="date" class="form-input" value="${UI.todayInputValue()}"/></div>
-          <div><label class="form-label">Rit *</label><input id="jm-rit" type="text" class="form-input" placeholder="Contoh: DO1, Stock Gudang"/></div>
+          <div><label class="form-label">Rit *</label><input id="jm-rit" type="number" class="form-input" value="1" min="1"/></div>
         </div>
         <div><label class="form-label">Pangkalan *</label><select id="jm-pangkalan" class="form-select"><option value="">Memuat...</option></select></div>
         <div><label class="form-label">SPBE *</label><select id="jm-spbe" class="form-select"><option value="">Memuat...</option></select></div>
@@ -593,7 +446,7 @@ async function saveJadwal() {
   errEl.classList.add('hidden');
   const body = {
     tanggal:      document.getElementById('jm-tgl').value,
-    rit:          document.getElementById('jm-rit').value.trim(),
+    rit:          Number(document.getElementById('jm-rit').value),
     pangkalan_id: document.getElementById('jm-pangkalan').value,
     spbe_id:      document.getElementById('jm-spbe').value,
     jumlah_kirim: Number(document.getElementById('jm-kirim').value),
@@ -602,8 +455,8 @@ async function saveJadwal() {
     driver2_id:   document.getElementById('jm-driver2').value,
     keterangan:   document.getElementById('jm-ket').value.trim(),
   };
-  if (!body.tanggal || !body.rit || !body.spbe_id || !body.pangkalan_id || !body.jumlah_kirim || !body.driver1_id) {
-    errEl.textContent = 'Tanggal, Rit, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
+  if (!body.tanggal || !body.spbe_id || !body.pangkalan_id || !body.jumlah_kirim || !body.driver1_id) {
+    errEl.textContent = 'Tanggal, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
     errEl.classList.remove('hidden'); return;
   }
   UI.setLoading(btn, true, 'Menyimpan...');
@@ -619,246 +472,152 @@ async function deleteJadwalHarian(id) {
   if (res.success) { UI.toast('Jadwal dihapus.', 'success'); fetchJadwalHarian(); }
   else UI.toast(res.message, 'error');
 }
-// --- 1. VARIABEL GLOBAL UNTUK MENYIMPAN DATA SEMENTARA ---
-let globalLaporanData = []; 
 
-// --- 2. FUNGSI LOAD UI HALAMAN (Ditambah Filter Bar) ---
-async function loadLaporanPengiriman() {
+// ============================================================
+// LAPORAN PENGIRIMAN
+// ============================================================
+
+async function loadLaporan() {
   const main = document.getElementById('main-content');
-  const today = new Date().toISOString().split('T')[0];
-
   main.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
-      <div>
-        <h2 class="page-title">Laporan Pengiriman</h2>
-        <p class="page-sub">Rekapitulasi riwayat pengiriman berdasarkan periode.</p>
-      </div>
-      <button class="btn-primary" onclick="exportLaporan()">Export Laporan</button>
+    <div class="page-header"><h2 class="page-title">Laporan Pengiriman</h2><p class="page-sub">Daftar laporan pengiriman dari semua driver.</p></div>
+    <div class="filter-bar">
+      <input type="date"  id="lp-tgl"    class="form-input w-44" onchange="fetchLaporan()"/>
+      <input type="month" id="lp-bln"    class="form-input w-40" value="${UI.currentMonthValue()}" onchange="fetchLaporan()"/>
+      <select id="lp-status" class="form-select w-36" onchange="fetchLaporan()">
+        <option value="">Semua Status</option><option>SUBMITTED</option><option>VERIFIED</option><option>REVISED</option>
+      </select>
     </div>
-    
-    <!-- Filter Bar (Tgl, Driver, Pangkalan, Status) -->
-    <div class="filter-bar flex flex-wrap items-end gap-4 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-4 shadow-sm">
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-semibold text-slate-500">Dari Tgl</label>
-        <input type="date" id="lp-start" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporanPengiriman()"/>
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-semibold text-slate-500">Sampai Tgl</label>
-        <input type="date" id="lp-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchLaporanPengiriman()"/>
-      </div>
-      
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-semibold text-slate-500">Filter Driver/Kernet</label>
-        <select id="lp-driver" class="form-input w-40 text-sm cursor-pointer" onchange="renderTabelLaporan()">
-          <option value="">Semua</option>
-        </select>
-      </div>
-      
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-semibold text-slate-500">Filter Pangkalan</label>
-        <select id="lp-pangkalan" class="form-input w-40 text-sm cursor-pointer" onchange="renderTabelLaporan()">
-          <option value="">Semua</option>
-        </select>
-      </div>
-      
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-semibold text-slate-500">Status Verifikasi</label>
-        <select id="lp-status" class="form-input w-32 text-sm cursor-pointer" onchange="renderTabelLaporan()">
-          <option value="">Semua</option>
-          <option value="VERIFIED">Verified</option>
-          <option value="PENDING">Pending</option>
-        </select>
-      </div>
-      
-      <button class="btn-secondary text-sm py-2 px-4 ml-auto font-medium" onclick="fetchLaporanPengiriman()">Refresh API</button>
-    </div>
-
-    <div id="lp-container" class="table-wrapper overflow-x-auto bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
-       <div class="animate-pulse p-4 text-slate-400">Memuat data...</div>
+    <div class="table-wrapper">
+      <table><thead><tr><th>Tanggal</th><th>Driver</th><th>Pangkalan</th><th>Kirim</th><th>Retur</th><th>Status</th><th>Foto</th><th class="text-right">Aksi</th></tr></thead>
+      <tbody id="lp-tbody"></tbody></table>
     </div>`;
-  
-  await fetchLaporanPengiriman();
+  await fetchLaporan();
 }
 
-// --- 3. HELPER GAMBAR GOOGLE DRIVE ---
-function cleanImageUrl(url) {
-    if (!url) return '';
-    if (url.includes('uc?export=view')) return url;
-    if (url.includes('drive.google.com')) {
-        return url.replace('/view?usp=sharing', '/uc?export=view')
-                  .replace('/file/d/', '/uc?id=')
-                  .replace('/view', '');
-    }
-    return url;
-}
-
-function extractFileId(url) {
-    if (!url) return null;
-    const directId = url.match(/id=([A-Za-z0-9_-]+)/);
-    const fileId = url.match(/\/d\/([A-Za-z0-9_-]+)/);
-    return directId ? directId[1] : (fileId ? fileId[1] : null);
-}
-
-function renderThumb(url) {
-      const id = extractFileId(url);
-      if (!id) return '-';
-      
-      const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
-      const directViewUrl = `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
-      
-      return `<a href="${directViewUrl}" target="_blank" class="block overflow-hidden rounded shadow mx-auto h-32 w-32">
-                <img src="${thumbUrl}" 
-                     class="h-full w-full object-cover hover:scale-110 transition-transform duration-300" 
-                     loading="lazy" 
-                     onerror="this.onerror=null; this.src='https://placehold.co/150x150/e2e8f0/64748b?text=Cek+Foto';"
-                     alt="Bukti" />
-              </a>`;
-}
-
-// --- 4. FUNGSI FETCH DATA (Tarik dari API & Update List Dropdown) ---
-async function fetchLaporanPengiriman() {
-  const start = document.getElementById('lp-start')?.value;
-  const end   = document.getElementById('lp-end')?.value;
-  
-  if (start > end) { 
-    UI.toast('Rentang tanggal tidak valid.', 'warning'); 
-    return; 
-  }
-  
-  const container = document.getElementById('lp-container');
-  if(container) container.innerHTML = '<div class="animate-pulse p-4 text-slate-400">Memuat data...</div>';
-  
-  const res = await API.operator.getLaporanPengiriman({ start_date: start, end_date: end });
-  
-  if (activeSection !== 'laporan' && activeSection !== 'laporan-pengiriman') return;
+async function fetchLaporan() {
+  const tbody = document.getElementById('lp-tbody');
+  tbody.innerHTML = `<tr><td colspan="8">${skLine()}</td></tr>`;
+  const params = {
+    tanggal: document.getElementById('lp-tgl')?.value  || undefined,
+    bulan:   document.getElementById('lp-bln')?.value  || undefined,
+    status:  document.getElementById('lp-status')?.value || undefined,
+  };
+  if (params.tanggal) delete params.bulan;
+  const res = await API.operator.getLaporanPengiriman(params);
   if (!res.success) { UI.toast(res.message, 'error'); return; }
+  tbody.innerHTML = res.data.laporan.length ? res.data.laporan.map(l => `
+    <tr>
+      <td class="text-xs text-slate-500">${UI.formatDateShort(l.tanggal)}<br/><span class="font-mono">${l.jam_laporan || ''}</span></td>
+      <td class="font-medium text-slate-900 dark:text-white text-sm">${UI.escapeHtml(l.driver_nama)}</td>
+      <td class="text-sm">${UI.escapeHtml(l.pangkalan_nama)}</td>
+      <td class="font-semibold">${l.jumlah_kirim}</td>
+      <td class="text-slate-500">${l.jumlah_retur || 0}</td>
+      <td>${UI.badge(l.status, l.status)}</td>
+      <td class="text-xs space-x-1">
+        ${l.foto_pengiriman_url ? `<a href="${l.foto_pengiriman_url}" target="_blank" class="text-blue-500 hover:underline">📷</a>` : ''}
+        ${l.foto_pangkalan_url  ? `<a href="${l.foto_pangkalan_url}"  target="_blank" class="text-blue-500 hover:underline">🏪</a>` : ''}
+      </td>
+      <td class="text-right">
+        <div class="flex gap-1 justify-end">
+          <button class="btn-secondary text-xs py-1 px-2" onclick="editLaporan('${l.laporan_id}')">Edit</button>
+          <button class="btn-secondary text-xs py-1 px-2" onclick="verifikasiLaporan('${l.laporan_id}')">Verifikasi</button>
+          <button class="btn-danger text-xs py-1 px-2"    onclick="hapusLaporan('${l.laporan_id}')">Hapus</button>
+        </div>
+      </td>
+    </tr>`).join('') : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan.','📋')}</td></tr>`;
+  // Cache data untuk edit
+  window._allLaporan = res.data.laporan;
+}
 
-  // Simpan ke variabel global
-  globalLaporanData = res.data.laporan || [];
+async function editLaporan(id) {
+  const laporan = (window._allLaporan || []).find(l => l.laporan_id === id);
+  if (!laporan) { UI.toast('Data laporan tidak ditemukan.', 'error'); return; }
 
-  // --- Update opsi dropdown Driver dan Pangkalan otomatis ---
-  const driverSelect = document.getElementById('lp-driver');
-  const pangkalanSelect = document.getElementById('lp-pangkalan');
-  
-  if (driverSelect && pangkalanSelect) {
-      const currentDriver = driverSelect.value;
-      const currentPangkalan = pangkalanSelect.value;
+  const modal = document.createElement('div');
+  modal.id    = 'lp-edit-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h3 class="font-semibold text-slate-900 dark:text-white">Edit Laporan Pengiriman</h3>
+        <button class="btn-icon" onclick="document.getElementById('lp-edit-modal').remove()">✕</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
+          <div><span class="font-medium">Driver:</span> ${UI.escapeHtml(laporan.driver_nama)}</div>
+          <div><span class="font-medium">Pangkalan:</span> ${UI.escapeHtml(laporan.pangkalan_nama)}</div>
+          <div><span class="font-medium">Tanggal:</span> ${UI.formatDate(laporan.tanggal)} · ${laporan.jam_laporan || '-'}</div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Jumlah Terkirim *</label>
+            <input id="le-kirim" type="number" class="form-input" value="${laporan.jumlah_kirim}" min="0"/>
+          </div>
+          <div><label class="form-label">Jumlah Retur</label>
+            <input id="le-retur" type="number" class="form-input" value="${laporan.jumlah_retur || 0}" min="0"/>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Status</label>
+          <select id="le-status" class="form-select">
+            <option value="SUBMITTED"  ${laporan.status === 'SUBMITTED'  ? 'selected' : ''}>SUBMITTED</option>
+            <option value="VERIFIED"   ${laporan.status === 'VERIFIED'   ? 'selected' : ''}>VERIFIED</option>
+            <option value="REVISED"    ${laporan.status === 'REVISED'    ? 'selected' : ''}>REVISED</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Catatan Operator</label>
+          <textarea id="le-catatan" class="form-textarea" rows="3" placeholder="Catatan opsional...">${UI.escapeHtml(laporan.catatan_operator || '')}</textarea>
+        </div>
+        <div id="le-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+        <button id="le-btn" class="btn-primary w-full justify-center" onclick="saveEditLaporan('${id}')">Simpan Perubahan</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
 
-      // Ambil nama unik, hilangkan yang kosong, dan urutkan abjad
-      const uniqueDrivers = [...new Set(globalLaporanData.map(item => item.driver_nama).filter(Boolean))].sort();
-      const uniquePangkalan = [...new Set(globalLaporanData.map(item => item.pangkalan_nama).filter(Boolean))].sort();
-
-      driverSelect.innerHTML = '<option value="">Semua</option>' + uniqueDrivers.map(d => `<option value="${d}">${d}</option>`).join('');
-      pangkalanSelect.innerHTML = '<option value="">Semua</option>' + uniquePangkalan.map(p => `<option value="${p}">${p}</option>`).join('');
-      
-      // Kembalikan filter sebelumnya jika masih valid
-      if (uniqueDrivers.includes(currentDriver)) driverSelect.value = currentDriver;
-      if (uniquePangkalan.includes(currentPangkalan)) pangkalanSelect.value = currentPangkalan;
+async function saveEditLaporan(id) {
+  const btn   = document.getElementById('le-btn');
+  const errEl = document.getElementById('le-err');
+  errEl.classList.add('hidden');
+  const jumlahKirim = Number(document.getElementById('le-kirim').value);
+  if (!jumlahKirim && jumlahKirim !== 0) {
+    errEl.textContent = 'Jumlah terkirim wajib diisi.';
+    errEl.classList.remove('hidden'); return;
   }
-
-  // Panggil fungsi render tabel
-  renderTabelLaporan();
+  UI.setLoading(btn, true, 'Menyimpan...');
+  const res = await API.operator.updateLaporanPengiriman({
+    laporan_id:       id,
+    jumlah_kirim:     jumlahKirim,
+    jumlah_retur:     Number(document.getElementById('le-retur').value || 0),
+    status:           document.getElementById('le-status').value,
+    catatan_operator: document.getElementById('le-catatan').value.trim(),
+  });
+  UI.setLoading(btn, false);
+  if (res.success) {
+    UI.toast('Laporan berhasil diupdate.', 'success');
+    document.getElementById('lp-edit-modal').remove();
+    fetchLaporan();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
+}
 }
 
-// --- 5. FUNGSI RENDER TABEL (Dengan Filter Client-Side) ---
-function renderTabelLaporan() {
-    const container = document.getElementById('lp-container');
-    if (!container) return;
-
-    // Ambil nilai dari filter
-    const filterDriver = document.getElementById('lp-driver')?.value;
-    const filterPangkalan = document.getElementById('lp-pangkalan')?.value;
-    const filterStatus = document.getElementById('lp-status')?.value;
-
-    // Proses saring data (Filter)
-    const filteredData = globalLaporanData.filter(l => {
-        const matchDriver = !filterDriver || l.driver_nama === filterDriver;
-        const matchPangkalan = !filterPangkalan || l.pangkalan_nama === filterPangkalan;
-        const matchStatus = !filterStatus || l.status === filterStatus;
-        return matchDriver && matchPangkalan && matchStatus;
-    });
-
-    container.innerHTML = `
-    <table class="w-full text-sm">
-        <thead>
-            <tr class="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                <th class="text-left p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Tanggal</th>
-                <th class="text-left p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Driver</th>
-                <th class="text-left p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Pangkalan</th>
-                <th class="text-center p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Kirim</th>
-                <th class="text-center p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Retur</th>
-                <th class="text-center p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Status</th>
-                <th class="text-center p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Foto</th>
-                <th class="text-right p-3 border-b border-slate-200 dark:border-slate-700 font-semibold">Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${
-                filteredData.length
-                ? filteredData.map(l => {
-                    const hasPhoto = l.foto_pengiriman_url || l.foto_retur_url || l.foto_pangkalan_url;
-                    
-                    return `
-                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">${UI.formatDateShort(l.tanggal)}</td>
-                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 font-medium">${UI.escapeHtml(l.driver_nama)}</td>
-                        <td class="p-3 border-b border-slate-200 dark:border-slate-700">${UI.escapeHtml(l.pangkalan_nama)}</td>
-                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 text-center font-semibold text-indigo-600">${l.jumlah_kirim}</td>
-                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 text-center">${l.jumlah_retur || 0}</td>
-                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 text-center">${UI.badge(l.status, l.status)}</td>
-                        
-                        <td class="p-3 border-b border-slate-200 dark:border-slate-700">
-                            <div class="flex gap-2 justify-center items-center">
-                                ${hasPhoto ? `
-                                    ${renderThumb(l.foto_pengiriman_url)}
-                                    ${renderThumb(l.foto_retur_url)}
-                                    ${renderThumb(l.foto_pangkalan_url)}
-                                ` : `<span class="text-slate-400 text-xs italic">Tidak ada foto</span>`}
-                            </div>
-                        </td>
-                        
-                        <td class="p-3 border-b border-slate-200 dark:border-slate-700 text-right align-middle">
-                            <div class="flex gap-2 items-center justify-end">
-                                <!-- TOMBOL EDIT BARU -->
-                                <button class="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs font-semibold shadow-sm transition" onclick="editLaporanPengiriman('${l.laporan_id}')">✏️ Edit</button>
-                                
-                                ${l.status !== 'VERIFIED' ? `<button class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-sm transition" onclick="verifikasiLaporanPengiriman('${l.laporan_id}')">✔️ Verif</button>` : ''}
-                                
-                                <button class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold shadow-sm transition" onclick="hapusLaporanPengiriman('${l.laporan_id}')">🗑️ Hapus</button>
-                            </div>
-                        </td>
-                    </tr>
-                `}).join('')
-                : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan atau tidak sesuai filter','📋')}</td></tr>`
-            }
-        </tbody>
-    </table>`;
-}
-
-// --- 6. FUNGSI AKSI LAPORAN ---
-function editLaporanPengiriman(id) {
-  // Ambil data spesifik dari globalLaporanData berdasarkan ID
-  const dataLaporan = globalLaporanData.find(l => l.laporan_id === id);
-  if (!dataLaporan) return;
-  
-  // TODO: Tampilkan Modal Edit di sini sama seperti di Master Data
-  // Akang bisa masukkan logika modal edit-nya di dalam fungsi ini
-  console.log("Data yang akan diedit:", dataLaporan);
-  UI.toast(`Buka form edit untuk driver: ${dataLaporan.driver_nama}`, 'info');
-}
-
-async function verifikasiLaporanPengiriman(id) {
+async function verifikasiLaporan(id) {
   const res = await API.operator.updateLaporanPengiriman({ laporan_id: id, status: 'VERIFIED' });
-  if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporanPengiriman(); }
+  if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporan(); }
   else UI.toast(res.message, 'error');
 }
 
-async function hapusLaporanPengiriman(id) {
+async function hapusLaporan(id) {
   if (!await UI.confirm('Hapus laporan ini?', 'Konfirmasi')) return;
   const res = await API.operator.deleteLaporanPengiriman({ laporan_id: id });
-  if (res.success) { UI.toast('Laporan dihapus.', 'success'); fetchLaporanPengiriman(); }
+  if (res.success) { UI.toast('Laporan dihapus.', 'success'); fetchLaporan(); }
   else UI.toast(res.message, 'error');
 }
+
 // ============================================================
 // MONITORING PENGIRIMAN
 // ============================================================
@@ -892,7 +651,6 @@ async function fetchMonitoringKirim() {
   const tbody = document.getElementById('mk-tbody');
   tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
   const res = await API.operator.getMonitoringPengiriman({ bulan: month, tahun: year });
-  if (activeSection !== 'monitoring-kirim') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const data  = res.data.monitoring;
   const total = { sa: 0, jadwal: 0, kirim: 0, retur: 0 };
@@ -916,301 +674,97 @@ async function fetchMonitoringKirim() {
 }
 
 // ============================================================
-// MASTER SA — Pakai Nama Pangkalan & Tombol Edit Manual
-// ============================================================
-
-// ============================================================
-// MASTER SA — Filter Rentang Tanggal di Halaman Utama
+// MASTER SA — dengan Upload & Download Excel
 // ============================================================
 
 async function loadMasterSA() {
   const main = document.getElementById('main-content');
-  const today = new Date().toISOString().split('T')[0]; // Default hari ini
-
   main.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
-      <div><h2 class="page-title">Master SA</h2><p class="page-sub">Alokasi harian per pangkalan.</p></div>
+      <div><h2 class="page-title">Master SA</h2><p class="page-sub">Alokasi bulanan per pangkalan (tgl 1-31).</p></div>
       <div class="flex gap-2 flex-wrap">
-        <button class="btn-secondary text-sm" onclick="downloadTemplateMasterSA(this)">⬇️ Template Excel</button>
+        <button class="btn-secondary text-sm" onclick="downloadTemplateMasterSA()">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Template Excel
+        </button>
         <label class="btn-secondary text-sm cursor-pointer">
-          ⬆️ Upload Excel
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Upload Excel
           <input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadMasterSAExcel(this)"/>
         </label>
-        <button class="btn-primary" onclick="openEditMasterSAModal()">+ Edit Manual</button>
       </div>
     </div>
-    
-    <!-- Filter Rentang Tanggal -->
-    <div class="filter-bar flex flex-wrap items-center gap-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-4">
-      <div class="flex items-center gap-2">
-        <label class="text-sm font-medium">Dari Tgl:</label>
-        <input type="date" id="sa-start" class="form-input w-36 text-sm" value="${today}" onchange="fetchMasterSA()"/>
-      </div>
-      <div class="flex items-center gap-2">
-        <label class="text-sm font-medium">Sampai Tgl:</label>
-        <input type="date" id="sa-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchMasterSA()"/>
-      </div>
-      <button class="btn-secondary text-sm py-1.5 ml-auto" onclick="fetchMasterSA()">Tampilkan</button>
+    <div class="filter-bar">
+      <input type="month" id="sa-bln" class="form-input w-40" value="${UI.currentMonthValue()}" onchange="fetchMasterSA()"/>
     </div>
-
     <div id="sa-import-status" class="hidden mb-4"></div>
     <div id="sa-container" class="table-wrapper overflow-x-auto">
       <div class="animate-pulse p-4 text-slate-400">Memuat data...</div>
     </div>`;
-    
   await fetchMasterSA();
 }
 
 async function fetchMasterSA() {
-  const start = document.getElementById('sa-start')?.value;
-  const end   = document.getElementById('sa-end')?.value;
-
-  if (start > end) {
-    UI.toast('Tanggal awal tidak boleh lebih besar dari tanggal akhir.', 'warning');
-    return;
-  }
-
-  const startDate = new Date(start);
-  const endDate   = new Date(end);
-  
-  const tahun = startDate.getFullYear();
-  const bulan = String(startDate.getMonth() + 1).padStart(2, '0');
-  
-  // Format Nama Bulan untuk Header Atas
-  const namaBulan = startDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-  
-  const startDay = startDate.getDate();
-  let endDay = endDate.getDate();
-  
-  if (startDate.getMonth() !== endDate.getMonth() || startDate.getFullYear() !== endDate.getFullYear()) {
-    UI.toast('Tampilan tabel dibatasi hingga akhir bulan dari tanggal awal yang dipilih.', 'info');
-    endDay = new Date(tahun, startDate.getMonth() + 1, 0).getDate();
-  }
-
-  const bulanStr = `${tahun}-${bulan}`;
-
-  // Ambil Data Master SA, Data SPBE, dan Data Pembelian (Stok Gudang) secara paralel
-  const [res, spbeRes, stokRes] = await Promise.all([
-    API.operator.getMasterSA({ bulan, tahun }),
-    API.operator.getSPBE({ status: 'ACTIVE' }),
-    API.operator.getStokGudang({ bulan: bulanStr })
-  ]);
-
-  if (activeSection !== 'master-sa') return;
+  const bulan = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
+  const [year, month] = bulan.split('-');
+  const res = await API.operator.getMasterSA({ bulan: month, tahun: year });
   if (!res.success) { UI.toast(res.message, 'error'); return; }
-  
   const data = res.data.master_sa;
-  window._masterSAData = data; 
-  
-  const spbeList = spbeRes.success ? spbeRes.data.spbe : [];
-  const pembelianList = stokRes.success ? stokRes.data.pembelian : [];
-  
-  // Ambil deretan hari yang akan ditampilkan
-  const daysToShow = [];
-  for (let i = startDay; i <= endDay; i++) { daysToShow.push(i); }
-
-  // Array untuk menampung total harian SA (Alokasi)
-  const dailyTotals = {};
-  daysToShow.forEach(d => { dailyTotals[d] = 0; });
-  let grandTotal = 0;
-
-  // 1. Render Baris Pangkalan & Hitung Total Harian
-  const bodyHtml = data.map(row => {
-    let rowTotal = 0;
-    const cells = daysToShow.map(d => {
-      const key = `tgl_${String(d).padStart(2,'0')}`;
-      const val = Number(row[key] || 0);
-      
-      dailyTotals[d] += val;
-      rowTotal += val;
-      
-      return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">${val || ''}</td>`;
-    }).join('');
-    
-    grandTotal += rowTotal;
-    
-    return `
-      <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-        <td class="font-medium text-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 p-2">${UI.escapeHtml(row.pangkalan_nama)}</td>
-        ${cells}
-        <td class="text-center font-bold text-blue-600 border border-slate-100 dark:border-slate-800">${rowTotal}</td>
-      </tr>`;
-  }).join('');
-
-  // 2. Kalkulasi Data SPBE dan Pembelian per Hari
-  const spbeData = {};
-  spbeList.forEach(s => {
-    spbeData[s.spbe_id] = { nama: s.nama, daily: {}, total: 0 };
-    daysToShow.forEach(d => spbeData[s.spbe_id].daily[d] = 0);
-  });
-
-  if (pembelianList && pembelianList.length) {
-    pembelianList.forEach(p => {
-      const pDay = parseInt(p.tanggal.split('-')[2], 10); // Ambil tanggal dari YYYY-MM-DD
-      if (spbeData[p.spbe_id] && spbeData[p.spbe_id].daily[pDay] !== undefined) {
-         spbeData[p.spbe_id].daily[pDay] += Number(p.jumlah);
-         spbeData[p.spbe_id].total += Number(p.jumlah);
-      }
-    });
-  }
-
-  // Hitung Total Pembelian SPBE per hari
-  const dailyTotalSPBE = {};
-  let grandTotalSPBE = 0;
-  daysToShow.forEach(d => {
-     let sum = 0;
-     spbeList.forEach(s => { sum += spbeData[s.spbe_id].daily[d]; });
-     dailyTotalSPBE[d] = sum;
-     grandTotalSPBE += sum;
-  });
-
-  // Hitung Stock Gudang per hari (Total Pembelian SPBE - Total Harian)
-  const dailyStock = {};
-  let runningStock = 0;
-  daysToShow.forEach((d, index) => {
-     const tHarian = dailyTotals[d] || 0;
-     const tSpbe = dailyTotalSPBE[d] || 0;
-     
-     if (index === 0) {
-        // Hari pertama: Total SPBE hari ini - Total Harian hari ini
-        runningStock = tSpbe - tHarian;
-     } else {
-        // Hari berikutnya: Stock Kemarin + Total SPBE hari ini - Total Harian hari ini
-        runningStock = runningStock + tSpbe - tHarian;
-     }
-     dailyStock[d] = runningStock;
-  });
-
-  // 3. Render Baris Tambahan (SPBE, Total SPBE, Stock Gudang)
-  let spbeRowsHtml = '';
-  spbeList.forEach(s => {
-     const cells = daysToShow.map(d => {
-         const val = spbeData[s.spbe_id].daily[d];
-         return `<td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${val > 0 ? 'text-green-600 font-semibold' : 'text-slate-400'}">${val || 0}</td>`;
-     }).join('');
-     spbeRowsHtml += `
-        <tr class="bg-slate-50 dark:bg-slate-800/40">
-           <td class="font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 p-2">⤷ SPBE: ${UI.escapeHtml(s.nama)}</td>
-           ${cells}
-           <td class="text-center font-bold text-green-600 border border-slate-200 dark:border-slate-700">${spbeData[s.spbe_id].total}</td>
-        </tr>`;
-  });
-
-  const footerHtml = `
-    <!-- Total Harian Master SA -->
-    <tr class="bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
-      <td class="p-2 border border-slate-200 dark:border-slate-700">TOTAL HARIAN</td>
-      ${daysToShow.map(d => `
-        <td class="text-center text-xs border border-slate-200 dark:border-slate-700 text-blue-700 dark:text-blue-400">
-          ${dailyTotals[d] || 0}
-        </td>
-      `).join('')}
-      <td class="text-center border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400">
-        ${grandTotal}
-      </td>
-    </tr>
-
-    <!-- List SPBE -->
-    ${spbeRowsHtml}
-
-    <!-- Total Pembelian SPBE -->
-    <tr class="bg-green-50 dark:bg-green-900/30 font-bold text-green-700 dark:text-green-400">
-      <td class="p-2 border border-slate-200 dark:border-slate-700">TOTAL PEMBELIAN SPBE</td>
-      ${daysToShow.map(d => `<td class="text-center text-xs border border-slate-200 dark:border-slate-700">${dailyTotalSPBE[d] || 0}</td>`).join('')}
-      <td class="text-center border border-slate-200 dark:border-slate-700">${grandTotalSPBE}</td>
-    </tr>
-
-    <!-- Stock Gudang -->
-    <tr class="bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-400">
-      <td class="p-2 border border-slate-200 dark:border-slate-700">STOCK GUDANG</td>
-      ${daysToShow.map(d => `<td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${dailyStock[d] < 0 ? 'text-red-500' : ''}">${dailyStock[d]}</td>`).join('')}
-      <td class="text-center border border-slate-200 dark:border-slate-700">-</td>
-    </tr>
-  `;
-
-  // Satukan komponen ke dalam tabel
+  const days = Array.from({length: 31}, (_, i) => i + 1);
   document.getElementById('sa-container').innerHTML = data.length ? `
-    <table style="min-width:1000px" class="border-collapse border border-slate-200 dark:border-slate-700 w-full">
-      <thead>
-        <tr>
-          <th rowspan="2" class="align-middle border border-slate-200 dark:border-slate-700 p-2">Pangkalan</th>
-          <th colspan="${daysToShow.length}" class="text-center bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 font-bold text-xs tracking-wider text-slate-700 dark:text-slate-200 py-1">
-            ${namaBulan.toUpperCase()}
-          </th>
-          <th rowspan="2" class="text-center align-middle border border-slate-200 dark:border-slate-700">Total</th>
-        </tr>
-        <tr>
-          ${daysToShow.map(d => {
-            const tglDuaDigit = String(d).padStart(2, '0');
-            return `<th class="text-center text-xs border border-slate-200 dark:border-slate-700 font-semibold w-8">${tglDuaDigit}</th>`;
-          }).join('')}
-        </tr>
-      </thead>
+    <table style="min-width:900px">
+      <thead><tr>
+        <th>Pangkalan</th>
+        ${days.map(d => `<th class="text-center text-xs">${d}</th>`).join('')}
+        <th class="text-center">Total</th>
+      </tr></thead>
       <tbody>
-        ${bodyHtml}
+        ${data.map(row => {
+          let total = 0;
+          const cells = days.map(d => {
+            const key = `tgl_${String(d).padStart(2,'0')}`;
+            const val = Number(row[key] || 0);
+            total += val;
+            return `<td class="text-center text-xs ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">${val || ''}</td>`;
+          }).join('');
+          return `<tr><td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(row.pangkalan_nama)}</td>${cells}<td class="text-center font-bold text-blue-600">${total}</td></tr>`;
+        }).join('')}
       </tbody>
-      <tfoot>
-        ${footerHtml}
-      </tfoot>
-    </table>` : UI.emptyState('Belum ada data alokasi untuk periode ini.','📊');
-}
-/** Download template Excel (.xlsx) pakai NAMA PANGKALAN */
-async function downloadTemplateMasterSA(btnEl) {
-  const btn = btnEl || null;
-  try {
-    if (btn) UI.setLoading(btn, true, 'Menyiapkan...');
-    if (!window.XLSX) {
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-    }
-
-    const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
-    const daftarPangkalan = pangRes.success ? (pangRes.data.pangkalan || []) : [];
-
-    const wb = XLSX.utils.book_new();
-
-    // ── Sheet 1: Petunjuk ──
-    const petunjukAOA = [
-      ['PETUNJUK PENGISIAN TEMPLATE MASTER SA — ILPG'],
-      [''],
-      ['Kolom', 'Keterangan'],
-      ['pangkalan_nama', 'Nama pangkalan — HARUS SAMA PERSIS dengan sheet "Referensi Pangkalan"'],
-      ['tgl_01 s/d tgl_31', 'Jumlah alokasi tabung untuk tanggal tersebut (isi 0 jika tidak ada)'],
-      [''],
-      ['ℹ Satu baris = satu pangkalan untuk bulan yang dipilih.'],
-      ['⚠ Pilih bulan target di filter aplikasi SEBELUM klik Upload Excel.'],
-      ['⚠ Isi data mulai dari sheet "Data Master SA", baris 2. Jangan ubah nama header.'],
-    ];
-    const wsPetunjuk = XLSX.utils.aoa_to_sheet(petunjukAOA);
-    wsPetunjuk['!cols']   = [{ wch: 20 }, { wch: 60 }];
-    wsPetunjuk['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
-    XLSX.utils.book_append_sheet(wb, wsPetunjuk, 'Petunjuk');
-
-    // ── Sheet 2: Data Master SA ──
-    const days    = Array.from({ length: 31 }, (_, i) => `tgl_${String(i + 1).padStart(2, '0')}`);
-    const headers = ['pangkalan_nama', ...days];
-    const contoh  = [daftarPangkalan[0]?.nama || 'NAMA_PANGKALAN_DISINI', ...Array(31).fill(0)];
-    const wsData  = XLSX.utils.aoa_to_sheet([headers, contoh]);
-    wsData['!cols'] = [{ wch: 30 }, ...Array(31).fill({ wch: 7 })];
-    XLSX.utils.book_append_sheet(wb, wsData, 'Data Master SA');
-
-    // ── Sheet 3: Referensi Pangkalan ──
-    const wsRefPang = XLSX.utils.aoa_to_sheet([
-      ['Nama Pangkalan'],
-      ...(daftarPangkalan.length ? daftarPangkalan.map(p => [p.nama]) : [['(Belum ada data pangkalan aktif)']]),
-    ]);
-    wsRefPang['!cols'] = [{ wch: 35 }];
-    XLSX.utils.book_append_sheet(wb, wsRefPang, 'Referensi Pangkalan');
-
-    XLSX.writeFile(wb, 'template_master_sa_ILPG.xlsx');
-    UI.toast('Template Excel berhasil didownload.', 'success');
-  } catch (err) {
-    UI.toast(`Gagal membuat template: ${err.message}`, 'error');
-  } finally {
-    if (btn) UI.setLoading(btn, false);
-  }
+    </table>` : UI.emptyState('Belum ada data Master SA untuk bulan ini.','📊');
 }
 
-/** Upload & parse file Excel/CSV Master SA pakai NAMA PANGKALAN */
+/** Download template Excel kosong untuk Master SA */
+function downloadTemplateMasterSA() {
+  const days = Array.from({length: 31}, (_, i) => `tgl_${String(i+1).padStart(2,'0')}`);
+  const headers = ['pangkalan_id', ...days];
+  const contoh  = ['ID_PANGKALAN_DISINI', ...Array(31).fill('0')];
+  const petunjuk = [
+    ['PETUNJUK PENGISIAN TEMPLATE MASTER SA ILPG'],
+    [''],
+    ['Kolom pangkalan_id : ID pangkalan (salin dari menu Pangkalan)'],
+    ['Kolom tgl_01 s/d tgl_31 : Jumlah alokasi tabung untuk tanggal tersebut (isi 0 jika tidak ada)'],
+    ['Satu baris = satu pangkalan untuk bulan yang dipilih'],
+    [''],
+    ['Pilih bulan target di filter sebelum mengklik Upload Excel'],
+    ['HAPUS baris petunjuk ini sebelum upload. Data dimulai dari baris 2 (setelah header).'],
+  ];
+  const csvRows = [
+    ...petunjuk.map(r => r.map(c => `"${c}"`).join(',')),
+    '',
+    headers.join(','),
+    contoh.join(','),
+  ];
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'template_master_sa_ILPG.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  UI.toast('Template berhasil didownload.', 'success');
+}
+
+/** Upload & parse file Excel/CSV Master SA, kirim ke backend */
 async function uploadMasterSAExcel(input) {
   const file = input.files[0];
   if (!file) return;
@@ -1230,18 +784,16 @@ async function uploadMasterSAExcel(input) {
     }
     const headers  = rows[0].map(h => String(h).trim().toLowerCase());
     const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
-    
-    if (!headers.includes('pangkalan_nama')) {
+    if (!headers.includes('pangkalan_id')) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.textContent = '❌ Kolom "pangkalan_nama" tidak ditemukan. Pastikan menggunakan template resmi terbaru.';
+      statusEl.textContent = '❌ Kolom pangkalan_id tidak ditemukan. Pastikan menggunakan template resmi.';
       input.value = ''; return;
     }
-    
     const mapped = dataRows.map(row => {
       const obj = {};
       headers.forEach((h, i) => { obj[h] = String(row[i] ?? '').trim(); });
       return obj;
-    }).filter(r => r.pangkalan_nama);
+    }).filter(r => r.pangkalan_id);
 
     if (!mapped.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -1249,37 +801,8 @@ async function uploadMasterSAExcel(input) {
       input.value = ''; return;
     }
 
-    // Resolve nama pangkalan ke ID
-    statusEl.textContent = '⏳ Mencocokkan nama pangkalan...';
-    const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
-    if (!pangRes.success) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.textContent = '❌ Gagal memuat data master pangkalan untuk validasi.';
-      input.value = ''; return;
-    }
-
-    const norm = s => String(s || '').trim().toLowerCase();
-    const pangMap = new Map((pangRes.data.pangkalan || []).map(p => [norm(p.nama), p.pangkalan_id]));
-
-    const resolved = [];
-    const notFound = [];
-    mapped.forEach((r, idx) => {
-      const pangkalanId = pangMap.get(norm(r.pangkalan_nama));
-      if (!pangkalanId) { notFound.push(`Baris ${idx + 2}: Pangkalan "${r.pangkalan_nama}" tidak ditemukan`); return; }
-      
-      const { pangkalan_nama, ...rest } = r;
-      resolved.push({ pangkalan_id: pangkalanId, ...rest });
-    });
-
-    if (notFound.length) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.innerHTML = `❌ ${notFound.length} baris gagal dicocokkan:<br/>${notFound.slice(0, 8).map(m => UI.escapeHtml(m)).join('<br/>')}${notFound.length > 8 ? `<br/>...dan ${notFound.length - 8} lainnya.` : ''}<br/>Cek ejaan nama pada sheet Referensi.`;
-      input.value = '';
-      return;
-    }
-
-    statusEl.textContent = `⏳ Mengirim ${resolved.length} data Master SA ke server untuk bulan ${bulanNum}/${tahun}...`;
-    const res = await API.operator.importMasterSA({ rows: resolved, bulan: bulanNum, tahun });
+    statusEl.textContent = `⏳ Mengirim ${mapped.length} pangkalan ke server untuk bulan ${bulanNum}/${tahun}...`;
+    const res = await API.operator.importMasterSA({ rows: mapped, bulan: bulanNum, tahun });
     input.value = '';
 
     if (res.success) {
@@ -1297,158 +820,79 @@ async function uploadMasterSAExcel(input) {
   }
 }
 
-/** Form Modal Untuk Input / Edit Manual Master SA (Berdasarkan Rentang Tanggal) */
-async function openEditMasterSAModal() {
-  const currentMonth = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
-  const [tahun, bulan] = currentMonth.split('-');
+// ============================================================
+// PARSER CSV/Excel (client-side, tanpa library eksternal)
+// ============================================================
 
-  // 1. Ambil Data Master Pangkalan
-  const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
-  const pangkalanList = pangRes.success ? pangRes.data.pangkalan : [];
+/**
+ * Parse file CSV atau Excel (.xlsx) ke array of arrays.
+ * CSV: native browser parsing.
+ * Excel: butuh SheetJS — akan dicoba dari CDN jika belum ada.
+ * @param {File} file
+ * @returns {Promise<string[][]>}
+ */
+async function parseCSVOrExcel(file) {
+  const name = file.name.toLowerCase();
 
-  // 2. Siapkan data lokal dengan nge-gabung data lama yang sudah diupload
-  window._samLocalData = pangkalanList.map(p => {
-    const existing = (window._masterSAData || []).find(d => d.pangkalan_id === p.pangkalan_id) || {};
-    const row = { pangkalan_id: p.pangkalan_id, pangkalan_nama: p.nama };
-    
-    for(let i = 1; i <= 31; i++) {
-      const key = `tgl_${String(i).padStart(2, '0')}`;
-      row[key] = Number(existing[key] || 0);
-    }
-    return row;
-  });
-
-  const modal = document.createElement('div');
-  modal.id    = 'sam-modal';
-  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
-  
-  // Opsi tanggal 1 s/d 31
-  const tglOptions = Array.from({length: 31}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
-
-  modal.innerHTML = `
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-      
-      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-        <div>
-          <h3 class="font-semibold text-slate-900 dark:text-white">Update Alokasi Harian — ${bulan}/${tahun}</h3>
-          <p class="text-xs text-slate-500 mt-1">Isi alokasi berdasarkan rentang tanggal. Data lama akan ditimpa.</p>
-        </div>
-        <button class="btn-icon" onclick="document.getElementById('sam-modal').remove()">✕</button>
-      </div>
-      
-      <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3">
-        <label class="font-medium text-sm text-slate-700 dark:text-slate-300">Rentang Tanggal:</label>
-        <div class="flex items-center gap-2">
-          <select id="sam-tgl-start" class="form-select w-20 text-center font-semibold" onchange="window.renderSamList()">
-            ${tglOptions}
-          </select>
-          <span class="text-sm font-medium text-slate-500">s/d</span>
-          <select id="sam-tgl-end" class="form-select w-20 text-center font-semibold" onchange="window.renderSamList()">
-            ${tglOptions}
-          </select>
-        </div>
-        <span id="sam-range-info" class="text-xs text-blue-600 dark:text-blue-400 font-medium ml-auto bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
-          <!-- Info dinamis -->
-        </span>
-      </div>
-
-      <div class="p-5 overflow-y-auto flex-1 bg-slate-50/50 dark:bg-slate-900">
-        <div id="sam-list" class="space-y-2">
-          <!-- List pangkalan -->
-        </div>
-        <div id="sam-err" class="hidden mt-4 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
-      </div>
-
-      <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
-        <button class="btn-secondary" onclick="document.getElementById('sam-modal').remove()">Batal</button>
-        <button id="sam-btn" class="btn-primary" onclick="saveMasterSAManual('${tahun}', '${bulan}')">
-          Simpan Rentang Data
-        </button>
-      </div>
-    </div>`;
-  
-  document.body.appendChild(modal);
-
-  // 3. Fungsi untuk mengupdate data lokal pada rentang yang dipilih
-  window.updateSamRange = function(idx, value) {
-    const start = parseInt(document.getElementById('sam-tgl-start').value);
-    const end   = parseInt(document.getElementById('sam-tgl-end').value);
-    const valNum = Number(value) || 0;
-    
-    // Looping tanggal dan timpa valuenya
-    for(let i = start; i <= end; i++) {
-      const key = `tgl_${String(i).padStart(2, '0')}`;
-      window._samLocalData[idx][key] = valNum;
-    }
-  };
-
-  // 4. Fungsi Render List Pangkalan
-  window.renderSamList = function() {
-    let start = parseInt(document.getElementById('sam-tgl-start').value);
-    let end   = parseInt(document.getElementById('sam-tgl-end').value);
-    
-    // Mencegah tanggal akhir lebih kecil dari tanggal mulai
-    if(end < start) {
-      document.getElementById('sam-tgl-end').value = start;
-      end = start;
-    }
-    
-    // Update label informasi di pojok kanan
-    const info = start === end 
-      ? `Mengedit Tgl ${start}` 
-      : `Mengedit Tgl ${start} s/d ${end} (Akan diisi sama rata)`;
-    document.getElementById('sam-range-info').textContent = info;
-
-    // Ambil nilai bawaan dari tanggal 'start' untuk ditampilkan di input box
-    const keyStart = `tgl_${String(start).padStart(2, '0')}`;
-    
-    const html = window._samLocalData.map((row, idx) => `
-      <div class="flex items-center justify-between p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-600 transition-colors shadow-sm">
-        <div class="font-medium text-sm text-slate-700 dark:text-slate-200">
-          ${idx + 1}. ${UI.escapeHtml(row.pangkalan_nama)}
-        </div>
-        <div class="w-24">
-          <input type="number" class="form-input text-center text-sm font-semibold text-blue-600 dark:text-blue-400" 
-                 value="${row[keyStart]}" min="0" 
-                 onchange="window.updateSamRange(${idx}, this.value)" />
-        </div>
-      </div>
-    `).join('');
-    
-    document.getElementById('sam-list').innerHTML = html;
-  };
-
-  // Render list pertama kali (Tgl 1 s/d 1)
-  window.renderSamList();
-}
-
-async function saveMasterSAManual(tahun, bulan) {
-  const btn = document.getElementById('sam-btn');
-  const errEl = document.getElementById('sam-err');
-  errEl.classList.add('hidden');
-  
-  UI.setLoading(btn, true, 'Menyimpan...');
-  
-  // Bersihkan properti pangkalan_nama karena API importMasterSA hanya butuh pangkalan_id dan tgl_xx
-  const rowsToSave = window._samLocalData.map(r => {
-    const { pangkalan_nama, ...restData } = r; 
-    return restData;
-  });
-
-  // Kirim seluruh data (semua pangkalan, dengan 31 harinya) agar data lama tidak hilang, 
-  // tapi tanggal yang diedit barusan ikut terupdate.
-  const res = await API.operator.importMasterSA({ rows: rowsToSave, bulan, tahun });
-  UI.setLoading(btn, false);
-  
-  if (res.success) {
-    UI.toast('Data Master SA berhasil diupdate.', 'success');
-    document.getElementById('sam-modal').remove();
-    fetchMasterSA(); // Refresh tabel di belakang
-  } else {
-    errEl.textContent = res.message;
-    errEl.classList.remove('hidden');
+  // ── CSV/TSV ──
+  if (name.endsWith('.csv') || name.endsWith('.tsv')) {
+    const text = await file.text();
+    return parseCSVText(text);
   }
+
+  // ── Excel (.xlsx/.xls) — pakai SheetJS dari CDN ──
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    // Muat SheetJS jika belum ada
+    if (!window.XLSX) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    }
+    const ab   = await file.arrayBuffer();
+    const wb   = XLSX.read(ab, { type: 'array' });
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  }
+
+  throw new Error('Format file tidak didukung. Gunakan .csv atau .xlsx');
 }
+
+/** Parse teks CSV menjadi array of arrays (handle quoted fields) */
+function parseCSVText(text) {
+  const rows   = [];
+  const lines  = text.split(/\r?\n/);
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cells = [];
+    let cell    = '';
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i+1] === '"') { cell += '"'; i++; }
+        else inQuote = !inQuote;
+      } else if (ch === ',' && !inQuote) {
+        cells.push(cell); cell = '';
+      } else {
+        cell += ch;
+      }
+    }
+    cells.push(cell);
+    rows.push(cells);
+  }
+  return rows;
+}
+
+/** Muat script eksternal secara dinamis */
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s   = document.createElement('script');
+    s.src     = src;
+    s.onload  = resolve;
+    s.onerror = () => reject(new Error(`Gagal memuat library dari ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
 // ============================================================
 // PEMBAYARAN — bukti TF wajib jika ada nominal transfer
 // ============================================================
@@ -1470,8 +914,6 @@ async function fetchPembayaran(tipe) {
   const bulan = document.getElementById('bp-bln')?.value || UI.currentMonthValue();
   const fn    = tipe === 'REFILL' ? API.operator.getPembayaranRefill : API.operator.getPembayaranBagiHasil;
   const res   = await fn({ bulan });
-  const expectedSection = tipe === 'REFILL' ? 'bayar-refill' : 'bayar-bh';
-  if (activeSection !== expectedSection) return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const data = res.data.pembayaran || [];
@@ -1527,6 +969,7 @@ function openPembayaranModal(pangkalanId, tipe, namaPangkalan) {
         <div><label class="form-label">Tanggal Bayar *</label><input id="pm-tgl" type="date" class="form-input" value="${UI.todayInputValue()}"/></div>
 
         ${isRefill ? `
+        <!-- REFILL: boleh Brimola, Transfer, atau keduanya -->
         <div class="bg-blue-50 dark:bg-blue-950/30 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
           💡 Bisa via Brimola, Transfer, atau keduanya. Jika ada nominal Transfer, bukti TF wajib diupload.
         </div>
@@ -1540,6 +983,7 @@ function openPembayaranModal(pangkalanId, tipe, namaPangkalan) {
           <label class="form-label">Bukti Transfer <span id="pm-bukti-required" class="text-slate-400 font-normal">(wajib jika ada transfer)</span></label>
           <input id="pm-bukti" type="url" class="form-input" placeholder="URL bukti TF di Drive..."/>
         </div>` : `
+        <!-- BAGI HASIL: wajib Transfer + bukti TF -->
         <div class="bg-amber-50 dark:bg-amber-950/30 rounded-xl px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
           ⚠️ Pembayaran Bagi Hasil wajib via Transfer dan harus menyertakan bukti TF.
         </div>
@@ -1631,7 +1075,6 @@ async function loadMonitoringBayar() {
 async function fetchMonitoringBayar() {
   const bulan = document.getElementById('mb-bln')?.value || UI.currentMonthValue();
   const res   = await API.operator.getMonitoringPembayaran({ bulan });
-  if (activeSection !== 'monitoring-bayar') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const { monitoring, grand_total } = res.data;
   const grandEl = document.getElementById('mb-grand');
@@ -1658,9 +1101,6 @@ async function fetchMonitoringBayar() {
 // ============================================================
 // STOK GUDANG — retur tidak menambah balik stok
 // ============================================================
-// ============================================================
-// STOK GUDANG — retur tidak menambah balik stok
-// ============================================================
 
 async function loadStokGudang() {
   const main = document.getElementById('main-content');
@@ -1675,32 +1115,17 @@ async function loadStokGudang() {
     <div id="sg-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">${skCards(4)}</div>
     <h3 class="font-semibold text-slate-900 dark:text-white mb-3">Riwayat Pembelian</h3>
     <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Tanggal</th>
-            <th>SPBE</th>
-            <th>Jumlah</th>
-            <th>Keterangan</th>
-            <th class="text-right">Aksi</th>
-          </tr>
-        </thead>
-        <tbody id="sg-tbody"></tbody>
-      </table>
+      <table><thead><tr><th>Tanggal</th><th>SPBE</th><th>Jumlah</th><th>Harga/tab</th><th>Total</th><th>Keterangan</th><th class="text-right">Aksi</th></tr></thead>
+      <tbody id="sg-tbody"></tbody></table>
     </div>`;
   await fetchStok();
 }
 
 async function fetchStok() {
   const bulan = document.getElementById('sg-bln')?.value;
-  
-  // Colspan diubah jadi 5 karena kolom harga dan total dihapus
-  document.getElementById('sg-tbody').innerHTML = `<tr><td colspan="5">${skLine()}</td></tr>`;
-  
+  document.getElementById('sg-tbody').innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
   const res = await API.operator.getStokGudang({ bulan });
-  if (activeSection !== 'stok-gudang') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
-  
   const { total_pembelian, total_terkirim, total_retur, stok_gudang, pembelian } = res.data;
   const stokColor = stok_gudang < 0 ? 'text-red-600' : stok_gudang < 100 ? 'text-amber-600' : 'text-green-600';
 
@@ -1721,13 +1146,13 @@ async function fetchStok() {
   document.getElementById('sg-tbody').innerHTML = pembelian?.length ? pembelian.map(p => `
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(p.tanggal)}</td>
-      <td>${UI.escapeHtml(p.nama_spbe)}</td>
+      <td>${UI.escapeHtml(p.spbe_id)}</td>
       <td class="font-semibold">${UI.formatNumber(p.jumlah)}</td>
+      <td class="text-slate-500">${UI.formatRupiah(p.harga_satuan)}</td>
+      <td class="font-semibold">${UI.formatRupiah(p.total)}</td>
       <td class="text-slate-500 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
-      <td class="text-right">
-        <button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button>
-      </td>
-    </tr>`).join('') : `<tr><td colspan="5">${UI.emptyState('Belum ada pembelian.','📦')}</td></tr>`;
+      <td class="text-right"><button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button></td>
+    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada pembelian.','📦')}</td></tr>`;
 }
 
 function openPembelianModal() {
@@ -1757,8 +1182,7 @@ function openPembelianModal() {
     if (res.success) {
       document.getElementById('bm-spbe').innerHTML =
         `<option value="">-- Pilih SPBE --</option>` +
-        // FIX: value sekarang pakai nama SPBE langsung, bukan spbe_id
-        res.data.spbe.map(s => `<option value="${UI.escapeHtml(s.nama)}">${UI.escapeHtml(s.nama)}</option>`).join('');
+        res.data.spbe.map(s => `<option value="${s.spbe_id}">${UI.escapeHtml(s.nama)}</option>`).join('');
     }
   });
 }
@@ -1767,32 +1191,13 @@ async function savePembelian() {
   const btn   = document.getElementById('bm-btn');
   const errEl = document.getElementById('bm-err');
   errEl.classList.add('hidden');
-
-  const body  = { 
-    nama_spbe: document.getElementById('bm-spbe').value, // FIX: kirim nama_spbe, bukan spbe_id
-    tanggal: document.getElementById('bm-tgl').value, 
-    jumlah: Number(document.getElementById('bm-jml').value), 
-    keterangan: document.getElementById('bm-ket').value.trim() 
-  };
-
-  if (!body.nama_spbe || !body.jumlah) { 
-    errEl.textContent = 'SPBE dan jumlah wajib diisi.'; 
-    errEl.classList.remove('hidden'); 
-    return; 
-  }
-
+  const body  = { spbe_id: document.getElementById('bm-spbe').value, tanggal: document.getElementById('bm-tgl').value, jumlah: Number(document.getElementById('bm-jml').value), harga_satuan: Number(document.getElementById('bm-harga').value), keterangan: document.getElementById('bm-ket').value.trim() };
+  if (!body.spbe_id || !body.jumlah || !body.harga_satuan) { errEl.textContent = 'SPBE, jumlah, dan harga wajib diisi.'; errEl.classList.remove('hidden'); return; }
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = await API.operator.createPembelianStok(body);
   UI.setLoading(btn, false);
-
-  if (res.success) { 
-    UI.toast('Pembelian berhasil dicatat.', 'success'); 
-    document.getElementById('beli-modal').remove(); 
-    fetchStok();
-  } else { 
-    errEl.textContent = res.message; 
-    errEl.classList.remove('hidden'); 
-  }
+  if (res.success) { UI.toast('Pembelian berhasil dicatat.', 'success'); document.getElementById('beli-modal').remove(); fetchStok(); }
+  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
 async function hapusPembelian(id) {
@@ -1832,7 +1237,6 @@ async function fetchPangkalan() {
   const tbody = document.getElementById('pkln-tbody');
   tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
   const res = await API.operator.getPangkalan();
-  if (activeSection !== 'pangkalan') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   _allPangkalan = res.data.pangkalan;
   filterPangkalan();
@@ -1846,7 +1250,6 @@ function filterPangkalan() {
     (!s || p.status === s)
   );
   const tbody = document.getElementById('pkln-tbody');
-  if (!tbody) return;
   tbody.innerHTML = filtered.length ? filtered.map(p => `
     <tr>
       <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(p.nama)}</td>
@@ -1942,7 +1345,6 @@ async function loadSPBE() {
       <tbody id="spbe-tbody"></tbody></table>
     </div>`;
   const res = await API.operator.getSPBE();
-  if (activeSection !== 'spbe') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   window._allSPBE = res.data.spbe;
   document.getElementById('spbe-tbody').innerHTML = res.data.spbe.length ? res.data.spbe.map(s => `
@@ -2005,58 +1407,6 @@ async function saveSPBE(id) {
   UI.setLoading(btn, false);
   if (res.success) { UI.toast(id ? 'SPBE diupdate.' : 'SPBE ditambahkan.', 'success'); document.getElementById('spbe-modal').remove(); loadSPBE(); }
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
-}
-// ============================================================
-// HELPER FUNCTIONS UNTUK EXCEL / CSV
-// ============================================================
-
-/** Memuat script eksternal (Library XLSX) secara dinamis */
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    // Jika script sudah pernah diload, langsung resolve
-    if (document.querySelector(`script[src="${src}"]`)) {
-      return resolve();
-    }
-    const script = document.createElement('script');
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error(`Gagal memuat script: ${src}`));
-    document.head.appendChild(script);
-  });
-}
-
-/** Membaca file Excel/CSV dan mengubahnya menjadi Array 2 Dimensi */
-async function parseCSVOrExcel(file) {
-  // Pastikan library XLSX sudah ter-load
-  if (!window.XLSX) {
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-  }
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        
-        // Cari sheet bernama 'Data Master SA' (sesuai template kita). 
-        // Jika tidak ada, pakai sheet pertama.
-        const sheetName = workbook.SheetNames.includes('Data Master SA') 
-          ? 'Data Master SA' 
-          : workbook.SheetNames[0];
-          
-        const worksheet = workbook.Sheets[sheetName];
-        
-        // Konversi sheet menjadi array of arrays (header: 1)
-        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        resolve(json);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = () => reject(new Error('Gagal membaca file dari browser.'));
-    reader.readAsArrayBuffer(file);
-  });
 }
 
 // ── Skeleton helpers ──
