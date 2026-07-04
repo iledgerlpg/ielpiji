@@ -56,16 +56,49 @@ self.addEventListener('install', (e) => {
 // ============================================================
 // ACTIVATE — hapus cache lama
 // ============================================================
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== STATIC_CACHE && k !== API_CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
-});
+// ============================================================
+// 1. DEKLARASI FUNGSI CACHE (Simpan di atas)
+// ============================================================
+async function cacheFirstWithNetwork(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    // Jika offline dan tidak ada cache, return halaman utama ('/')
+    const offlinePage = await caches.match('/'); 
+    return offlinePage || new Response('Offline - Tidak ada koneksi internet.', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
+}
+
+async function networkFirstWithCache(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(API_CACHE);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    return cached || new Response(JSON.stringify({
+      success: false, code: 503,
+      message: 'Tidak ada koneksi internet. Data mungkin belum terbaru.',
+      data: null,
+    }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+  }
+}
 
 // ============================================================
-// FETCH — strategi per jenis request
+// 2. FETCH LISTENER (Panggil fungsinya di bawah)
 // ============================================================
 self.addEventListener('fetch', (e) => {
   const { request } = e;
@@ -83,47 +116,6 @@ self.addEventListener('fetch', (e) => {
   // Aset statis → Cache-first, fallback ke network
   e.respondWith(cacheFirstWithNetwork(request));
 });
-
-async function cacheFirstWithNetwork(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(STATIC_CACHE);
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch {
-    // Jika offline dan tidak ada cache, return offline page
-    const offlinePage = await caches.match('/index.html');
-    return offlinePage || new Response('Offline - Tidak ada koneksi internet.', {
-      status: 503,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
-  }
-}
-
-async function cacheFirstWithNetwork(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(STATIC_CACHE);
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch {
-    // Jika offline dan tidak ada cache, return halaman utama ('/')
-    const offlinePage = await caches.match('/'); // <--- UBAH DI SINI
-    return offlinePage || new Response('Offline - Tidak ada koneksi internet.', {
-      status: 503,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
-  }
-}
-
 // ============================================================
 // BACKGROUND SYNC — kirim data offline yang tertunda
 // ============================================================
