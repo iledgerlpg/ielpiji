@@ -11,7 +11,7 @@ const API_CACHE    = `${SW_VERSION}-api`;
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/pages/login.html',
+  '/pages/login',
   '/pages/hrd-dashboard.html',
   '/pages/operator-dashboard.html',
   '/pages/driver-dashboard.html',
