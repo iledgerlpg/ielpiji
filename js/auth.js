@@ -51,11 +51,11 @@ const Auth = (() => {
   // ============================================================
 
   const ROLE_DASHBOARDS = {
-    HRD:        '/pages/hrd-dashboard.html',
-    OPERATOR:   '/pages/operator-dashboard.html',
-    DRIVER:     '/pages/driver-dashboard.html',
-    KERNET:     '/pages/driver-dashboard.html',
-    STAFF_ADMIN:'/pages/staff-dashboard.html',
+    HRD:        '/pages/hrd-dashboard',
+    OPERATOR:   '/pages/operator-dashboard',
+    DRIVER:     '/pages/driver-dashboard',
+    KERNET:     '/pages/driver-dashboard',
+    STAFF_ADMIN:'/pages/staff-dashboard',
   };
 
   function getDashboardUrl(role) {
@@ -82,7 +82,7 @@ const Auth = (() => {
   async function logout() {
     try { await API.auth.logout(); } catch (_) {}
     clearSession();
-    window.location.replace('/pages/login.html');
+    window.location.replace('/pages/login');
   }
 
   // ============================================================
@@ -107,7 +107,7 @@ const Auth = (() => {
    */
   function guard(allowedRoles = null) {
     if (!isLoggedIn()) {
-      window.location.replace('/pages/login.html');
+      window.location.replace('/pages/login');
       return null;
     }
     const session = getSession();
