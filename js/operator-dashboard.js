@@ -685,15 +685,17 @@ function renderThumb(url) {
       const id = extractFileId(url);
       if (!id) return '-';
       
-      const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
-      // Gunakan link /view untuk href agar lebih aman dari blokir download otomatis
-      const viewUrl = `https://drive.google.com/file/d/${id}/view`;
+      // sz=w400 untuk resolusi thumbnail yang tajam di kotak besar
+      const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
       
-      return `<a href="${viewUrl}" target="_blank">
+      // Link baru sesuai request: langsung tembak ke raw image tanpa UI Google Drive
+      const directViewUrl = `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
+      
+      return `<a href="${directViewUrl}" target="_blank" class="block overflow-hidden rounded shadow mx-auto h-32 w-32">
                 <img src="${thumbUrl}" 
-                     class="h-20 rounded shadow mx-auto object-cover" 
+                     class="h-full w-full object-cover hover:scale-110 transition-transform duration-300" 
                      loading="lazy" 
-                     onerror="this.onerror=null; this.src='https://placehold.co/100x100/e2e8f0/64748b?text=Cek+Foto';"
+                     onerror="this.onerror=null; this.src='https://placehold.co/150x150/e2e8f0/64748b?text=Cek+Foto';"
                      alt="Bukti" />
               </a>`;
     }
