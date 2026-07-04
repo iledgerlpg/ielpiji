@@ -664,17 +664,17 @@ async function fetchLaporanPengiriman() {
     UI.toast('Rentang tanggal tidak valid.', 'warning'); 
     return; 
   }
-
   const container = document.getElementById('lp-container');
   container.innerHTML = '<div class="animate-pulse p-4 text-slate-400">Memuat data...</div>';
-
+  
   // Memanggil API dengan parameter rentang tanggal
   const res = await API.operator.getLaporanPengiriman({ start_date: start, end_date: end });
   
   // Proteksi jika user sudah keburu pindah menu sebelum data beres di-load
   if (activeSection !== 'laporan' && activeSection !== 'laporan-pengiriman') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
-container.innerHTML = `
+
+  container.innerHTML = `
 <table class="w-full">
     <thead>
         <tr>
@@ -691,16 +691,32 @@ container.innerHTML = `
     <tbody>
         ${
             res.data.laporan.length
-            ? res.data.laporan.map(l=>`
-                <tr>
-                    <td>${UI.formatDateShort(l.tanggal)}</td>
-                    <td>${UI.escapeHtml(l.driver_nama)}</td>
-                    <td>${UI.escapeHtml(l.pangkalan_nama)}</td>
-                    <td>${l.jumlah_kirim}</td>
-                    <td>${l.jumlah_retur||0}</td>
-                    <td>${UI.badge(l.status,l.status)}</td>
-                    <td>...</td>
-                    <td>...</td>
+            ? res.data.laporan.map(l => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.formatDateShort(l.tanggal)}</td>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.escapeHtml(l.driver_nama)}</td>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.escapeHtml(l.pangkalan_nama)}</td>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${l.jumlah_kirim}</td>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${l.jumlah_retur || 0}</td>
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">${UI.badge(l.status, l.status)}</td>
+                    
+                    <!-- Kolom Foto dengan Thumbnail -->
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">
+                        <div class="flex gap-1.5 items-center">
+                            ${l.foto_pengiriman_url ? `<a href="${l.foto_pengiriman_url}" target="_blank" title="Foto Pengiriman"><img src="${l.foto_pengiriman_url}" alt="Kirim" class="w-7 h-7 object-cover rounded border border-slate-300 hover:scale-110 transition-transform"></a>` : ''}
+                            ${l.foto_retur_url ? `<a href="${l.foto_retur_url}" target="_blank" title="Foto Retur"><img src="${l.foto_retur_url}" alt="Retur" class="w-7 h-7 object-cover rounded border border-slate-300 hover:scale-110 transition-transform"></a>` : ''}
+                            ${l.foto_pangkalan_url ? `<a href="${l.foto_pangkalan_url}" target="_blank" title="Foto Pangkalan"><img src="${l.foto_pangkalan_url}" alt="Pangkalan" class="w-7 h-7 object-cover rounded border border-slate-300 hover:scale-110 transition-transform"></a>` : ''}
+                            ${(!l.foto_pengiriman_url && !l.foto_retur_url && !l.foto_pangkalan_url) ? '<span class="text-xs text-slate-400">-</span>' : ''}
+                        </div>
+                    </td>
+                    
+                    <!-- Kolom Aksi -->
+                    <td class="p-2 border-b border-slate-200 dark:border-slate-700">
+                        <div class="flex gap-2 items-center">
+                            ${l.status !== 'VERIFIED' ? `<button class="text-blue-600 hover:text-blue-800 text-xs font-medium" onclick="verifikasiLaporanPengiriman('${l.laporan_id}')">Verifikasi</button>` : ''}
+                            <button class="text-red-600 hover:text-red-800 text-xs font-medium" onclick="hapusLaporanPengiriman('${l.laporan_id}')">Hapus</button>
+                        </div>
+                    </td>
                 </tr>
             `).join('')
             : `<tr><td colspan="8">${UI.emptyState('Belum ada laporan','📋')}</td></tr>`
@@ -708,7 +724,6 @@ container.innerHTML = `
     </tbody>
 </table>`;
 }
-
 async function verifikasiLaporanPengiriman(id) {
   const res = await API.operator.updateLaporanPengiriman({ laporan_id: id, status: 'VERIFIED' });
   if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporanPengiriman(); }
