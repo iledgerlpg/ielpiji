@@ -1535,7 +1535,7 @@ async function loadStokGudang() {
     <div id="sg-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">${skCards(4)}</div>
     <h3 class="font-semibold text-slate-900 dark:text-white mb-3">Riwayat Pembelian</h3>
     <div class="table-wrapper">
-      <table><thead><tr><th>No.</th><th>Tanggal</th><th>SPBE</th><th>Jumlah</th><th>Total</th><th>Keterangan</th><th class="text-right">Aksi</th></tr></thead>
+      <table><thead><tr><th>Tanggal</th><th>SPBE</th><th>Jumlah</th><th>Harga/tab</th><th>Total</th><th>Keterangan</th><th class="text-right">Aksi</th></tr></thead>
       <tbody id="sg-tbody"></tbody></table>
     </div>`;
   await fetchStok();
@@ -1563,10 +1563,10 @@ async function fetchStok() {
   });
 
   // Render Tabel
-  const tbody = document.getElementById('sg-tbody');
+  const tbody = document.getElementById('tbody-stok-gudang');
   
   if (stokData.length === 0) {
-tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4">Belum ada data pembelian stok.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4">Belum ada data pembelian stok.</td></tr>`;
     return;
   }
 
