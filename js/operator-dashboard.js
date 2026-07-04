@@ -1542,51 +1542,40 @@ async function loadStokGudang() {
 }
 
 async function fetchStok() {
-  // Ambil data stok gudang dan master SPBE secara bersamaan
-  const [stokRes, spbeRes] = await Promise.all([
-    API.operator.getStokGudang({ /* parameter filter bulan/tahun jika ada */ }),
-    API.operator.getSPBE({ status: 'ACTIVE' }) // Ambil master SPBE untuk mapping nama
-  ]);
+  const bulan = document.getElementById('sg-bln')?.value;
+  document.getElementById('sg-tbody').innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
+  const res = await API.operator.getStokGudang({ bulan });
+  if (activeSection !== 'stok-gudang') return;
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
+  const { total_pembelian, total_terkirim, total_retur, stok_gudang, pembelian } = res.data;
+  const stokColor = stok_gudang < 0 ? 'text-red-600' : stok_gudang < 100 ? 'text-amber-600' : 'text-green-600';
 
-  if (!stokRes.success) {
-    UI.toast(stokRes.message, 'error');
-    return;
-  }
+  document.getElementById('sg-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">📦</div><div><div class="stat-label">Total Pembelian</div><div class="stat-value">${UI.formatNumber(total_pembelian)}</div></div></div>
+    <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">🚚</div><div><div class="stat-label">Total Terkirim</div><div class="stat-value">${UI.formatNumber(total_terkirim)}</div></div></div>
+    <div class="stat-card"><div class="stat-icon bg-slate-100 dark:bg-slate-800">↩️</div><div>
+      <div class="stat-label">Total Retur</div>
+      <div class="stat-value text-slate-500">${UI.formatNumber(total_retur)}</div>
+      <div class="text-xs text-slate-400 mt-0.5">tidak masuk stok</div>
+    </div></div>
+    <div class="stat-card"><div class="stat-icon bg-amber-100 dark:bg-amber-900/40">🏭</div><div>
+      <div class="stat-label">Stok Gudang</div>
+      <div class="stat-value ${stokColor}">${UI.formatNumber(stok_gudang)}</div>
+      <div class="text-xs text-slate-400 mt-0.5">pembelian − terkirim</div>
+    </div></div>`;
 
-  const stokData = stokRes.data.pembelian || [];
-  const spbeList = spbeRes.success ? spbeRes.data.spbe : [];
-
-  // Buat mapping ID SPBE ke Nama SPBE
-  const spbeMap = {};
-  spbeList.forEach(spbe => {
-    spbeMap[spbe.spbe_id] = spbe.nama;
-  });
-
-  // Render Tabel
-  const tbody = document.getElementById('tbody-stok-gudang');
-  
-  if (stokData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4">Belum ada data pembelian stok.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = stokData.map((row, index) => {
-    // Ambil nama SPBE dari mapping, jika tidak ada fallback ke ID
-    const namaSpbe = spbeMap[row.spbe_id] || row.spbe_id; 
-    
-    return `
-      <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-        <td class="p-2 border border-slate-200 dark:border-slate-700 text-center">${index + 1}</td>
-        <td class="p-2 border border-slate-200 dark:border-slate-700">${row.tanggal}</td>
-        <td class="p-2 border border-slate-200 dark:border-slate-700 font-medium">${UI.escapeHtml(namaSpbe)}</td>
-        <td class="p-2 border border-slate-200 dark:border-slate-700 text-center">${row.jumlah}</td>
-        <td class="p-2 border border-slate-200 dark:border-slate-700 text-center">
-          <button onclick="deleteStok('${row.id}')" class="text-red-500 hover:text-red-700">Hapus</button>
-        </td>
-      </tr>
-    `;
-  }).join('');
+  document.getElementById('sg-tbody').innerHTML = pembelian?.length ? pembelian.map(p => `
+    <tr>
+      <td class="text-xs text-slate-500">${UI.formatDateShort(p.tanggal)}</td>
+      <td>${UI.escapeHtml(p.spbe_id)}</td>
+      <td class="font-semibold">${UI.formatNumber(p.jumlah)}</td>
+      <td class="text-slate-500">${UI.formatRupiah(p.harga_satuan)}</td>
+      <td class="font-semibold">${UI.formatRupiah(p.total)}</td>
+      <td class="text-slate-500 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
+      <td class="text-right"><button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button></td>
+    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada pembelian.','📦')}</td></tr>`;
 }
+
 function openPembelianModal() {
   const modal = document.createElement('div');
   modal.id    = 'beli-modal';
