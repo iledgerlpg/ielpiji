@@ -182,6 +182,7 @@ const API = (() => {
     createPembelianStok:       (b) => post('operator/pembelian-stok', b),
     updatePembelianStok:       (b) => post('operator/pembelian-stok/update', b),
     deletePembelianStok:       (b) => post('operator/pembelian-stok/delete', b),
+    importPembelianStok:       (b) => post('operator/pembelian-stok/import', b), 
     getPangkalan:              (p) => get('operator/pangkalan', p),
     createPangkalan:           (b) => post('operator/pangkalan', b),
     updatePangkalan:           (b) => post('operator/pangkalan/update', b),
