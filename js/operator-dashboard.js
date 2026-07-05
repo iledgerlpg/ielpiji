@@ -465,49 +465,19 @@ async function uploadJadwalExcel(input) {
       return;
     }
 
-    // ── Resolve nama pangkalan/SPBE/Driver → id ──
-    statusEl.textContent = '⏳ Mencocokkan nama pangkalan, SPBE & Driver...';
-    const [pangRes, spbeRes, driverRes] = await Promise.all([
-      API.operator.getPangkalan({ status: 'ACTIVE' }),
-      API.operator.getSPBE({ status: 'ACTIVE' }),
-      API.operator.getDrivers(),
-    ]);
-    
-    if (!pangRes.success || !spbeRes.success || !driverRes.success) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.textContent = '❌ Gagal memuat data master untuk validasi.';
-      input.value = '';
-      return;
-    }
-
-    const norm = s => String(s || '').trim().toLowerCase();
-    const pangMap   = new Map((pangRes.data.pangkalan || []).map(p => [norm(p.nama), p.pangkalan_id]));
-    const spbeMap   = new Map((spbeRes.data.spbe || []).map(s => [norm(s.nama), s.spbe_id]));
-    const driverMap = new Map((driverRes.data.drivers || []).map(d => [norm(d.nama), d.user_id]));
-
-    const resolved  = [];
-    const notFound  = [];
-mapped.forEach((r, idx) => {
-  const isGudang     = norm(r.pangkalan) === 'gudang';
-  const pangkalanId  = isGudang ? 'GUDANG' : pangMap.get(norm(r.pangkalan));
-  const spbeId       = spbeMap.get(norm(r.spbe));
-  const driver1Id    = driverMap.get(norm(r.driver1_nama));
-  const driver2Id    = r.driver2_nama ? driverMap.get(norm(r.driver2_nama)) : '';
-
-  if (!pangkalanId) { notFound.push(`Baris ${idx + 2}: Pangkalan "${r.pangkalan}" tidak ditemukan`); return; }
-  if (!spbeId) { notFound.push(`Baris ${idx + 2}: SPBE "${r.spbe}" tidak ditemukan`); return; }
-  if (!driver1Id) { notFound.push(`Baris ${idx + 2}: Driver 1 "${r.driver1_nama}" tidak ditemukan`); return; }
-  if (r.driver2_nama && !driver2Id) { notFound.push(`Baris ${idx + 2}: Kernet/Driver 2 "${r.driver2_nama}" tidak ditemukan`); return; }
-  
-  const { pangkalan, spbe, driver1_nama, driver2_nama, ...rest } = r;
-  resolved.push({ 
-    ...rest, 
-    pangkalan_id: pangkalanId, 
-    spbe_id: spbeId,
-    driver1_id: driver1Id,
-    driver2_id: driver2Id
-  });
-});
+// ── Kirim nama langsung, tidak perlu resolve ke ID lagi ──
+    const resolved = mapped.map(r => ({
+      tanggal: r.tanggal,
+      spbe_nama: r.spbe,
+      rit: r.rit,
+      pangkalan_nama: r.pangkalan,
+      jumlah_kirim: r.jumlah_kirim,
+      jumlah_retur: r.jumlah_retur,
+      driver1_nama: r.driver1_nama,
+      driver2_nama: r.driver2_nama,
+      keterangan: r.keterangan,
+    }));
+    const notFound = [];
 
     if (notFound.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -573,23 +543,23 @@ async function loadJadwalDropdowns() {
     API.operator.getSPBE({ status: 'ACTIVE' }),
     API.operator.getDrivers(),
   ]);
-  const fill = (id, items, valKey, labelKey) => {
+  const fillByNama = (id, items) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.innerHTML = `<option value="">-- Pilih --</option>` + (items || []).map(i => `<option value="${i[valKey]}">${UI.escapeHtml(i[labelKey])}</option>`).join('');
+    el.innerHTML = `<option value="">-- Pilih --</option>` + (items || []).map(i => `<option value="${UI.escapeHtml(i.nama)}">${UI.escapeHtml(i.nama)}</option>`).join('');
   };
   if (pangRes.success) {
-    fill('jm-pangkalan', pangRes.data.pangkalan, 'pangkalan_id', 'nama');
-    // Tambahkan opsi khusus GUDANG — bukan pangkalan asli, tidak ikut kalkulasi monitoring/pembayaran
-    document.getElementById('jm-pangkalan').insertAdjacentHTML('beforeend', `<option value="GUDANG">📦 Gudang (Stock Gudang)</option>`);
+    fillByNama('jm-pangkalan', pangRes.data.pangkalan);
+    // Opsi khusus "Gudang" — cukup nama bebas, tidak perlu match ke master pangkalan
+    document.getElementById('jm-pangkalan').insertAdjacentHTML('beforeend', `<option value="Gudang">📦 Gudang</option>`);
   }
-  if (spbeRes.success) fill('jm-spbe', spbeRes.data.spbe, 'spbe_id', 'nama');
+  if (spbeRes.success) fillByNama('jm-spbe', spbeRes.data.spbe);
   if (!driverRes.success) { UI.toast(driverRes.message || 'Gagal memuat daftar driver.', 'error'); return; }
   const drivers = driverRes.data.drivers;
-  fill('jm-driver1', drivers, 'user_id', 'nama');
+  fillByNama('jm-driver1', drivers);
   document.getElementById('jm-driver2').innerHTML =
     `<option value="">-- Opsional --</option>` +
-    drivers.map(d => `<option value="${d.user_id}">${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
+    drivers.map(d => `<option value="${UI.escapeHtml(d.nama)}">${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
 }
 
 async function saveJadwal() {
@@ -597,17 +567,17 @@ async function saveJadwal() {
   const errEl = document.getElementById('jm-err');
   errEl.classList.add('hidden');
   const body = {
-    tanggal:      document.getElementById('jm-tgl').value,
-    rit:          document.getElementById('jm-rit').value.trim(),
-    pangkalan_id: document.getElementById('jm-pangkalan').value,
-    spbe_id:      document.getElementById('jm-spbe').value,
-    jumlah_kirim: Number(document.getElementById('jm-kirim').value),
-    jumlah_retur: Number(document.getElementById('jm-retur').value || 0),
-    driver1_id:   document.getElementById('jm-driver1').value,
-    driver2_id:   document.getElementById('jm-driver2').value,
-    keterangan:   document.getElementById('jm-ket').value.trim(),
+    tanggal:        document.getElementById('jm-tgl').value,
+    rit:            document.getElementById('jm-rit').value.trim(),
+    pangkalan_nama: document.getElementById('jm-pangkalan').value,
+    spbe_nama:      document.getElementById('jm-spbe').value,
+    jumlah_kirim:   Number(document.getElementById('jm-kirim').value),
+    jumlah_retur:   Number(document.getElementById('jm-retur').value || 0),
+    driver1_nama:   document.getElementById('jm-driver1').value,
+    driver2_nama:   document.getElementById('jm-driver2').value,
+    keterangan:     document.getElementById('jm-ket').value.trim(),
   };
-  if (!body.tanggal || !body.rit || !body.spbe_id || !body.pangkalan_id || !body.jumlah_kirim || !body.driver1_id) {
+  if (!body.tanggal || !body.rit || !body.spbe_nama || !body.pangkalan_nama || !body.jumlah_kirim || !body.driver1_nama) {
     errEl.textContent = 'Tanggal, Rit, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
     errEl.classList.remove('hidden'); return;
   }
@@ -1177,9 +1147,9 @@ async function downloadTemplateMasterSA(btnEl) {
 
     const headers = ['pangkalan_nama', ...days];
 
-    const existingData = window._masterSAData || [];
+const existingData = window._masterSAData || [];
     const dataRows = daftarPangkalan.map(p => {
-      const existing = existingData.find(d => d.pangkalan_id === p.pangkalan_id) || {};
+      const existing = existingData.find(d => d.pangkalan_nama === p.nama) || {};
       return [p.nama, ...days.map(key => Number(existing[key] || 0))];
     });
 
@@ -1208,62 +1178,8 @@ async function downloadTemplateMasterSA(btnEl) {
 }
 /** Upload & parse file Excel/CSV Master SA pakai NAMA PANGKALAN */
 async function uploadMasterSAExcel(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const bulan = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
-  const [tahun, bulanNum] = bulan.split('-');
-  const statusEl = document.getElementById('sa-import-status');
-  statusEl.className = 'mb-4 card bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300';
-  statusEl.textContent = '⏳ Membaca file...';
-  statusEl.classList.remove('hidden');
-
-  try {
-    const rows = await parseCSVOrExcel(file);
-    if (!rows || rows.length < 2) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.textContent = '❌ File kosong atau format salah.';
-      input.value = ''; return;
-    }
-    const headers  = rows[0].map(h => String(h).trim().toLowerCase());
-    const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
-
-    if (!headers.includes('pangkalan_nama')) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.textContent = '❌ Kolom "pangkalan_nama" tidak ditemukan. Pastikan menggunakan template resmi terbaru.';
-      input.value = ''; return;
-    }
-
-    const mapped = dataRows.map(row => {
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = String(row[i] ?? '').trim(); });
-      return obj;
-    }).filter(r => r.pangkalan_nama);
-
-    if (!mapped.length) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.textContent = '❌ Tidak ada baris data valid.';
-      input.value = ''; return;
-    }
-
-    statusEl.textContent = '⏳ Mencocokkan nama pangkalan...';
-    const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
-    if (!pangRes.success) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.textContent = '❌ Gagal memuat data master pangkalan untuk validasi.';
-      input.value = ''; return;
-    }
-
-    const norm = s => String(s || '').trim().toLowerCase();
-    const pangMap = new Map((pangRes.data.pangkalan || []).map(p => [norm(p.nama), p.pangkalan_id]));
-
-    const resolved = [];
+  const resolved = mapped; // pangkalan_nama sudah langsung dipakai, tidak perlu resolve ke ID
     const notFound = [];
-    mapped.forEach((r, idx) => {
-      const pangkalanId = pangMap.get(norm(r.pangkalan_nama));
-      if (!pangkalanId) { notFound.push(`Baris ${idx + 2}: Pangkalan "${r.pangkalan_nama}" tidak ditemukan`); return; }
-      const { pangkalan_nama, ...rest } = r;
-      resolved.push({ pangkalan_id: pangkalanId, ...rest });
-    });
 
     if (notFound.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -1308,9 +1224,9 @@ async function openEditMasterSAModal() {
   const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
   const pangkalanList = pangRes.success ? pangRes.data.pangkalan : [];
 
-  window._samLocalData = pangkalanList.map(p => {
-    const existing = (window._masterSAData || []).find(d => d.pangkalan_id === p.pangkalan_id) || {};
-    const row = { pangkalan_id: p.pangkalan_id, pangkalan_nama: p.nama };
+window._samLocalData = pangkalanList.map(p => {
+    const existing = (window._masterSAData || []).find(d => d.pangkalan_nama === p.nama) || {};
+    const row = { pangkalan_nama: p.nama };
     for (let i = 1; i <= 31; i++) {
       const key = `tgl_${String(i).padStart(2, '0')}`;
       row[key] = Number(existing[key] || 0);
@@ -1502,10 +1418,7 @@ async function saveMasterSAManual(tahun, bulan) {
 
   UI.setLoading(btn, true, 'Menyimpan...');
 
-  const rowsToSave = window._samLocalData.map(r => {
-    const { pangkalan_nama, ...restData } = r;
-    return restData;
-  });
+const rowsToSave = window._samLocalData;
 
   const res = await API.operator.importMasterSA({ rows: rowsToSave, bulan, tahun });
   UI.setLoading(btn, false);
