@@ -860,7 +860,7 @@ async function loadMasterSA() {
           ⬆️ Upload Excel
           <input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadMasterSAExcel(this)"/>
         </label>
-        <button class="btn-primary" onclick="openEditMasterSAModal()">+ Edit Manual</button>
+        <button class="btn-primary" onclick="openEditMasterSAModal()">+ Tambah/Edit Manual</button>
       </div>
     </div>
     
