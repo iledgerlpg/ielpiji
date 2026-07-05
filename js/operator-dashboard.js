@@ -939,7 +939,7 @@ async function fetchMasterSA() {
     </tr>`;
   }).join('');
 
- // 2. Kalkulasi SPBE & Pembelian — dicocokkan berdasarkan NAMA (bukan spbe_id,
+// 2. Kalkulasi SPBE & Pembelian — dicocokkan berdasarkan NAMA (bukan spbe_id,
   // karena sheet PEMBELIAN_STOK sekarang hanya menyimpan nama_spbe)
   const spbeData = {};
   spbeList.forEach(s => {
@@ -966,9 +966,18 @@ async function fetchMasterSA() {
     dailyTotalSPBE[d] = sum;
     grandTotalSPBE += sum;
   });
-  
+
+  const dailyStock = {};
+  let runningStock = 0;
+  daysToShow.forEach((d, index) => {
+    const tHarian = dailyTotals[d] || 0;
+    const tSpbe   = dailyTotalSPBE[d] || 0;
+    runningStock  = index === 0 ? tSpbe - tHarian : runningStock + tSpbe - tHarian;
+    dailyStock[d] = runningStock;
+  });
+
   // 3. Baris SPBE
-let spbeRowsHtml = '';
+  let spbeRowsHtml = '';
   spbeList.forEach(s => {
     const cells = daysToShow.map(d => {
       const val = spbeData[s.nama].daily[d];
