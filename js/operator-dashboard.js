@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { id: 'laporan-pengiriman', label: 'Laporan Pengiriman',    icon: 'truck' },
   { id: 'monitoring-kirim',   label: 'Monitoring Pengiriman', icon: 'chart' },
   { id: 'master-sa',          label: 'Master SA',             icon: 'table' },
+  { id: 'rekap-pangkalan',    label: 'Rekap Operasional Pangkalan', icon: 'store' },
   { id: 'bayar-refill',       label: 'Pembayaran Refill',     icon: 'money' },
   { id: 'bayar-bh',           label: 'Pembayaran Bagi Hasil', icon: 'money' },
   { id: 'monitoring-bayar',   label: 'Monitoring Pembayaran', icon: 'chart' },
@@ -100,10 +101,10 @@ function buildSidebar() {
   const nav = document.getElementById('sidebar-nav');
 
   const sections = [
-    {
+   {
       id:'shipping',
       label:'iShipping',
-      items:['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa']
+      items:['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa','rekap-pangkalan']
     },
     {
       id:'operasional',
@@ -201,6 +202,7 @@ function showSection(id) {
     'laporan-pengiriman': loadLaporanPengiriman,
     'monitoring-kirim':   loadMonitoringKirim,
     'master-sa':          loadMasterSA,
+    'rekap-pangkalan':    loadRekapPangkalan,
     'bayar-refill':       () => loadPembayaran('REFILL'),
     'bayar-bh':           () => loadPembayaran('BAGI_HASIL'),
     'monitoring-bayar':   loadMonitoringBayar,
@@ -2025,7 +2027,7 @@ async function loadPangkalan() {
       </select>
     </div>
     <div class="table-wrapper">
-      <table><thead><tr><th>Nama</th><th>ID Reg</th><th>Tipe Bayar</th><th>Harga Refill</th><th>Harga BH</th><th>Status</th><th class="text-right">Aksi</th></tr></thead>
+<table><thead><tr><th>Nama</th><th>ID Reg</th><th>DO Dimiliki</th><th>Tipe Bayar</th><th>Harga Refill</th><th>Harga BH</th><th>Status</th><th class="text-right">Aksi</th></tr></thead>
       <tbody id="pkln-tbody"></tbody></table>
     </div>`;
   await fetchPangkalan();
@@ -2056,6 +2058,7 @@ function filterPangkalan() {
     <tr>
       <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(p.nama)}</td>
       <td class="font-mono text-xs text-slate-500">${UI.escapeHtml(p.id_reg)}</td>
+      <td class="text-center text-sm">${UI.formatNumber(p.do_dimiliki || 0)}</td>
       <td>${UI.badge(p.tipe_pembayaran, null)}</td>
       <td class="text-sm">${UI.formatRupiah(p.harga_refill)}</td>
       <td class="text-sm">${UI.formatRupiah(p.harga_bagi_hasil)}</td>
@@ -2080,9 +2083,13 @@ function openPangkalanModal(data = null) {
         <button class="btn-icon" onclick="document.getElementById('pkln-modal').remove()">✕</button>
       </div>
       <div class="p-5 space-y-4">
-        <div class="grid grid-cols-2 gap-3">
+   <div class="grid grid-cols-2 gap-3">
           <div><label class="form-label">Nama *</label><input id="pm-nama" class="form-input" value="${UI.escapeHtml(data?.nama||'')}" placeholder="Nama Pangkalan"/></div>
           <div><label class="form-label">ID Reg *</label><input id="pm-idreg" class="form-input" value="${UI.escapeHtml(data?.id_reg||'')}" placeholder="REG-001"/></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">DO Dimiliki</label><input id="pm-do" type="number" class="form-input" value="${data?.do_dimiliki||0}" placeholder="0" min="0"/></div>
+          <div></div>
         </div>
         <div><label class="form-label">Alamat</label><input id="pm-alamat" class="form-input" value="${UI.escapeHtml(data?.alamat||'')}" placeholder="Alamat lengkap..."/></div>
         <div class="grid grid-cols-3 gap-3">
@@ -2108,7 +2115,7 @@ function openPangkalanModal(data = null) {
 async function savePangkalan(id) {
   const btn = document.getElementById('pm-btn'), errEl = document.getElementById('pm-err');
   errEl.classList.add('hidden');
-  const body = { nama: document.getElementById('pm-nama').value.trim(), id_reg: document.getElementById('pm-idreg').value.trim(), alamat: document.getElementById('pm-alamat').value.trim(), tipe_pembayaran: document.getElementById('pm-tipe').value, harga_refill: Number(document.getElementById('pm-hrefill').value), harga_bagi_hasil: Number(document.getElementById('pm-hbh').value) };
+  const body = { nama: document.getElementById('pm-nama').value.trim(), id_reg: document.getElementById('pm-idreg').value.trim(), do_dimiliki: Number(document.getElementById('pm-do').value || 0), alamat: document.getElementById('pm-alamat').value.trim(), tipe_pembayaran: document.getElementById('pm-tipe').value, harga_refill: Number(document.getElementById('pm-hrefill').value), harga_bagi_hasil: Number(document.getElementById('pm-hbh').value) };
   if (!body.nama || !body.id_reg) { errEl.textContent = 'Nama dan ID Registrasi wajib diisi.'; errEl.classList.remove('hidden'); return; }
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = id ? await API.operator.updatePangkalan({ pangkalan_id: id, ...body }) : await API.operator.createPangkalan(body);
@@ -2263,7 +2270,233 @@ async function parseCSVOrExcel(file) {
     reader.readAsArrayBuffer(file);
   });
 }
+// ============================================================
+// REKAP OPERASIONAL PANGKALAN
+// ============================================================
 
+async function loadRekapPangkalan() {
+  const main = document.getElementById('main-content');
+  const now = new Date();
+  const bulanOptions = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
+    .map((nama, idx) => `<option value="${String(idx+1).padStart(2,'0')}" ${idx+1===now.getMonth()+1?'selected':''}>${nama}</option>`).join('');
+  const tahunSekarang = now.getFullYear();
+  const tahunOptions = [tahunSekarang-1, tahunSekarang, tahunSekarang+1]
+    .map(t => `<option value="${t}" ${t===tahunSekarang?'selected':''}>${t}</option>`).join('');
+
+  main.innerHTML = `
+    <div class="card mb-4">
+      <div class="grid md:grid-cols-3 gap-4 mb-4">
+        <div>
+          <label class="form-label">Pangkalan (bisa pilih lebih dari 1)</label>
+          <button type="button" class="form-input text-left w-full" id="rp-pangkalan-btn" onclick="openRekapPangkalanPicker()">
+            <span id="rp-pangkalan-label" class="text-slate-500">Pilih pangkalan...</span>
+          </button>
+        </div>
+        <div>
+          <label class="form-label">Bulan</label>
+          <select id="rp-bulan" class="form-select">${bulanOptions}</select>
+        </div>
+        <div>
+          <label class="form-label">Tahun</label>
+          <select id="rp-tahun" class="form-select">${tahunOptions}</select>
+        </div>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button class="btn-primary" onclick="fetchRekapPangkalan()">🔍 Tampilkan Rekap</button>
+        <button class="btn-secondary" onclick="exportRekapPangkalanExcel(this)">⬇️ Export Excel</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="text-xl font-bold text-center text-blue-800 dark:text-blue-400">REKAP OPERASIONAL PANGKALAN</h2>
+      <p class="text-center text-slate-500 text-sm mb-4" id="rp-periode-label">Periode: -</p>
+
+      <div id="rp-stats" class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+        ${['DO Dimiliki','Harga Tabung','Harga Bagi Hasil','Total Penerimaan','Tbg Kerjasama','Sisa Bagi Hasil'].map(l => `
+          <div class="stat-card"><div><div class="stat-label">${l}</div><div class="stat-value text-lg" id="rp-stat-${l.toLowerCase().replace(/ /g,'-')}">-</div></div></div>
+        `).join('')}
+      </div>
+
+      <div class="table-wrapper overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-blue-50 dark:bg-blue-900/30">
+              <th class="p-2 text-left">Tanggal</th>
+              <th class="p-2 text-center">Laporan Driver</th>
+              <th class="p-2 text-center">Retur</th>
+              <th class="p-2 text-left">Dikirim</th>
+              <th class="p-2 text-center">Master SA</th>
+              <th class="p-2 text-center">Pengiriman</th>
+              <th class="p-2 text-center">Nominal Dibayar</th>
+              <th class="p-2 text-center">Brimola Oleh</th>
+              <th class="p-2 text-center">Bayar Brimola</th>
+              <th class="p-2 text-center">Bukti TF</th>
+              <th class="p-2 text-center">Bagi Hasil</th>
+              <th class="p-2 text-center">Total Tbg</th>
+            </tr>
+          </thead>
+          <tbody id="rp-tbody">
+            <tr><td colspan="12" class="text-center text-slate-400 py-6">Pilih Pangkalan, Bulan & Tahun, lalu klik Tampilkan Rekap.</td></tr>
+          </tbody>
+          <tfoot>
+            <tr class="bg-slate-100 dark:bg-slate-800 font-bold">
+              <td class="p-2">TOTAL</td>
+              <td class="p-2 text-center" id="rp-total-laporan">0</td>
+              <td class="p-2 text-center" id="rp-total-retur">0</td>
+              <td></td>
+              <td class="p-2 text-center" id="rp-total-sa">0</td>
+              <td class="p-2 text-center" id="rp-total-kirim">0</td>
+              <td class="p-2 text-center" id="rp-total-bayar">0</td>
+              <td></td>
+              <td class="p-2 text-center" id="rp-total-brimola">0</td>
+              <td></td>
+              <td class="p-2 text-center" id="rp-total-bh">0</td>
+              <td class="p-2 text-center" id="rp-total-tbg">0</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>`;
+
+  window._rpSelectedPangkalan = [];
+}
+
+async function openRekapPangkalanPicker() {
+  const res = await API.operator.getPangkalan({ status: 'ACTIVE' });
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
+  const list = res.data.pangkalan;
+  const selected = new Set((window._rpSelectedPangkalan || []).map(p => p.pangkalan_id));
+
+  const modal = document.createElement('div');
+  modal.id = 'rp-picker-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h3 class="font-semibold text-slate-900 dark:text-white">Pilih Pangkalan</h3>
+        <button class="btn-icon" onclick="document.getElementById('rp-picker-modal').remove()">✕</button>
+      </div>
+      <div class="p-4 overflow-y-auto flex-1 space-y-2">
+        ${list.map(p => `
+          <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+            <input type="checkbox" value="${p.pangkalan_id}" data-nama="${UI.escapeHtml(p.nama)}" class="rp-pkln-cb" ${selected.has(p.pangkalan_id) ? 'checked' : ''}/>
+            <span class="text-sm text-slate-700 dark:text-slate-200">${UI.escapeHtml(p.nama)}</span>
+          </label>
+        `).join('')}
+      </div>
+      <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+        <button class="btn-secondary" onclick="document.getElementById('rp-picker-modal').remove()">Batal</button>
+        <button class="btn-primary" onclick="confirmRekapPangkalanPicker()">Pilih</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function confirmRekapPangkalanPicker() {
+  const checked = Array.from(document.querySelectorAll('.rp-pkln-cb:checked'));
+  window._rpSelectedPangkalan = checked.map(cb => ({ pangkalan_id: cb.value, nama: cb.dataset.nama }));
+  const label = document.getElementById('rp-pangkalan-label');
+  label.textContent = window._rpSelectedPangkalan.length
+    ? window._rpSelectedPangkalan.map(p => p.nama).join(', ')
+    : 'Pilih pangkalan...';
+  label.classList.toggle('text-slate-500', window._rpSelectedPangkalan.length === 0);
+  document.getElementById('rp-picker-modal').remove();
+}
+
+async function fetchRekapPangkalan() {
+  const selected = window._rpSelectedPangkalan || [];
+  if (!selected.length) { UI.toast('Pilih minimal satu pangkalan.', 'warning'); return; }
+  const bulan = document.getElementById('rp-bulan').value;
+  const tahun = document.getElementById('rp-tahun').value;
+
+  document.getElementById('rp-tbody').innerHTML = `<tr><td colspan="12">${skLine()}</td></tr>`;
+
+  const res = await API.operator.getRekapPangkalan({ pangkalan_ids: selected.map(p => p.pangkalan_id).join(','), bulan, tahun });
+  if (activeSection !== 'rekap-pangkalan') return;
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
+
+  const d = res.data;
+  window._rpLastData = d;
+
+  document.getElementById('rp-periode-label').textContent = `Periode: ${d.pangkalan_nama} — ${document.getElementById('rp-bulan').selectedOptions[0].text} ${d.tahun}`;
+  document.getElementById('rp-stat-do-dimiliki').textContent    = UI.formatNumber(d.do_dimiliki);
+  document.getElementById('rp-stat-harga-tabung').textContent   = UI.formatRupiah(d.harga_tabung);
+  document.getElementById('rp-stat-harga-bagi-hasil').textContent = UI.formatRupiah(d.harga_bagi_hasil);
+  document.getElementById('rp-stat-total-penerimaan').textContent = UI.formatNumber(d.total_penerimaan);
+  document.getElementById('rp-stat-tbg-kerjasama').textContent   = UI.formatNumber(d.tbg_kerjasama);
+  document.getElementById('rp-stat-sisa-bagi-hasil').textContent = UI.formatRupiah(d.sisa_bagi_hasil);
+
+  const rows = d.rows || [];
+  document.getElementById('rp-tbody').innerHTML = rows.length ? rows.map(r => `
+    <tr class="border-b border-slate-100 dark:border-slate-800">
+      <td class="p-2 text-xs text-slate-500">${UI.formatDateShort(r.tanggal)}</td>
+      <td class="p-2 text-center">${r.laporan_driver || 0}</td>
+      <td class="p-2 text-center">${r.retur || 0}</td>
+      <td class="p-2 text-sm">${UI.escapeHtml(r.dikirim)}</td>
+      <td class="p-2 text-center">${r.master_sa || 0}</td>
+      <td class="p-2 text-center">${r.pengiriman || 0}</td>
+      <td class="p-2 text-center">${UI.formatRupiah(r.nominal_dibayar)}</td>
+      <td class="p-2 text-center text-xs">${UI.escapeHtml(r.brimola_oleh)}</td>
+      <td class="p-2 text-center">${UI.formatRupiah(r.bayar_brimola)}</td>
+      <td class="p-2 text-center">
+        ${UI.formatRupiah(r.bukti_tf)}
+        ${r.bukti_tf_url ? `<a href="${r.bukti_tf_url}" target="_blank" class="text-blue-600 underline text-xs ml-1">(lihat)</a>` : ''}
+      </td>
+      <td class="p-2 text-center">${UI.formatRupiah(r.bagi_hasil)}</td>
+      <td class="p-2 text-center font-semibold ${r.total_tabung > 0 ? 'text-red-500' : 'text-green-600'}">${UI.formatRupiah(r.total_tabung)}</td>
+    </tr>`).join('') : `<tr><td colspan="12" class="text-center text-slate-400 py-6">Belum ada data untuk periode ini.</td></tr>`;
+
+  document.getElementById('rp-total-laporan').textContent = UI.formatNumber(rows.reduce((s,r)=>s+Number(r.laporan_driver||0),0));
+  document.getElementById('rp-total-retur').textContent   = UI.formatNumber(rows.reduce((s,r)=>s+Number(r.retur||0),0));
+  document.getElementById('rp-total-sa').textContent      = UI.formatNumber(rows.reduce((s,r)=>s+Number(r.master_sa||0),0));
+  document.getElementById('rp-total-kirim').textContent   = UI.formatNumber(rows.reduce((s,r)=>s+Number(r.pengiriman||0),0));
+  document.getElementById('rp-total-bayar').textContent   = UI.formatRupiah(rows.reduce((s,r)=>s+Number(r.nominal_dibayar||0),0));
+  document.getElementById('rp-total-brimola').textContent = UI.formatRupiah(rows.reduce((s,r)=>s+Number(r.bayar_brimola||0),0));
+  document.getElementById('rp-total-bh').textContent      = UI.formatRupiah(rows.reduce((s,r)=>s+Number(r.bagi_hasil||0),0));
+  document.getElementById('rp-total-tbg').textContent     = UI.formatRupiah(rows.reduce((s,r)=>s+Number(r.total_tabung||0),0));
+}
+
+async function exportRekapPangkalanExcel(btnEl) {
+  const d = window._rpLastData;
+  if (!d) { UI.toast('Tampilkan rekap terlebih dahulu sebelum export.', 'warning'); return; }
+  const btn = btnEl || null;
+  try {
+    if (btn) UI.setLoading(btn, true, 'Menyiapkan...');
+    if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+
+    const headers = ['Tanggal','Laporan Driver','Retur','Dikirim','Master SA','Pengiriman','Nominal Dibayar','Brimola Oleh','Bayar Brimola','Bukti TF','Bagi Hasil','Total Tbg'];
+    const dataRows = (d.rows || []).map(r => [
+      r.tanggal, r.laporan_driver, r.retur, r.dikirim, r.master_sa, r.pengiriman,
+      r.nominal_dibayar, r.brimola_oleh, r.bayar_brimola, r.bukti_tf, r.bagi_hasil, r.total_tabung,
+    ]);
+
+    const wb = XLSX.utils.book_new();
+    const summaryAOA = [
+      ['REKAP OPERASIONAL PANGKALAN'],
+      [`Pangkalan: ${d.pangkalan_nama}`],
+      [`Periode: ${d.bulan}/${d.tahun}`],
+      [''],
+      ['DO Dimiliki', d.do_dimiliki],
+      ['Harga Tabung', d.harga_tabung],
+      ['Harga Bagi Hasil', d.harga_bagi_hasil],
+      ['Total Penerimaan', d.total_penerimaan],
+      ['Tbg Kerjasama', d.tbg_kerjasama],
+      ['Sisa Bagi Hasil', d.sisa_bagi_hasil],
+      [''],
+      headers,
+      ...dataRows,
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(summaryAOA);
+    ws['!cols'] = headers.map(() => ({ wch: 16 }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Rekap');
+    XLSX.writeFile(wb, `rekap_operasional_${d.pangkalan_nama.replace(/[^a-z0-9]/gi,'_')}_${d.bulan}-${d.tahun}.xlsx`);
+    UI.toast('Rekap berhasil diexport.', 'success');
+  } catch (err) {
+    UI.toast(`Gagal export: ${err.message}`, 'error');
+  } finally {
+    if (btn) UI.setLoading(btn, false);
+  }
+}
 // ── Skeleton helpers ──
 function skCards(n) { return `<div class="grid grid-cols-2 md:grid-cols-${n} gap-4 animate-pulse">${Array(n).fill('<div class="card h-20 bg-slate-200 dark:bg-slate-800"></div>').join('')}</div>`; }
 function skList(n)  { return `<div class="space-y-3 animate-pulse">${Array(n).fill('<div class="card h-20 bg-slate-200 dark:bg-slate-800"></div>').join('')}</div>`; }
