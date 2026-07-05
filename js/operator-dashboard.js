@@ -259,7 +259,7 @@ async function fetchDashboard() {
 }
 
 // ============================================================
-// JADWAL HARIAN — Urutan Baru & Upload/Download pakai Nama Driver
+// JADWAL HARIAN — dengan Upload & Download Excel
 // ============================================================
 
 async function loadJadwalHarian() {
@@ -268,7 +268,7 @@ async function loadJadwalHarian() {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
       <div><h2 class="page-title">Jadwal Harian</h2><p class="page-sub">Atur jadwal pengiriman driver ke pangkalan.</p></div>
       <div class="flex gap-2 flex-wrap">
-        <button class="btn-secondary text-sm" onclick="downloadTemplateJadwal(this)">
+        <button class="btn-secondary text-sm" onclick="downloadTemplateJadwal()">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           Template Excel
         </button>
@@ -287,17 +287,7 @@ async function loadJadwalHarian() {
     </div>
     <div id="jh-import-status" class="hidden mb-4"></div>
     <div class="table-wrapper">
-      <table><thead><tr>
-        <th>Tanggal</th>
-        <th>SPBE</th>
-        <th>Rit</th>
-        <th>Nama Pangkalan</th>
-        <th>Target Kirim</th>
-        <th>Retur</th>
-        <th>Driver 1</th>
-        <th>Driver 2 / Kernet</th>
-        <th class="text-right">Aksi</th>
-      </tr></thead>
+      <table><thead><tr><th>Tanggal</th><th>Rit</th><th>Pangkalan</th><th>SPBE</th><th>Target Kirim</th><th>Driver</th><th class="text-right">Aksi</th></tr></thead>
       <tbody id="jh-tbody"></tbody></table>
     </div>`;
   await fetchJadwalHarian();
@@ -305,27 +295,120 @@ async function loadJadwalHarian() {
 
 async function fetchJadwalHarian() {
   const tbody = document.getElementById('jh-tbody');
-  tbody.innerHTML = `<tr><td colspan="9">${skLine()}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7">${skLine()}</td></tr>`;
   const params = { tanggal: document.getElementById('jh-tgl')?.value || undefined, bulan: document.getElementById('jh-bln')?.value || undefined };
   if (params.tanggal) delete params.bulan;
   const res = await API.operator.getJadwalHarian(params);
-  if (activeSection !== 'jadwal-harian') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
+  window._allJadwal = res.data.jadwal;
   tbody.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(j.tanggal)}</td>
-      <td class="text-slate-500 text-xs">${UI.escapeHtml(j.spbe_nama)}</td>
-      <td class="font-semibold">${UI.escapeHtml(j.rit)}</td>
+      <td class="font-semibold">Rit ${j.rit}</td>
       <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(j.pangkalan_nama)}</td>
+      <td class="text-slate-500 text-xs">${UI.escapeHtml(j.spbe_nama)}</td>
       <td>${j.jumlah_kirim} <span class="text-slate-400 text-xs">tabung</span></td>
-      <td>${j.jumlah_retur || 0} <span class="text-slate-400 text-xs">tabung</span></td>
-      <td class="text-sm">${UI.escapeHtml(j.driver1_nama)}</td>
-      <td class="text-sm">${j.driver2_nama && j.driver2_nama !== '-' ? UI.escapeHtml(j.driver2_nama) : '-'}</td>
+      <td class="text-sm">${UI.escapeHtml(j.driver1_nama)}${j.driver2_nama !== '-' ? ' + '+UI.escapeHtml(j.driver2_nama) : ''}</td>
       <td class="text-right">
-	  <button class="btn-secondary text-xs py-1 px-2" onclick="editJadwalHarian('${j.jadwal_id}')">Edit</button>
+        <div class="flex gap-1 justify-end">
+          <button class="btn-secondary text-xs py-1 px-2" onclick="editJadwalHarian('${j.jadwal_id}')">Edit</button>
           <button class="btn-danger text-xs py-1 px-2"    onclick="deleteJadwalHarian('${j.jadwal_id}')">Hapus</button>
+        </div>
       </td>
-    </tr>`).join('') : `<tr><td colspan="9">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
+}
+
+async function editJadwalHarian(id) {
+  const jadwal = (window._allJadwal || []).find(j => j.jadwal_id === id);
+  if (!jadwal) { UI.toast('Data jadwal tidak ditemukan.', 'error'); return; }
+
+  const modal = document.createElement('div');
+  modal.id    = 'jh-edit-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+        <h3 class="font-semibold text-slate-900 dark:text-white">Edit Jadwal Harian</h3>
+        <button class="btn-icon" onclick="document.getElementById('jh-edit-modal').remove()">✕</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Tanggal *</label><input id="je-tgl" type="date" class="form-input" value="${jadwal.tanggal}"/></div>
+          <div><label class="form-label">Rit *</label><input id="je-rit" type="number" class="form-input" value="${jadwal.rit}" min="1"/></div>
+        </div>
+        <div><label class="form-label">Pangkalan *</label><select id="je-pangkalan" class="form-select"><option value="">Memuat...</option></select></div>
+        <div><label class="form-label">SPBE *</label><select id="je-spbe" class="form-select"><option value="">Memuat...</option></select></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Target Kirim *</label><input id="je-kirim" type="number" class="form-input" value="${jadwal.jumlah_kirim}" min="0"/></div>
+          <div><label class="form-label">Target Retur</label><input id="je-retur" type="number" class="form-input" value="${jadwal.jumlah_retur || 0}" min="0"/></div>
+        </div>
+        <div><label class="form-label">Driver 1 *</label><select id="je-driver1" class="form-select"><option value="">Memuat...</option></select></div>
+        <div><label class="form-label">Driver 2 / Kernet</label><select id="je-driver2" class="form-select"><option value="">-- Opsional --</option></select></div>
+        <div><label class="form-label">Keterangan</label><input id="je-ket" class="form-input" value="${UI.escapeHtml(jadwal.keterangan || '')}" placeholder="Opsional..."/></div>
+        <div id="je-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+        <button id="je-btn" class="btn-primary w-full justify-center" onclick="saveEditJadwal('${id}')">Simpan Perubahan</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // Load dropdowns lalu pre-select nilai saat ini
+  const [pangRes, spbeRes, driverRes] = await Promise.all([
+    API.operator.getPangkalan({ status: 'ACTIVE' }),
+    API.operator.getSPBE({ status: 'ACTIVE' }),
+    API.operator.getDrivers(),
+  ]);
+
+  const fillAndSelect = (elId, items, valKey, labelKey, selectedVal) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = `<option value="">-- Pilih --</option>` +
+      (items || []).map(i => `<option value="${i[valKey]}" ${i[valKey] === selectedVal ? 'selected' : ''}>${UI.escapeHtml(i[labelKey])}</option>`).join('');
+  };
+
+  if (pangRes.success)  fillAndSelect('je-pangkalan', pangRes.data.pangkalan, 'pangkalan_id', 'nama', jadwal.pangkalan_id);
+  if (spbeRes.success)  fillAndSelect('je-spbe',      spbeRes.data.spbe,      'spbe_id',      'nama', jadwal.spbe_id);
+  if (driverRes.success) {
+    const drivers = driverRes.data.drivers;
+    fillAndSelect('je-driver1', drivers, 'user_id', 'nama', jadwal.driver1_id);
+    const d2 = document.getElementById('je-driver2');
+    if (d2) {
+      d2.innerHTML = `<option value="">-- Opsional --</option>` +
+        drivers.map(d => `<option value="${d.user_id}" ${d.user_id === jadwal.driver2_id ? 'selected' : ''}>${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
+    }
+  }
+}
+
+async function saveEditJadwal(id) {
+  const btn   = document.getElementById('je-btn');
+  const errEl = document.getElementById('je-err');
+  errEl.classList.add('hidden');
+  const body = {
+    jadwal_id:    id,
+    tanggal:      document.getElementById('je-tgl').value,
+    rit:          Number(document.getElementById('je-rit').value),
+    pangkalan_id: document.getElementById('je-pangkalan').value,
+    spbe_id:      document.getElementById('je-spbe').value,
+    jumlah_kirim: Number(document.getElementById('je-kirim').value),
+    jumlah_retur: Number(document.getElementById('je-retur').value || 0),
+    driver1_id:   document.getElementById('je-driver1').value,
+    driver2_id:   document.getElementById('je-driver2').value,
+    keterangan:   document.getElementById('je-ket').value.trim(),
+  };
+  if (!body.tanggal || !body.pangkalan_id || !body.spbe_id || !body.jumlah_kirim || !body.driver1_id) {
+    errEl.textContent = 'Tanggal, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
+    errEl.classList.remove('hidden'); return;
+  }
+  UI.setLoading(btn, true, 'Menyimpan...');
+  const res = await API.operator.updateJadwalHarian(body);
+  UI.setLoading(btn, false);
+  if (res.success) {
+    UI.toast('Jadwal berhasil diupdate.', 'success');
+    document.getElementById('jh-edit-modal').remove();
+    fetchJadwalHarian();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 /** Download template Excel (.xlsx) asli untuk Jadwal Harian */
@@ -534,7 +617,6 @@ async function uploadJadwalExcel(input) {
     input.value = '';
   }
 }
-
 function openJadwalModal() {
   const modal = document.createElement('div');
   modal.id    = 'jh-modal';
@@ -587,103 +669,6 @@ async function loadJadwalDropdowns() {
     `<option value="">-- Opsional --</option>` +
     drivers.map(d => `<option value="${d.user_id}">${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
 }
-async function editJadwalHarian(id) {
-  const jadwal = (window._allJadwal || []).find(j => j.jadwal_id === id);
-  if (!jadwal) { UI.toast('Data jadwal tidak ditemukan.', 'error'); return; }
-
-  const modal = document.createElement('div');
-  modal.id    = 'jh-edit-modal';
-  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
-  modal.innerHTML = `
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
-        <h3 class="font-semibold text-slate-900 dark:text-white">Edit Jadwal Harian</h3>
-        <button class="btn-icon" onclick="document.getElementById('jh-edit-modal').remove()">✕</button>
-      </div>
-      <div class="p-5 space-y-4">
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">Tanggal *</label><input id="je-tgl" type="date" class="form-input" value="${jadwal.tanggal}"/></div>
-          <div><label class="form-label">Rit *</label><input id="je-rit" type="number" class="form-input" value="${jadwal.rit}" min="1"/></div>
-        </div>
-        <div><label class="form-label">Pangkalan *</label><select id="je-pangkalan" class="form-select"><option value="">Memuat...</option></select></div>
-        <div><label class="form-label">SPBE *</label><select id="je-spbe" class="form-select"><option value="">Memuat...</option></select></div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">Target Kirim *</label><input id="je-kirim" type="number" class="form-input" value="${jadwal.jumlah_kirim}" min="0"/></div>
-          <div><label class="form-label">Target Retur</label><input id="je-retur" type="number" class="form-input" value="${jadwal.jumlah_retur || 0}" min="0"/></div>
-        </div>
-        <div><label class="form-label">Driver 1 *</label><select id="je-driver1" class="form-select"><option value="">Memuat...</option></select></div>
-        <div><label class="form-label">Driver 2 / Kernet</label><select id="je-driver2" class="form-select"><option value="">-- Opsional --</option></select></div>
-        <div><label class="form-label">Keterangan</label><input id="je-ket" class="form-input" value="${UI.escapeHtml(jadwal.keterangan || '')}" placeholder="Opsional..."/></div>
-        <div id="je-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
-        <button id="je-btn" class="btn-primary w-full justify-center" onclick="saveEditJadwal('${id}')">Simpan Perubahan</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-
-  // Load dropdowns lalu pre-select nilai saat ini
-  const [pangRes, spbeRes, driverRes] = await Promise.all([
-    API.operator.getPangkalan({ status: 'ACTIVE' }),
-    API.operator.getSPBE({ status: 'ACTIVE' }),
-    API.operator.getDrivers(),
-  ]);
-
-  const fillAndSelect = (elId, items, valKey, labelKey, selectedVal) => {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    el.innerHTML = `<option value="">-- Pilih --</option>` +
-      (items || []).map(i => `<option value="${i[valKey]}" ${i[valKey] === selectedVal ? 'selected' : ''}>${UI.escapeHtml(i[labelKey])}</option>`).join('');
-  };
-
-  if (pangRes.success)  fillAndSelect('je-pangkalan', pangRes.data.pangkalan, 'pangkalan_id', 'nama', jadwal.pangkalan_id);
-  if (spbeRes.success)  fillAndSelect('je-spbe',      spbeRes.data.spbe,      'spbe_id',      'nama', jadwal.spbe_id);
-  if (driverRes.success) {
-    const drivers = driverRes.data.drivers;
-    fillAndSelect('je-driver1', drivers, 'user_id', 'nama', jadwal.driver1_id);
-    const d2 = document.getElementById('je-driver2');
-    if (d2) {
-      d2.innerHTML = `<option value="">-- Opsional --</option>` +
-        drivers.map(d => `<option value="${d.user_id}" ${d.user_id === jadwal.driver2_id ? 'selected' : ''}>${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
-    }
-  }
-}
-async function saveEditJadwal(id) {
-  const btn   = document.getElementById('je-btn');
-  const errEl = document.getElementById('je-err');
-  errEl.classList.add('hidden');
-  const body = {
-    jadwal_id:    id,
-    tanggal:      document.getElementById('je-tgl').value,
-    rit:          Number(document.getElementById('je-rit').value),
-    pangkalan_id: document.getElementById('je-pangkalan').value,
-    spbe_id:      document.getElementById('je-spbe').value,
-    jumlah_kirim: Number(document.getElementById('je-kirim').value),
-    jumlah_retur: Number(document.getElementById('je-retur').value || 0),
-    driver1_id:   document.getElementById('je-driver1').value,
-    driver2_id:   document.getElementById('je-driver2').value,
-    keterangan:   document.getElementById('je-ket').value.trim(),
-  };
-  if (!body.tanggal || !body.pangkalan_id || !body.spbe_id || !body.jumlah_kirim || !body.driver1_id) {
-    errEl.textContent = 'Tanggal, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
-    errEl.classList.remove('hidden'); return;
-  }
-  UI.setLoading(btn, true, 'Menyimpan...');
-  const res = await API.operator.updateJadwalHarian(body);
-  UI.setLoading(btn, false);
-  if (res.success) {
-    UI.toast('Jadwal berhasil diupdate.', 'success');
-    document.getElementById('jh-edit-modal').remove();
-    fetchJadwalHarian();
-  } else {
-    errEl.textContent = res.message;
-    errEl.classList.remove('hidden');
-  }
-}
-async function deleteJadwalHarian(id) {
-  if (!await UI.confirm('Hapus jadwal ini?', 'Konfirmasi Hapus')) return;
-  const res = await API.operator.deleteJadwalHarian({ jadwal_id: id });
-  if (res.success) { UI.toast('Jadwal dihapus.', 'success'); fetchJadwalHarian(); }
-  else UI.toast(res.message, 'error');
-}
 
 async function saveJadwal() {
   const btn   = document.getElementById('jm-btn');
@@ -710,6 +695,14 @@ async function saveJadwal() {
   if (res.success) { UI.toast('Jadwal berhasil ditambahkan.', 'success'); document.getElementById('jh-modal').remove(); fetchJadwalHarian(); }
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
+
+async function deleteJadwalHarian(id) {
+  if (!await UI.confirm('Hapus jadwal ini?', 'Konfirmasi Hapus')) return;
+  const res = await API.operator.deleteJadwalHarian({ jadwal_id: id });
+  if (res.success) { UI.toast('Jadwal dihapus.', 'success'); fetchJadwalHarian(); }
+  else UI.toast(res.message, 'error');
+}
+
 
 
 
