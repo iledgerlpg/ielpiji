@@ -1176,9 +1176,47 @@ const existingData = window._masterSAData || [];
     if (btn) UI.setLoading(btn, false);
   }
 }
-/** Upload & parse file Excel/CSV Master SA pakai NAMA PANGKALAN */
+/** Upload & parse file Excel/CSV Master SA pakai NAMA PANGKALAN langsung */
 async function uploadMasterSAExcel(input) {
-  const resolved = mapped; // pangkalan_nama sudah langsung dipakai, tidak perlu resolve ke ID
+  const file = input.files[0];
+  if (!file) return;
+  const bulan = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
+  const [tahun, bulanNum] = bulan.split('-');
+  const statusEl = document.getElementById('sa-import-status');
+  statusEl.className = 'mb-4 card bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300';
+  statusEl.textContent = '⏳ Membaca file...';
+  statusEl.classList.remove('hidden');
+
+  try {
+    const rows = await parseCSVOrExcel(file);
+    if (!rows || rows.length < 2) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = '❌ File kosong atau format salah.';
+      input.value = ''; return;
+    }
+    const headers  = rows[0].map(h => String(h).trim().toLowerCase());
+    const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
+
+    if (!headers.includes('pangkalan_nama')) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = '❌ Kolom "pangkalan_nama" tidak ditemukan. Pastikan menggunakan template resmi terbaru.';
+      input.value = ''; return;
+    }
+
+    const mapped = dataRows.map(row => {
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = String(row[i] ?? '').trim(); });
+      return obj;
+    }).filter(r => r.pangkalan_nama);
+
+    if (!mapped.length) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = '❌ Tidak ada baris data valid.';
+      input.value = ''; return;
+    }
+
+    // Tidak perlu resolve nama pangkalan ke ID lagi — kirim langsung apa adanya
+    const resolved = mapped;
     const notFound = [];
 
     if (notFound.length) {
