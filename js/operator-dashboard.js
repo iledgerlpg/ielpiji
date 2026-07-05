@@ -1135,6 +1135,7 @@ async function downloadTemplateMasterSA(btnEl) {
 
     const wb = XLSX.utils.book_new();
 
+    // ── Sheet 1: Petunjuk ──
     const petunjukAOA = [
       ['PETUNJUK PENGISIAN TEMPLATE MASTER SA — ILPG'],
       [''],
@@ -1151,13 +1152,51 @@ async function downloadTemplateMasterSA(btnEl) {
     wsPetunjuk['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
     XLSX.utils.book_append_sheet(wb, wsPetunjuk, 'Petunjuk');
 
-    const days    = Array.from({ length: 31 }, (_, i) => `tgl_${String(i + 1).padStart(2, '0')}`);
-    const headers = ['pangkalan_nama', ...days];
-    const contoh  = [daftarPangkalan[0]?.nama || 'NAMA_PANGKALAN_DISINI', ...Array(31).fill(0)];
-    const wsData  = XLSX.utils.aoa_to_sheet([headers, contoh]);
+// ── Sheet 2: Data Master SA (data real, sesuai rentang) ──
+const saStart  = document.getElementById('sa-start')?.value;
+const saEnd    = document.getElementById('sa-end')?.value;
+const startDate = saStart ? new Date(saStart) : new Date();
+const endDate   = saEnd   ? new Date(saEnd)   : new Date();
+
+const startDay = startDate.getDate();
+let endDay     = endDate.getDate();
+
+// Batasi ke bulan yang sama
+if (startDate.getMonth() !== endDate.getMonth() || startDate.getFullYear() !== endDate.getFullYear()) {
+  endDay = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
+}
+
+const days = [];
+for (let d = startDay; d <= endDay; d++) {
+  days.push(`tgl_${String(d).padStart(2, '0')}`);
+}
+
+const headers = ['pangkalan_nama', ...days];
+
+const existingData = window._masterSAData || [];
+const dataRows = daftarPangkalan.map(p => {
+  const existing = existingData.find(d => d.pangkalan_id === p.pangkalan_id) || {};
+  return [
+    p.nama,
+    ...days.map(key => Number(existing[key] || 0))
+  ];
+});
+
+const wsData = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+wsData['!cols'] = [{ wch: 30 }, ...Array(days.length).fill({ wch: 7 })];
+XLSX.utils.book_append_sheet(wb, wsData, 'Data Master SA');
+
+// Nama file pakai rentang tanggal
+const bulanNama = startDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).replace(' ', '_');
+const rangeStr  = startDay === endDay ? `tgl${startDay}` : `tgl${startDay}-${endDay}`;
+
+XLSX.writeFile(wb, `master_sa_${bulanNama}_${rangeStr}_ILPG.xlsx`);
+
+    const wsData = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
     wsData['!cols'] = [{ wch: 30 }, ...Array(31).fill({ wch: 7 })];
     XLSX.utils.book_append_sheet(wb, wsData, 'Data Master SA');
 
+    // ── Sheet 3: Referensi Pangkalan ──
     const wsRefPang = XLSX.utils.aoa_to_sheet([
       ['Nama Pangkalan'],
       ...(daftarPangkalan.length ? daftarPangkalan.map(p => [p.nama]) : [['(Belum ada data pangkalan aktif)']]),
@@ -1165,8 +1204,13 @@ async function downloadTemplateMasterSA(btnEl) {
     wsRefPang['!cols'] = [{ wch: 35 }];
     XLSX.utils.book_append_sheet(wb, wsRefPang, 'Referensi Pangkalan');
 
-    XLSX.writeFile(wb, 'template_master_sa_ILPG.xlsx');
-    UI.toast('Template Excel berhasil didownload.', 'success');
+    // Nama file pakai bulan yang aktif di filter
+    const saStart = document.getElementById('sa-start')?.value;
+    const tglRef  = saStart ? new Date(saStart) : new Date();
+    const bulanNama = tglRef.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).replace(' ', '_');
+
+    XLSX.writeFile(wb, `master_sa_${bulanNama}_ILPG.xlsx`);
+    UI.toast('Data Master SA berhasil didownload.', 'success');
   } catch (err) {
     UI.toast(`Gagal membuat template: ${err.message}`, 'error');
   } finally {
