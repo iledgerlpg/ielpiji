@@ -1226,6 +1226,16 @@ async function openEditMasterSAModal() {
   const currentMonth = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
   const [tahun, bulan] = currentMonth.split('-');
 
+  // Ambil range dari filter halaman utama
+  const saStart = document.getElementById('sa-start')?.value;
+  const saEnd   = document.getElementById('sa-end')?.value;
+  const startDay = saStart ? new Date(saStart).getDate() : 1;
+  const rawEnd   = saEnd   ? new Date(saEnd).getDate()   : 31;
+  const endDay   = rawEnd < startDay ? startDay : rawEnd;
+
+  const days = [];
+  for (let d = startDay; d <= endDay; d++) days.push(d);
+
   const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
   const pangkalanList = pangRes.success ? pangRes.data.pangkalan : [];
 
@@ -1243,7 +1253,7 @@ async function openEditMasterSAModal() {
   modal.id = 'sam-modal';
   modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
 
-  const tglOptions = Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('');
+  const rangeLabel = startDay === endDay ? `Tgl ${startDay}` : `Tgl ${startDay} s/d ${endDay}`;
 
   modal.innerHTML = `
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
@@ -1251,26 +1261,14 @@ async function openEditMasterSAModal() {
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <h3 class="font-semibold text-slate-900 dark:text-white">Update Alokasi Harian — ${bulan}/${tahun}</h3>
-          <p class="text-xs text-slate-500 mt-1">Edit alokasi per tanggal untuk setiap pangkalan.</p>
+          <p class="text-xs text-slate-500 mt-1">
+            Rentang: <span class="font-semibold text-blue-600 dark:text-blue-400">${rangeLabel}</span>
+            — Edit alokasi per tanggal untuk setiap pangkalan.
+          </p>
         </div>
         <button class="btn-icon" onclick="document.getElementById('sam-modal').remove()">✕</button>
       </div>
 
-      <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3">
-        <label class="font-medium text-sm text-slate-700 dark:text-slate-300">Rentang Tanggal:</label>
-        <div class="flex items-center gap-2">
-          <select id="sam-tgl-start" class="form-select w-20 text-center font-semibold" onchange="window.renderSamList()">
-            ${tglOptions}
-          </select>
-          <span class="text-sm font-medium text-slate-500">s/d</span>
-          <select id="sam-tgl-end" class="form-select w-20 text-center font-semibold" onchange="window.renderSamList()">
-            ${tglOptions}
-          </select>
-        </div>
-        <span id="sam-range-info" class="text-xs text-blue-600 dark:text-blue-400 font-medium ml-auto bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full"></span>
-      </div>
-
-      <!-- Tabel scroll horizontal -->
       <div class="flex-1 overflow-auto p-4">
         <div id="sam-table-wrap"></div>
         <div id="sam-err" class="hidden mt-4 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
@@ -1278,82 +1276,127 @@ async function openEditMasterSAModal() {
 
       <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
         <button class="btn-secondary" onclick="document.getElementById('sam-modal').remove()">Batal</button>
-        <button id="sam-btn" class="btn-primary" onclick="saveMasterSAManual('${tahun}', '${bulan}')">
-          Simpan
-        </button>
+        <button id="sam-btn" class="btn-primary" onclick="saveMasterSAManual('${tahun}', '${bulan}')">Simpan</button>
       </div>
     </div>`;
 
   document.body.appendChild(modal);
 
-  // Update nilai satu sel langsung ke _samLocalData
+  // Update sel & recalc total baris + footer
   window.updateSamCell = function(pangkalanIdx, tgl, value) {
     const key = `tgl_${String(tgl).padStart(2, '0')}`;
     window._samLocalData[pangkalanIdx][key] = Number(value) || 0;
+
+    // Update total baris pangkalan
+    const rowTotal = days.reduce((sum, d) => {
+      const k = `tgl_${String(d).padStart(2, '0')}`;
+      return sum + (window._samLocalData[pangkalanIdx][k] || 0);
+    }, 0);
+    const rowTotalEl = document.getElementById(`sam-row-total-${pangkalanIdx}`);
+    if (rowTotalEl) rowTotalEl.textContent = rowTotal;
+
+    // Update total kolom per tanggal & grand total
+    days.forEach(d => {
+      const colSum = window._samLocalData.reduce((sum, r) => {
+        const k = `tgl_${String(d).padStart(2, '0')}`;
+        return sum + (r[k] || 0);
+      }, 0);
+      const colEl = document.getElementById(`sam-col-total-${d}`);
+      if (colEl) colEl.textContent = colSum;
+    });
+
+    const grand = window._samLocalData.reduce((sum, r) => {
+      return sum + days.reduce((s, d) => {
+        const k = `tgl_${String(d).padStart(2, '0')}`;
+        return s + (r[k] || 0);
+      }, 0);
+    }, 0);
+    const grandEl = document.getElementById('sam-grand-total');
+    if (grandEl) grandEl.textContent = grand;
   };
 
-  window.renderSamList = function() {
-    let start = parseInt(document.getElementById('sam-tgl-start').value);
-    let end   = parseInt(document.getElementById('sam-tgl-end').value);
+  // Render tabel
+  const thDays = days.map(d =>
+    `<th class="text-center text-xs font-semibold border border-slate-200 dark:border-slate-700 px-2 py-1.5 min-w-[56px]">
+      ${String(d).padStart(2, '0')}
+    </th>`
+  ).join('');
 
-    if (end < start) {
-      document.getElementById('sam-tgl-end').value = start;
-      end = start;
-    }
+  const bodyRows = window._samLocalData.map((row, idx) => {
+    const rowTotal = days.reduce((sum, d) => {
+      const k = `tgl_${String(d).padStart(2, '0')}`;
+      return sum + (row[k] || 0);
+    }, 0);
 
-    const days = [];
-    for (let d = start; d <= end; d++) days.push(d);
-
-    const rangeLabel = start === end ? `Tgl ${start}` : `Tgl ${start} s/d ${end}`;
-    document.getElementById('sam-range-info').textContent = rangeLabel;
-
-    // Header tanggal
-    const thDays = days.map(d =>
-      `<th class="text-center text-xs font-semibold border border-slate-200 dark:border-slate-700 px-2 py-1.5 min-w-[56px]">
-        ${String(d).padStart(2, '0')}
-      </th>`
-    ).join('');
-
-    // Baris per pangkalan
-    const bodyRows = window._samLocalData.map((row, idx) => {
-      const cells = days.map(d => {
-        const key = `tgl_${String(d).padStart(2, '0')}`;
-        const val = row[key] ?? 0;
-        return `<td class="border border-slate-100 dark:border-slate-800 p-1">
-          <input type="number" min="0"
-            class="w-full text-center text-sm font-semibold text-blue-600 dark:text-blue-400 bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value="${val}"
-            onchange="window.updateSamCell(${idx}, ${d}, this.value)" />
-        </td>`;
-      }).join('');
-
-      return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-        <td class="font-medium text-sm text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-800 px-3 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 whitespace-nowrap">
-          ${idx + 1}. ${UI.escapeHtml(row.pangkalan_nama)}
-        </td>
-        ${cells}
-      </tr>`;
+    const cells = days.map(d => {
+      const key = `tgl_${String(d).padStart(2, '0')}`;
+      const val = row[key] ?? 0;
+      return `<td class="border border-slate-100 dark:border-slate-800 p-1">
+        <input type="number" min="0"
+          class="w-full text-center text-sm font-semibold text-blue-600 dark:text-blue-400 bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          value="${val}"
+          onchange="window.updateSamCell(${idx}, ${d}, this.value)" />
+      </td>`;
     }).join('');
 
-    document.getElementById('sam-table-wrap').innerHTML = `
-      <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-        <table class="border-collapse w-full text-sm">
-          <thead class="bg-slate-100 dark:bg-slate-800">
-            <tr>
-              <th class="text-left text-xs font-semibold border border-slate-200 dark:border-slate-700 px-3 py-1.5 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 whitespace-nowrap min-w-[180px]">
-                Pangkalan
-              </th>
-              ${thDays}
-            </tr>
-          </thead>
-          <tbody>${bodyRows}</tbody>
-        </table>
-      </div>`;
-  };
+    return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+      <td class="font-medium text-sm text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-800 px-3 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 whitespace-nowrap">
+        ${idx + 1}. ${UI.escapeHtml(row.pangkalan_nama)}
+      </td>
+      ${cells}
+      <td id="sam-row-total-${idx}" class="text-center font-bold text-emerald-600 dark:text-emerald-400 border border-slate-100 dark:border-slate-800 px-3 sticky right-0 bg-white dark:bg-slate-900 z-10">
+        ${rowTotal}
+      </td>
+    </tr>`;
+  }).join('');
 
-  window.renderSamList();
+  // Footer total per kolom
+  const colTotals = days.map(d => {
+    const sum = window._samLocalData.reduce((s, r) => {
+      const k = `tgl_${String(d).padStart(2, '0')}`;
+      return s + (r[k] || 0);
+    }, 0);
+    return `<td id="sam-col-total-${d}" class="text-center text-xs font-bold text-blue-700 dark:text-blue-400 border border-slate-200 dark:border-slate-700 py-2">
+      ${sum}
+    </td>`;
+  }).join('');
+
+  const grandTotal = window._samLocalData.reduce((sum, r) => {
+    return sum + days.reduce((s, d) => {
+      const k = `tgl_${String(d).padStart(2, '0')}`;
+      return s + (r[k] || 0);
+    }, 0);
+  }, 0);
+
+  document.getElementById('sam-table-wrap').innerHTML = `
+    <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+      <table class="border-collapse w-full text-sm">
+        <thead class="bg-slate-100 dark:bg-slate-800">
+          <tr>
+            <th class="text-left text-xs font-semibold border border-slate-200 dark:border-slate-700 px-3 py-1.5 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 whitespace-nowrap min-w-[180px]">
+              Pangkalan
+            </th>
+            ${thDays}
+            <th class="text-center text-xs font-semibold border border-slate-200 dark:border-slate-700 px-3 py-1.5 sticky right-0 bg-slate-100 dark:bg-slate-800 z-10 whitespace-nowrap">
+              Total
+            </th>
+          </tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+        <tfoot>
+          <tr class="bg-blue-50 dark:bg-blue-900/30 font-bold">
+            <td class="text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-900/30 z-10">
+              TOTAL HARIAN
+            </td>
+            ${colTotals}
+            <td id="sam-grand-total" class="text-center font-bold text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 px-3 sticky right-0 bg-blue-50 dark:bg-blue-900/30 z-10">
+              ${grandTotal}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
 }
-
 async function saveMasterSAManual(tahun, bulan) {
   const btn = document.getElementById('sam-btn');
   const errEl = document.getElementById('sam-err');
