@@ -1939,7 +1939,6 @@ async function downloadTemplateStokGudang(btnEl) {
   }
 }
 
-/** Upload Excel Stok Gudang */
 async function uploadStokGudangExcel(input) {
   const file = input.files[0];
   if (!file) return;
@@ -1950,7 +1949,6 @@ async function uploadStokGudangExcel(input) {
   statusEl.classList.remove('hidden');
 
   try {
-    // Pakai sheet 'Data Pembelian', fallback ke sheet pertama
     if (!window.XLSX) {
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
     }
@@ -1984,7 +1982,73 @@ async function uploadStokGudangExcel(input) {
 
     if (missing.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = `❌ Kolom wajib tidak ditemukan: ${missing.join(', ')}. Gunakan template resmi.`;
+      input.value = ''; return;
     }
+
+    const mapped = dataRows.map(row => {
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = String(row[i] ?? '').trim(); });
+      return obj;
+    }).filter(r => r.tanggal && r.nama_spbe && r.jumlah);
+
+    if (!mapped.length) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = '❌ Tidak ada baris data valid.';
+      input.value = ''; return;
+    }
+
+    statusEl.textContent = '⏳ Mencocokkan nama SPBE...';
+    const spbeRes = await API.operator.getSPBE({ status: 'ACTIVE' });
+    if (!spbeRes.success) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = '❌ Gagal memuat data SPBE untuk validasi.';
+      input.value = ''; return;
+    }
+
+    const norm       = s => String(s || '').trim().toLowerCase();
+    const spbeNameMap = new Map((spbeRes.data.spbe || []).map(s => [norm(s.nama), s.nama]));
+
+    const resolved = [];
+    const notFound = [];
+    mapped.forEach((r, idx) => {
+      const namaAsli = spbeNameMap.get(norm(r.nama_spbe));
+      if (!namaAsli) {
+        notFound.push(`Baris ${idx + 2}: SPBE "${r.nama_spbe}" tidak ditemukan`);
+        return;
+      }
+      resolved.push({
+        tanggal:    r.tanggal,
+        nama_spbe:  namaAsli,
+        jumlah:     Number(r.jumlah) || 0,
+        keterangan: r.keterangan || '',
+      });
+    });
+
+    if (notFound.length) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.innerHTML = `❌ ${notFound.length} baris gagal dicocokkan:<br/>${notFound.slice(0, 8).map(m => UI.escapeHtml(m)).join('<br/>')}${notFound.length > 8 ? `<br/>...dan ${notFound.length - 8} lainnya.` : ''}<br/>Cek ejaan nama pada sheet Referensi SPBE.`;
+      input.value = ''; return;
+    }
+
+    statusEl.textContent = `⏳ Mengirim ${resolved.length} data pembelian ke server...`;
+    const res = await API.operator.importPembelianStok({ rows: resolved });
+    input.value = '';
+
+    if (res.success) {
+      statusEl.className = 'mb-4 card bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-sm text-green-700';
+      statusEl.textContent = `✅ ${res.data.inserted} data pembelian berhasil diimport.`;
+      fetchStok();
+    } else {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = `❌ Import gagal: ${res.message}`;
+    }
+  } catch (err) {
+    statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+    statusEl.textContent = `❌ Gagal membaca file: ${err.message}`;
+    input.value = '';
+  }
+}
 // ============================================================
 // PANGKALAN
 // ============================================================
