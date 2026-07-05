@@ -849,7 +849,7 @@ async function fetchMonitoringKirim() {
 
 async function loadMasterSA() {
   const main = document.getElementById('main-content');
-  const today = new Date().toISOString().split('T')[0]; // Default hari ini
+  const today = new Date().toISOString().split('T')[0];
 
   main.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
@@ -863,8 +863,7 @@ async function loadMasterSA() {
         <button class="btn-primary" onclick="openEditMasterSAModal()">+ Tambah/Edit Manual</button>
       </div>
     </div>
-    
-    <!-- Filter Rentang Tanggal -->
+
     <div class="filter-bar flex flex-wrap items-center gap-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-4">
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium">Dari Tgl:</label>
@@ -878,10 +877,10 @@ async function loadMasterSA() {
     </div>
 
     <div id="sa-import-status" class="hidden mb-4"></div>
-    <div id="sa-container" class="table-wrapper overflow-x-auto">
+    <div id="sa-container" class="table-wrapper">
       <div class="animate-pulse p-4 text-slate-400">Memuat data...</div>
     </div>`;
-    
+
   await fetchMasterSA();
 }
 
@@ -896,16 +895,14 @@ async function fetchMasterSA() {
 
   const startDate = new Date(start);
   const endDate   = new Date(end);
-  
+
   const tahun = startDate.getFullYear();
   const bulan = String(startDate.getMonth() + 1).padStart(2, '0');
-  
-  // Format Nama Bulan untuk Header Atas
   const namaBulan = startDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-  
+
   const startDay = startDate.getDate();
   let endDay = endDate.getDate();
-  
+
   if (startDate.getMonth() !== endDate.getMonth() || startDate.getFullYear() !== endDate.getFullYear()) {
     UI.toast('Tampilan tabel dibatasi hingga akhir bulan dari tanggal awal yang dipilih.', 'info');
     endDay = new Date(tahun, startDate.getMonth() + 1, 0).getDate();
@@ -913,7 +910,6 @@ async function fetchMasterSA() {
 
   const bulanStr = `${tahun}-${bulan}`;
 
-  // Ambil Data Master SA, Data SPBE, dan Data Pembelian (Stok Gudang) secara paralel
   const [res, spbeRes, stokRes] = await Promise.all([
     API.operator.getMasterSA({ bulan, tahun }),
     API.operator.getSPBE({ status: 'ACTIVE' }),
@@ -922,40 +918,36 @@ async function fetchMasterSA() {
 
   if (activeSection !== 'master-sa') return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
-  
+
   const data = res.data.master_sa;
-  window._masterSAData = data; 
-  
+  window._masterSAData = data;
+
   const spbeList = spbeRes.success ? spbeRes.data.spbe : [];
   const pembelianList = stokRes.success ? stokRes.data.pembelian : [];
-  
-  // Ambil deretan hari yang akan ditampilkan
-  const daysToShow = [];
-  for (let i = startDay; i <= endDay; i++) { daysToShow.push(i); }
 
-  // Array untuk menampung total harian SA (Alokasi)
+  const daysToShow = [];
+  for (let i = startDay; i <= endDay; i++) daysToShow.push(i);
+
   const dailyTotals = {};
   daysToShow.forEach(d => { dailyTotals[d] = 0; });
   let grandTotal = 0;
 
-  // 1. Render Baris Pangkalan & Hitung Total Harian
-const bodyHtml = data.map(row => {
-  let rowTotal = 0;
-  const cells = daysToShow.map(d => {
-    const key = `tgl_${String(d).padStart(2,'0')}`;
-    const val = Number(row[key] || 0);
-    dailyTotals[d] += val;
-    rowTotal += val;
-    return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 
-                        ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">
-      ${val || ''}
-    </td>`;
-  }).join('');
+  // 1. Render Baris Pangkalan
+  const bodyHtml = data.map(row => {
+    let rowTotal = 0;
+    const cells = daysToShow.map(d => {
+      const key = `tgl_${String(d).padStart(2, '0')}`;
+      const val = Number(row[key] || 0);
+      dailyTotals[d] += val;
+      rowTotal += val;
+      return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">
+        ${val || ''}
+      </td>`;
+    }).join('');
 
-  grandTotal += rowTotal;
+    grandTotal += rowTotal;
 
-  return `
-    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
       <td style="left:0;min-width:180px;width:180px;"
           class="font-medium text-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 p-2
                  sticky bg-white dark:bg-slate-900 z-20
@@ -970,19 +962,9 @@ const bodyHtml = data.map(row => {
         ${rowTotal}
       </td>
     </tr>`;
-}).join('');
-    
-    grandTotal += rowTotal;
-    
-    return `
-      <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-        <td class="font-medium text-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 p-2">${UI.escapeHtml(row.pangkalan_nama)}</td>
-        ${cells}
-        <td class="text-center font-bold text-blue-600 border border-slate-100 dark:border-slate-800">${rowTotal}</td>
-      </tr>`;
   }).join('');
 
-  // 2. Kalkulasi Data SPBE dan Pembelian per Hari
+  // 2. Kalkulasi SPBE & Pembelian
   const spbeData = {};
   spbeList.forEach(s => {
     spbeData[s.spbe_id] = { nama: s.nama, daily: {}, total: 0 };
@@ -991,159 +973,154 @@ const bodyHtml = data.map(row => {
 
   if (pembelianList && pembelianList.length) {
     pembelianList.forEach(p => {
-      const pDay = parseInt(p.tanggal.split('-')[2], 10); // Ambil tanggal dari YYYY-MM-DD
+      const pDay = parseInt(p.tanggal.split('-')[2], 10);
       if (spbeData[p.spbe_id] && spbeData[p.spbe_id].daily[pDay] !== undefined) {
-         spbeData[p.spbe_id].daily[pDay] += Number(p.jumlah);
-         spbeData[p.spbe_id].total += Number(p.jumlah);
+        spbeData[p.spbe_id].daily[pDay] += Number(p.jumlah);
+        spbeData[p.spbe_id].total += Number(p.jumlah);
       }
     });
   }
 
-  // Hitung Total Pembelian SPBE per hari
   const dailyTotalSPBE = {};
   let grandTotalSPBE = 0;
   daysToShow.forEach(d => {
-     let sum = 0;
-     spbeList.forEach(s => { sum += spbeData[s.spbe_id].daily[d]; });
-     dailyTotalSPBE[d] = sum;
-     grandTotalSPBE += sum;
+    let sum = 0;
+    spbeList.forEach(s => { sum += spbeData[s.spbe_id].daily[d]; });
+    dailyTotalSPBE[d] = sum;
+    grandTotalSPBE += sum;
   });
 
-  // Hitung Stock Gudang per hari (Total Pembelian SPBE - Total Harian)
   const dailyStock = {};
   let runningStock = 0;
   daysToShow.forEach((d, index) => {
-     const tHarian = dailyTotals[d] || 0;
-     const tSpbe = dailyTotalSPBE[d] || 0;
-     
-     if (index === 0) {
-        // Hari pertama: Total SPBE hari ini - Total Harian hari ini
-        runningStock = tSpbe - tHarian;
-     } else {
-        // Hari berikutnya: Stock Kemarin + Total SPBE hari ini - Total Harian hari ini
-        runningStock = runningStock + tSpbe - tHarian;
-     }
-     dailyStock[d] = runningStock;
+    const tHarian = dailyTotals[d] || 0;
+    const tSpbe   = dailyTotalSPBE[d] || 0;
+    runningStock  = index === 0 ? tSpbe - tHarian : runningStock + tSpbe - tHarian;
+    dailyStock[d] = runningStock;
   });
 
-  // 3. Render Baris Tambahan (SPBE, Total SPBE, Stock Gudang)
+  // 3. Baris SPBE
   let spbeRowsHtml = '';
   spbeList.forEach(s => {
-     const cells = daysToShow.map(d => {
-         const val = spbeData[s.spbe_id].daily[d];
-         return `<td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${val > 0 ? 'text-green-600 font-semibold' : 'text-slate-400'}">${val || 0}</td>`;
-     }).join('');
-     spbeRowsHtml += `
-        <tr class="bg-slate-50 dark:bg-slate-800/40">
-           <td class="font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 p-2">⤷ SPBE: ${UI.escapeHtml(s.nama)}</td>
-           ${cells}
-           <td class="text-center font-bold text-green-600 border border-slate-200 dark:border-slate-700">${spbeData[s.spbe_id].total}</td>
-        </tr>`;
+    const cells = daysToShow.map(d => {
+      const val = spbeData[s.spbe_id].daily[d];
+      return `<td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${val > 0 ? 'text-green-600 font-semibold' : 'text-slate-400'}">${val || 0}</td>`;
+    }).join('');
+    spbeRowsHtml += `
+      <tr class="bg-slate-50 dark:bg-slate-800/40">
+        <td style="left:0;min-width:180px;width:180px;"
+            class="font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 p-2
+                   sticky bg-slate-50 dark:bg-slate-800/40 z-20
+                   shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">
+          ⤷ SPBE: ${UI.escapeHtml(s.nama)}
+        </td>
+        ${cells}
+        <td style="right:0;min-width:60px;"
+            class="text-center font-bold text-green-600 border border-slate-200 dark:border-slate-700
+                   sticky bg-slate-50 dark:bg-slate-800/40 z-20
+                   shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]">
+          ${spbeData[s.spbe_id].total}
+        </td>
+      </tr>`;
   });
 
-const footerHtml = `
-  <tr class="bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
-    <td style="left:0;min-width:180px;width:180px;"
-        class="p-2 border border-slate-200 dark:border-slate-700
-               sticky bg-slate-100 dark:bg-slate-800 z-20
-               shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
-      TOTAL HARIAN
-    </td>
-    ${daysToShow.map(d => `
-      <td class="text-center text-xs border border-slate-200 dark:border-slate-700 text-blue-700 dark:text-blue-400">
-        ${dailyTotals[d] || 0}
+  // 4. Footer
+  const footerHtml = `
+    <tr class="bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+      <td style="left:0;min-width:180px;width:180px;"
+          class="p-2 border border-slate-200 dark:border-slate-700
+                 sticky bg-slate-100 dark:bg-slate-800 z-20
+                 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+        TOTAL HARIAN
       </td>
-    `).join('')}
-    <td style="right:0;min-width:60px;"
-        class="text-center border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400
-               sticky bg-slate-100 dark:bg-slate-800 z-20
-               shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
-      ${grandTotal}
-    </td>
-  </tr>
-
-  ${spbeRowsHtml}
-
-  <tr class="bg-green-50 dark:bg-green-900/30 font-bold text-green-700 dark:text-green-400">
-    <td style="left:0;min-width:180px;width:180px;"
-        class="p-2 border border-slate-200 dark:border-slate-700
-               sticky bg-green-50 dark:bg-green-900/30 z-20
-               shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
-      TOTAL PEMBELIAN SPBE
-    </td>
-    ${daysToShow.map(d => `<td class="text-center text-xs border border-slate-200 dark:border-slate-700">${dailyTotalSPBE[d] || 0}</td>`).join('')}
-    <td style="right:0;min-width:60px;"
-        class="text-center border border-slate-200 dark:border-slate-700
-               sticky bg-green-50 dark:bg-green-900/30 z-20
-               shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
-      ${grandTotalSPBE}
-    </td>
-  </tr>
-
-  <tr class="bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-400">
-    <td style="left:0;min-width:180px;width:180px;"
-        class="p-2 border border-slate-200 dark:border-slate-700
-               sticky bg-amber-50 dark:bg-amber-900/30 z-20
-               shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
-      STOCK GUDANG
-    </td>
-    ${daysToShow.map(d => `
-      <td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${dailyStock[d] < 0 ? 'text-red-500' : ''}">
-        ${dailyStock[d]}
+      ${daysToShow.map(d => `
+        <td class="text-center text-xs border border-slate-200 dark:border-slate-700 text-blue-700 dark:text-blue-400">
+          ${dailyTotals[d] || 0}
+        </td>`).join('')}
+      <td style="right:0;min-width:60px;"
+          class="text-center border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400
+                 sticky bg-slate-100 dark:bg-slate-800 z-20
+                 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+        ${grandTotal}
       </td>
-    `).join('')}
-    <td style="right:0;min-width:60px;"
-        class="text-center border border-slate-200 dark:border-slate-700
-               sticky bg-amber-50 dark:bg-amber-900/30 z-20
-               shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
-      -
-    </td>
-  </tr>
-`;
+    </tr>
 
-  // Satukan komponen ke dalam tabel
+    ${spbeRowsHtml}
+
+    <tr class="bg-green-50 dark:bg-green-900/30 font-bold text-green-700 dark:text-green-400">
+      <td style="left:0;min-width:180px;width:180px;"
+          class="p-2 border border-slate-200 dark:border-slate-700
+                 sticky bg-green-50 dark:bg-green-900/30 z-20
+                 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+        TOTAL PEMBELIAN SPBE
+      </td>
+      ${daysToShow.map(d => `<td class="text-center text-xs border border-slate-200 dark:border-slate-700">${dailyTotalSPBE[d] || 0}</td>`).join('')}
+      <td style="right:0;min-width:60px;"
+          class="text-center border border-slate-200 dark:border-slate-700
+                 sticky bg-green-50 dark:bg-green-900/30 z-20
+                 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+        ${grandTotalSPBE}
+      </td>
+    </tr>
+
+    <tr class="bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-400">
+      <td style="left:0;min-width:180px;width:180px;"
+          class="p-2 border border-slate-200 dark:border-slate-700
+                 sticky bg-amber-50 dark:bg-amber-900/30 z-20
+                 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+        STOCK GUDANG
+      </td>
+      ${daysToShow.map(d => `
+        <td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${dailyStock[d] < 0 ? 'text-red-500' : ''}">
+          ${dailyStock[d]}
+        </td>`).join('')}
+      <td style="right:0;min-width:60px;"
+          class="text-center border border-slate-200 dark:border-slate-700
+                 sticky bg-amber-50 dark:bg-amber-900/30 z-20
+                 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+        -
+      </td>
+    </tr>`;
+
   document.getElementById('sa-container').innerHTML = data.length ? `
     <table style="min-width:1000px" class="border-collapse border border-slate-200 dark:border-slate-700 w-full">
-<thead>
-  <tr>
-    <th rowspan="2" 
-        style="left:0;min-width:180px;width:180px;"
-        class="align-middle border border-slate-200 dark:border-slate-700 p-2 
-               sticky bg-slate-100 dark:bg-slate-800 z-30
-               shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">
-      Pangkalan
-    </th>
-    <th colspan="${daysToShow.length}" 
-        class="text-center bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 
-               font-bold text-xs tracking-wider text-slate-700 dark:text-slate-200 py-1 top-0 sticky z-10">
-      ${namaBulan.toUpperCase()}
-    </th>
-    <th rowspan="2" 
-        style="right:0;min-width:60px;"
-        class="text-center align-middle border border-slate-200 dark:border-slate-700 
-               sticky bg-slate-100 dark:bg-slate-800 z-30
-               shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]">
-      Total
-    </th>
-  </tr>
-  <tr>
-    ${daysToShow.map(d => {
-      const tglDuaDigit = String(d).padStart(2, '0');
-      return `<th class="text-center text-xs border border-slate-200 dark:border-slate-700 
-                         font-semibold w-8 sticky top-0 bg-slate-100 dark:bg-slate-800 z-10">
-        ${tglDuaDigit}
-      </th>`;
-    }).join('')}
-  </tr>
-</thead>
-      <tbody>
-        ${bodyHtml}
-      </tbody>
-      <tfoot>
-        ${footerHtml}
-      </tfoot>
-    </table>` : UI.emptyState('Belum ada data alokasi untuk periode ini.','📊');
+      <thead>
+        <tr>
+          <th rowspan="2"
+              style="left:0;min-width:180px;width:180px;top:0;"
+              class="align-middle border border-slate-200 dark:border-slate-700 p-2
+                     sticky bg-slate-100 dark:bg-slate-800 z-30
+                     shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">
+            Pangkalan
+          </th>
+          <th colspan="${daysToShow.length}"
+              style="top:0;"
+              class="text-center bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700
+                     font-bold text-xs tracking-wider text-slate-700 dark:text-slate-200 py-1 sticky z-10">
+            ${namaBulan.toUpperCase()}
+          </th>
+          <th rowspan="2"
+              style="right:0;min-width:60px;top:0;"
+              class="text-center align-middle border border-slate-200 dark:border-slate-700
+                     sticky bg-slate-100 dark:bg-slate-800 z-30
+                     shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]">
+            Total
+          </th>
+        </tr>
+        <tr>
+          ${daysToShow.map(d => `
+            <th style="top:0;"
+                class="text-center text-xs border border-slate-200 dark:border-slate-700
+                       font-semibold w-8 sticky bg-slate-100 dark:bg-slate-800 z-10">
+              ${String(d).padStart(2, '0')}
+            </th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>${bodyHtml}</tbody>
+      <tfoot>${footerHtml}</tfoot>
+    </table>` : UI.emptyState('Belum ada data alokasi untuk periode ini.', '📊');
 }
+
 /** Download template Excel (.xlsx) pakai NAMA PANGKALAN */
 async function downloadTemplateMasterSA(btnEl) {
   const btn = btnEl || null;
@@ -1158,7 +1135,6 @@ async function downloadTemplateMasterSA(btnEl) {
 
     const wb = XLSX.utils.book_new();
 
-    // ── Sheet 1: Petunjuk ──
     const petunjukAOA = [
       ['PETUNJUK PENGISIAN TEMPLATE MASTER SA — ILPG'],
       [''],
@@ -1175,7 +1151,6 @@ async function downloadTemplateMasterSA(btnEl) {
     wsPetunjuk['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
     XLSX.utils.book_append_sheet(wb, wsPetunjuk, 'Petunjuk');
 
-    // ── Sheet 2: Data Master SA ──
     const days    = Array.from({ length: 31 }, (_, i) => `tgl_${String(i + 1).padStart(2, '0')}`);
     const headers = ['pangkalan_nama', ...days];
     const contoh  = [daftarPangkalan[0]?.nama || 'NAMA_PANGKALAN_DISINI', ...Array(31).fill(0)];
@@ -1183,7 +1158,6 @@ async function downloadTemplateMasterSA(btnEl) {
     wsData['!cols'] = [{ wch: 30 }, ...Array(31).fill({ wch: 7 })];
     XLSX.utils.book_append_sheet(wb, wsData, 'Data Master SA');
 
-    // ── Sheet 3: Referensi Pangkalan ──
     const wsRefPang = XLSX.utils.aoa_to_sheet([
       ['Nama Pangkalan'],
       ...(daftarPangkalan.length ? daftarPangkalan.map(p => [p.nama]) : [['(Belum ada data pangkalan aktif)']]),
@@ -1220,13 +1194,13 @@ async function uploadMasterSAExcel(input) {
     }
     const headers  = rows[0].map(h => String(h).trim().toLowerCase());
     const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
-    
+
     if (!headers.includes('pangkalan_nama')) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
       statusEl.textContent = '❌ Kolom "pangkalan_nama" tidak ditemukan. Pastikan menggunakan template resmi terbaru.';
       input.value = ''; return;
     }
-    
+
     const mapped = dataRows.map(row => {
       const obj = {};
       headers.forEach((h, i) => { obj[h] = String(row[i] ?? '').trim(); });
@@ -1239,7 +1213,6 @@ async function uploadMasterSAExcel(input) {
       input.value = ''; return;
     }
 
-    // Resolve nama pangkalan ke ID
     statusEl.textContent = '⏳ Mencocokkan nama pangkalan...';
     const pangRes = await API.operator.getPangkalan({ status: 'ACTIVE' });
     if (!pangRes.success) {
@@ -1256,7 +1229,6 @@ async function uploadMasterSAExcel(input) {
     mapped.forEach((r, idx) => {
       const pangkalanId = pangMap.get(norm(r.pangkalan_nama));
       if (!pangkalanId) { notFound.push(`Baris ${idx + 2}: Pangkalan "${r.pangkalan_nama}" tidak ditemukan`); return; }
-      
       const { pangkalan_nama, ...rest } = r;
       resolved.push({ pangkalan_id: pangkalanId, ...rest });
     });
@@ -1292,9 +1264,8 @@ async function openEditMasterSAModal() {
   const currentMonth = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
   const [tahun, bulan] = currentMonth.split('-');
 
-  // Ambil range dari filter halaman utama
-  const saStart = document.getElementById('sa-start')?.value;
-  const saEnd   = document.getElementById('sa-end')?.value;
+  const saStart  = document.getElementById('sa-start')?.value;
+  const saEnd    = document.getElementById('sa-end')?.value;
   const startDay = saStart ? new Date(saStart).getDate() : 1;
   const rawEnd   = saEnd   ? new Date(saEnd).getDate()   : 31;
   const endDay   = rawEnd < startDay ? startDay : rawEnd;
@@ -1323,8 +1294,7 @@ async function openEditMasterSAModal() {
 
   modal.innerHTML = `
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-
-      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
         <div>
           <h3 class="font-semibold text-slate-900 dark:text-white">Update Alokasi Harian — ${bulan}/${tahun}</h3>
           <p class="text-xs text-slate-500 mt-1">
@@ -1335,12 +1305,12 @@ async function openEditMasterSAModal() {
         <button class="btn-icon" onclick="document.getElementById('sam-modal').remove()">✕</button>
       </div>
 
-      <div class="flex-1 overflow-auto p-4">
-        <div id="sam-table-wrap"></div>
-        <div id="sam-err" class="hidden mt-4 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+      <div class="flex-1 overflow-hidden p-4 flex flex-col">
+        <div id="sam-table-wrap" class="flex-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-700"></div>
+        <div id="sam-err" class="hidden mt-3 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3 shrink-0"></div>
       </div>
 
-      <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+      <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3 shrink-0">
         <button class="btn-secondary" onclick="document.getElementById('sam-modal').remove()">Batal</button>
         <button id="sam-btn" class="btn-primary" onclick="saveMasterSAManual('${tahun}', '${bulan}')">Simpan</button>
       </div>
@@ -1348,12 +1318,10 @@ async function openEditMasterSAModal() {
 
   document.body.appendChild(modal);
 
-  // Update sel & recalc total baris + footer
   window.updateSamCell = function(pangkalanIdx, tgl, value) {
     const key = `tgl_${String(tgl).padStart(2, '0')}`;
     window._samLocalData[pangkalanIdx][key] = Number(value) || 0;
 
-    // Update total baris pangkalan
     const rowTotal = days.reduce((sum, d) => {
       const k = `tgl_${String(d).padStart(2, '0')}`;
       return sum + (window._samLocalData[pangkalanIdx][k] || 0);
@@ -1361,7 +1329,6 @@ async function openEditMasterSAModal() {
     const rowTotalEl = document.getElementById(`sam-row-total-${pangkalanIdx}`);
     if (rowTotalEl) rowTotalEl.textContent = rowTotal;
 
-    // Update total kolom per tanggal & grand total
     days.forEach(d => {
       const colSum = window._samLocalData.reduce((sum, r) => {
         const k = `tgl_${String(d).padStart(2, '0')}`;
@@ -1381,9 +1348,14 @@ async function openEditMasterSAModal() {
     if (grandEl) grandEl.textContent = grand;
   };
 
-  // Render tabel
+  const COL_PANG_W  = 180;
+  const COL_DAY_W   = 60;
+  const COL_TOTAL_W = 70;
+
   const thDays = days.map(d =>
-    `<th class="text-center text-xs font-semibold border border-slate-200 dark:border-slate-700 px-2 py-1.5 min-w-[56px]">
+    `<th style="min-width:${COL_DAY_W}px;width:${COL_DAY_W}px;top:0;"
+         class="text-center text-xs font-semibold border border-slate-200 dark:border-slate-700 px-1 py-2
+                sticky bg-slate-100 dark:bg-slate-800 z-10">
       ${String(d).padStart(2, '0')}
     </th>`
   ).join('');
@@ -1397,32 +1369,46 @@ async function openEditMasterSAModal() {
     const cells = days.map(d => {
       const key = `tgl_${String(d).padStart(2, '0')}`;
       const val = row[key] ?? 0;
-      return `<td class="border border-slate-100 dark:border-slate-800 p-1">
+      return `<td style="min-width:${COL_DAY_W}px;width:${COL_DAY_W}px;"
+                  class="border border-slate-100 dark:border-slate-800 p-1">
         <input type="number" min="0"
-          class="w-full text-center text-sm font-semibold text-blue-600 dark:text-blue-400 bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          class="w-full text-center text-sm font-semibold text-blue-600 dark:text-blue-400
+                 bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg py-1
+                 focus:outline-none focus:ring-2 focus:ring-blue-400"
           value="${val}"
           onchange="window.updateSamCell(${idx}, ${d}, this.value)" />
       </td>`;
     }).join('');
 
     return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-      <td class="font-medium text-sm text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-800 px-3 py-2 sticky left-0 bg-white dark:bg-slate-900 z-10 whitespace-nowrap">
+      <td style="min-width:${COL_PANG_W}px;width:${COL_PANG_W}px;left:0;"
+          class="font-medium text-sm text-slate-700 dark:text-slate-200
+                 border border-slate-100 dark:border-slate-800 px-3 py-2
+                 sticky bg-white dark:bg-slate-900 z-20 whitespace-nowrap
+                 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
         ${idx + 1}. ${UI.escapeHtml(row.pangkalan_nama)}
       </td>
       ${cells}
-      <td id="sam-row-total-${idx}" class="text-center font-bold text-emerald-600 dark:text-emerald-400 border border-slate-100 dark:border-slate-800 px-3 sticky right-0 bg-white dark:bg-slate-900 z-10">
+      <td id="sam-row-total-${idx}"
+          style="min-width:${COL_TOTAL_W}px;width:${COL_TOTAL_W}px;right:0;"
+          class="text-center font-bold text-emerald-600 dark:text-emerald-400
+                 border border-slate-100 dark:border-slate-800 px-2
+                 sticky bg-white dark:bg-slate-900 z-20
+                 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
         ${rowTotal}
       </td>
     </tr>`;
   }).join('');
 
-  // Footer total per kolom
   const colTotals = days.map(d => {
     const sum = window._samLocalData.reduce((s, r) => {
       const k = `tgl_${String(d).padStart(2, '0')}`;
       return s + (r[k] || 0);
     }, 0);
-    return `<td id="sam-col-total-${d}" class="text-center text-xs font-bold text-blue-700 dark:text-blue-400 border border-slate-200 dark:border-slate-700 py-2">
+    return `<td id="sam-col-total-${d}"
+                style="min-width:${COL_DAY_W}px;width:${COL_DAY_W}px;"
+                class="text-center text-xs font-bold text-blue-700 dark:text-blue-400
+                       border border-slate-200 dark:border-slate-700 py-2">
       ${sum}
     </td>`;
   }).join('');
@@ -1435,36 +1421,50 @@ async function openEditMasterSAModal() {
   }, 0);
 
   document.getElementById('sam-table-wrap').innerHTML = `
-    <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-      <table class="border-collapse w-full text-sm">
-        <thead class="bg-slate-100 dark:bg-slate-800">
-          <tr>
-            <th class="text-left text-xs font-semibold border border-slate-200 dark:border-slate-700 px-3 py-1.5 sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 whitespace-nowrap min-w-[180px]">
-              Pangkalan
-            </th>
-            ${thDays}
-            <th class="text-center text-xs font-semibold border border-slate-200 dark:border-slate-700 px-3 py-1.5 sticky right-0 bg-slate-100 dark:bg-slate-800 z-10 whitespace-nowrap">
-              Total
-            </th>
-          </tr>
-        </thead>
-        <tbody>${bodyRows}</tbody>
-        <tfoot>
-          <tr class="bg-blue-50 dark:bg-blue-900/30 font-bold">
-            <td class="text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-2 sticky left-0 bg-blue-50 dark:bg-blue-900/30 z-10">
-              TOTAL HARIAN
-            </td>
-            ${colTotals}
-            <td id="sam-grand-total" class="text-center font-bold text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 px-3 sticky right-0 bg-blue-50 dark:bg-blue-900/30 z-10">
-              ${grandTotal}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>`;
+    <table class="border-collapse w-full text-sm" style="table-layout:fixed;">
+      <thead>
+        <tr>
+          <th style="min-width:${COL_PANG_W}px;width:${COL_PANG_W}px;left:0;top:0;"
+              class="text-left text-xs font-semibold border border-slate-200 dark:border-slate-700
+                     px-3 py-2 sticky bg-slate-100 dark:bg-slate-800 z-30 whitespace-nowrap
+                     shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">
+            Pangkalan
+          </th>
+          ${thDays}
+          <th style="min-width:${COL_TOTAL_W}px;width:${COL_TOTAL_W}px;right:0;top:0;"
+              class="text-center text-xs font-semibold border border-slate-200 dark:border-slate-700
+                     px-2 py-2 sticky bg-slate-100 dark:bg-slate-800 z-30 whitespace-nowrap
+                     shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]">
+            Total
+          </th>
+        </tr>
+      </thead>
+      <tbody>${bodyRows}</tbody>
+      <tfoot>
+        <tr class="bg-blue-50 dark:bg-blue-900/30 font-bold">
+          <td style="min-width:${COL_PANG_W}px;width:${COL_PANG_W}px;left:0;"
+              class="text-xs font-bold text-slate-700 dark:text-slate-200
+                     border border-slate-200 dark:border-slate-700 px-3 py-2
+                     sticky bg-blue-50 dark:bg-blue-900/30 z-20
+                     shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+            TOTAL HARIAN
+          </td>
+          ${colTotals}
+          <td id="sam-grand-total"
+              style="min-width:${COL_TOTAL_W}px;width:${COL_TOTAL_W}px;right:0;"
+              class="text-center font-bold text-emerald-600 dark:text-emerald-400
+                     border border-slate-200 dark:border-slate-700 px-2
+                     sticky bg-blue-50 dark:bg-blue-900/30 z-20
+                     shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+            ${grandTotal}
+          </td>
+        </tr>
+      </tfoot>
+    </table>`;
 }
+
 async function saveMasterSAManual(tahun, bulan) {
-  const btn = document.getElementById('sam-btn');
+  const btn   = document.getElementById('sam-btn');
   const errEl = document.getElementById('sam-err');
   errEl.classList.add('hidden');
 
