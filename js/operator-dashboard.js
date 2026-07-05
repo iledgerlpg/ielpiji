@@ -322,7 +322,8 @@ async function fetchJadwalHarian() {
       <td class="text-sm">${UI.escapeHtml(j.driver1_nama)}</td>
       <td class="text-sm">${j.driver2_nama && j.driver2_nama !== '-' ? UI.escapeHtml(j.driver2_nama) : '-'}</td>
       <td class="text-right">
-        <button class="btn-danger text-xs py-1 px-2" onclick="deleteJadwalHarian('${j.jadwal_id}')">Hapus</button>
+	  <button class="btn-secondary text-xs py-1 px-2" onclick="editJadwalHarian('${j.jadwal_id}')">Edit</button>
+          <button class="btn-danger text-xs py-1 px-2"    onclick="deleteJadwalHarian('${j.jadwal_id}')">Hapus</button>
       </td>
     </tr>`).join('') : `<tr><td colspan="9">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
 }
@@ -547,7 +548,7 @@ function openJadwalModal() {
       <div class="p-5 space-y-4">
         <div class="grid grid-cols-2 gap-3">
           <div><label class="form-label">Tanggal *</label><input id="jm-tgl" type="date" class="form-input" value="${UI.todayInputValue()}"/></div>
-          <div><label class="form-label">Rit *</label><input id="jm-rit" type="text" class="form-input" placeholder="Contoh: DO1, Stock Gudang"/></div>
+          <div><label class="form-label">Rit *</label><input id="jm-rit" type="number" class="form-input" value="1" min="1"/></div>
         </div>
         <div><label class="form-label">Pangkalan *</label><select id="jm-pangkalan" class="form-select"><option value="">Memuat...</option></select></div>
         <div><label class="form-label">SPBE *</label><select id="jm-spbe" class="form-select"><option value="">Memuat...</option></select></div>
@@ -586,6 +587,103 @@ async function loadJadwalDropdowns() {
     `<option value="">-- Opsional --</option>` +
     drivers.map(d => `<option value="${d.user_id}">${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
 }
+async function editJadwalHarian(id) {
+  const jadwal = (window._allJadwal || []).find(j => j.jadwal_id === id);
+  if (!jadwal) { UI.toast('Data jadwal tidak ditemukan.', 'error'); return; }
+
+  const modal = document.createElement('div');
+  modal.id    = 'jh-edit-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+        <h3 class="font-semibold text-slate-900 dark:text-white">Edit Jadwal Harian</h3>
+        <button class="btn-icon" onclick="document.getElementById('jh-edit-modal').remove()">✕</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Tanggal *</label><input id="je-tgl" type="date" class="form-input" value="${jadwal.tanggal}"/></div>
+          <div><label class="form-label">Rit *</label><input id="je-rit" type="number" class="form-input" value="${jadwal.rit}" min="1"/></div>
+        </div>
+        <div><label class="form-label">Pangkalan *</label><select id="je-pangkalan" class="form-select"><option value="">Memuat...</option></select></div>
+        <div><label class="form-label">SPBE *</label><select id="je-spbe" class="form-select"><option value="">Memuat...</option></select></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Target Kirim *</label><input id="je-kirim" type="number" class="form-input" value="${jadwal.jumlah_kirim}" min="0"/></div>
+          <div><label class="form-label">Target Retur</label><input id="je-retur" type="number" class="form-input" value="${jadwal.jumlah_retur || 0}" min="0"/></div>
+        </div>
+        <div><label class="form-label">Driver 1 *</label><select id="je-driver1" class="form-select"><option value="">Memuat...</option></select></div>
+        <div><label class="form-label">Driver 2 / Kernet</label><select id="je-driver2" class="form-select"><option value="">-- Opsional --</option></select></div>
+        <div><label class="form-label">Keterangan</label><input id="je-ket" class="form-input" value="${UI.escapeHtml(jadwal.keterangan || '')}" placeholder="Opsional..."/></div>
+        <div id="je-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+        <button id="je-btn" class="btn-primary w-full justify-center" onclick="saveEditJadwal('${id}')">Simpan Perubahan</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // Load dropdowns lalu pre-select nilai saat ini
+  const [pangRes, spbeRes, driverRes] = await Promise.all([
+    API.operator.getPangkalan({ status: 'ACTIVE' }),
+    API.operator.getSPBE({ status: 'ACTIVE' }),
+    API.operator.getDrivers(),
+  ]);
+
+  const fillAndSelect = (elId, items, valKey, labelKey, selectedVal) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = `<option value="">-- Pilih --</option>` +
+      (items || []).map(i => `<option value="${i[valKey]}" ${i[valKey] === selectedVal ? 'selected' : ''}>${UI.escapeHtml(i[labelKey])}</option>`).join('');
+  };
+
+  if (pangRes.success)  fillAndSelect('je-pangkalan', pangRes.data.pangkalan, 'pangkalan_id', 'nama', jadwal.pangkalan_id);
+  if (spbeRes.success)  fillAndSelect('je-spbe',      spbeRes.data.spbe,      'spbe_id',      'nama', jadwal.spbe_id);
+  if (driverRes.success) {
+    const drivers = driverRes.data.drivers;
+    fillAndSelect('je-driver1', drivers, 'user_id', 'nama', jadwal.driver1_id);
+    const d2 = document.getElementById('je-driver2');
+    if (d2) {
+      d2.innerHTML = `<option value="">-- Opsional --</option>` +
+        drivers.map(d => `<option value="${d.user_id}" ${d.user_id === jadwal.driver2_id ? 'selected' : ''}>${UI.escapeHtml(d.nama)}${d.role === 'KERNET' ? ' (Kernet)' : ''}</option>`).join('');
+    }
+  }
+}
+async function saveEditJadwal(id) {
+  const btn   = document.getElementById('je-btn');
+  const errEl = document.getElementById('je-err');
+  errEl.classList.add('hidden');
+  const body = {
+    jadwal_id:    id,
+    tanggal:      document.getElementById('je-tgl').value,
+    rit:          Number(document.getElementById('je-rit').value),
+    pangkalan_id: document.getElementById('je-pangkalan').value,
+    spbe_id:      document.getElementById('je-spbe').value,
+    jumlah_kirim: Number(document.getElementById('je-kirim').value),
+    jumlah_retur: Number(document.getElementById('je-retur').value || 0),
+    driver1_id:   document.getElementById('je-driver1').value,
+    driver2_id:   document.getElementById('je-driver2').value,
+    keterangan:   document.getElementById('je-ket').value.trim(),
+  };
+  if (!body.tanggal || !body.pangkalan_id || !body.spbe_id || !body.jumlah_kirim || !body.driver1_id) {
+    errEl.textContent = 'Tanggal, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
+    errEl.classList.remove('hidden'); return;
+  }
+  UI.setLoading(btn, true, 'Menyimpan...');
+  const res = await API.operator.updateJadwalHarian(body);
+  UI.setLoading(btn, false);
+  if (res.success) {
+    UI.toast('Jadwal berhasil diupdate.', 'success');
+    document.getElementById('jh-edit-modal').remove();
+    fetchJadwalHarian();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
+}
+async function deleteJadwalHarian(id) {
+  if (!await UI.confirm('Hapus jadwal ini?', 'Konfirmasi Hapus')) return;
+  const res = await API.operator.deleteJadwalHarian({ jadwal_id: id });
+  if (res.success) { UI.toast('Jadwal dihapus.', 'success'); fetchJadwalHarian(); }
+  else UI.toast(res.message, 'error');
+}
 
 async function saveJadwal() {
   const btn   = document.getElementById('jm-btn');
@@ -593,7 +691,7 @@ async function saveJadwal() {
   errEl.classList.add('hidden');
   const body = {
     tanggal:      document.getElementById('jm-tgl').value,
-    rit:          document.getElementById('jm-rit').value.trim(),
+    rit:          Number(document.getElementById('jm-rit').value),
     pangkalan_id: document.getElementById('jm-pangkalan').value,
     spbe_id:      document.getElementById('jm-spbe').value,
     jumlah_kirim: Number(document.getElementById('jm-kirim').value),
@@ -602,8 +700,8 @@ async function saveJadwal() {
     driver2_id:   document.getElementById('jm-driver2').value,
     keterangan:   document.getElementById('jm-ket').value.trim(),
   };
-  if (!body.tanggal || !body.rit || !body.spbe_id || !body.pangkalan_id || !body.jumlah_kirim || !body.driver1_id) {
-    errEl.textContent = 'Tanggal, Rit, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
+  if (!body.tanggal || !body.spbe_id || !body.pangkalan_id || !body.jumlah_kirim || !body.driver1_id) {
+    errEl.textContent = 'Tanggal, SPBE, pangkalan, target kirim, dan driver 1 wajib diisi.';
     errEl.classList.remove('hidden'); return;
   }
   UI.setLoading(btn, true, 'Menyimpan...');
@@ -613,12 +711,8 @@ async function saveJadwal() {
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
-async function deleteJadwalHarian(id) {
-  if (!await UI.confirm('Hapus jadwal ini?', 'Konfirmasi Hapus')) return;
-  const res = await API.operator.deleteJadwalHarian({ jadwal_id: id });
-  if (res.success) { UI.toast('Jadwal dihapus.', 'success'); fetchJadwalHarian(); }
-  else UI.toast(res.message, 'error');
-}
+
+
 // --- 1. VARIABEL GLOBAL UNTUK MENYIMPAN DATA SEMENTARA ---
 let globalLaporanData = []; 
 
@@ -836,17 +930,79 @@ function renderTabelLaporan() {
 }
 
 // --- 6. FUNGSI AKSI LAPORAN ---
-function editLaporanPengiriman(id) {
-  // Ambil data spesifik dari globalLaporanData berdasarkan ID
-  const dataLaporan = globalLaporanData.find(l => l.laporan_id === id);
-  if (!dataLaporan) return;
-  
-  // TODO: Tampilkan Modal Edit di sini sama seperti di Master Data
-  // Akang bisa masukkan logika modal edit-nya di dalam fungsi ini
-  console.log("Data yang akan diedit:", dataLaporan);
-  UI.toast(`Buka form edit untuk driver: ${dataLaporan.driver_nama}`, 'info');
+async function editLaporanPengiriman(id) {
+  const laporan = (window._allLaporan || []).find(l => l.laporan_id === id);
+  if (!laporan) { UI.toast('Data laporan tidak ditemukan.', 'error'); return; }
+
+  const modal = document.createElement('div');
+  modal.id    = 'lp-edit-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h3 class="font-semibold text-slate-900 dark:text-white">Edit Laporan Pengiriman</h3>
+        <button class="btn-icon" onclick="document.getElementById('lp-edit-modal').remove()">✕</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
+          <div><span class="font-medium">Driver:</span> ${UI.escapeHtml(laporan.driver_nama)}</div>
+          <div><span class="font-medium">Pangkalan:</span> ${UI.escapeHtml(laporan.pangkalan_nama)}</div>
+          <div><span class="font-medium">Tanggal:</span> ${UI.formatDate(laporan.tanggal)} · ${laporan.jam_laporan || '-'}</div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Jumlah Terkirim *</label>
+            <input id="le-kirim" type="number" class="form-input" value="${laporan.jumlah_kirim}" min="0"/>
+          </div>
+          <div><label class="form-label">Jumlah Retur</label>
+            <input id="le-retur" type="number" class="form-input" value="${laporan.jumlah_retur || 0}" min="0"/>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Status</label>
+          <select id="le-status" class="form-select">
+            <option value="SUBMITTED"  ${laporan.status === 'SUBMITTED'  ? 'selected' : ''}>SUBMITTED</option>
+            <option value="VERIFIED"   ${laporan.status === 'VERIFIED'   ? 'selected' : ''}>VERIFIED</option>
+            <option value="REVISED"    ${laporan.status === 'REVISED'    ? 'selected' : ''}>REVISED</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Catatan Operator</label>
+          <textarea id="le-catatan" class="form-textarea" rows="3" placeholder="Catatan opsional...">${UI.escapeHtml(laporan.catatan_operator || '')}</textarea>
+        </div>
+        <div id="le-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+        <button id="le-btn" class="btn-primary w-full justify-center" onclick="saveEditLaporan('${id}')">Simpan Perubahan</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
 }
 
+async function saveEditLaporan(id) {
+  const btn   = document.getElementById('le-btn');
+  const errEl = document.getElementById('le-err');
+  errEl.classList.add('hidden');
+  const jumlahKirim = Number(document.getElementById('le-kirim').value);
+  if (!jumlahKirim && jumlahKirim !== 0) {
+    errEl.textContent = 'Jumlah terkirim wajib diisi.';
+    errEl.classList.remove('hidden'); return;
+  }
+  UI.setLoading(btn, true, 'Menyimpan...');
+  const res = await API.operator.updateLaporanPengiriman({
+    laporan_id:       id,
+    jumlah_kirim:     jumlahKirim,
+    jumlah_retur:     Number(document.getElementById('le-retur').value || 0),
+    status:           document.getElementById('le-status').value,
+    catatan_operator: document.getElementById('le-catatan').value.trim(),
+  });
+  UI.setLoading(btn, false);
+  if (res.success) {
+    UI.toast('Laporan berhasil diupdate.', 'success');
+    document.getElementById('lp-edit-modal').remove();
+    fetchLaporan();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
+}
 async function verifikasiLaporanPengiriman(id) {
   const res = await API.operator.updateLaporanPengiriman({ laporan_id: id, status: 'VERIFIED' });
   if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporanPengiriman(); }
