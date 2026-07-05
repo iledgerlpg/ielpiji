@@ -487,26 +487,27 @@ async function uploadJadwalExcel(input) {
 
     const resolved  = [];
     const notFound  = [];
-    mapped.forEach((r, idx) => {
-      const pangkalanId = pangMap.get(norm(r.pangkalan));
-      const spbeId      = spbeMap.get(norm(r.spbe));
-      const driver1Id   = driverMap.get(norm(r.driver1_nama));
-      const driver2Id   = r.driver2_nama ? driverMap.get(norm(r.driver2_nama)) : '';
+mapped.forEach((r, idx) => {
+  const isGudang     = norm(r.pangkalan) === 'gudang';
+  const pangkalanId  = isGudang ? 'GUDANG' : pangMap.get(norm(r.pangkalan));
+  const spbeId       = spbeMap.get(norm(r.spbe));
+  const driver1Id    = driverMap.get(norm(r.driver1_nama));
+  const driver2Id    = r.driver2_nama ? driverMap.get(norm(r.driver2_nama)) : '';
 
-      if (!pangkalanId) { notFound.push(`Baris ${idx + 2}: Pangkalan "${r.pangkalan}" tidak ditemukan`); return; }
-      if (!spbeId) { notFound.push(`Baris ${idx + 2}: SPBE "${r.spbe}" tidak ditemukan`); return; }
-      if (!driver1Id) { notFound.push(`Baris ${idx + 2}: Driver 1 "${r.driver1_nama}" tidak ditemukan`); return; }
-      if (r.driver2_nama && !driver2Id) { notFound.push(`Baris ${idx + 2}: Kernet/Driver 2 "${r.driver2_nama}" tidak ditemukan`); return; }
-      
-      const { pangkalan, spbe, driver1_nama, driver2_nama, ...rest } = r;
-      resolved.push({ 
-        ...rest, 
-        pangkalan_id: pangkalanId, 
-        spbe_id: spbeId,
-        driver1_id: driver1Id,
-        driver2_id: driver2Id
-      });
-    });
+  if (!pangkalanId) { notFound.push(`Baris ${idx + 2}: Pangkalan "${r.pangkalan}" tidak ditemukan`); return; }
+  if (!spbeId) { notFound.push(`Baris ${idx + 2}: SPBE "${r.spbe}" tidak ditemukan`); return; }
+  if (!driver1Id) { notFound.push(`Baris ${idx + 2}: Driver 1 "${r.driver1_nama}" tidak ditemukan`); return; }
+  if (r.driver2_nama && !driver2Id) { notFound.push(`Baris ${idx + 2}: Kernet/Driver 2 "${r.driver2_nama}" tidak ditemukan`); return; }
+  
+  const { pangkalan, spbe, driver1_nama, driver2_nama, ...rest } = r;
+  resolved.push({ 
+    ...rest, 
+    pangkalan_id: pangkalanId, 
+    spbe_id: spbeId,
+    driver1_id: driver1Id,
+    driver2_id: driver2Id
+  });
+});
 
     if (notFound.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
@@ -577,7 +578,11 @@ async function loadJadwalDropdowns() {
     if (!el) return;
     el.innerHTML = `<option value="">-- Pilih --</option>` + (items || []).map(i => `<option value="${i[valKey]}">${UI.escapeHtml(i[labelKey])}</option>`).join('');
   };
-  if (pangRes.success) fill('jm-pangkalan', pangRes.data.pangkalan, 'pangkalan_id', 'nama');
+  if (pangRes.success) {
+    fill('jm-pangkalan', pangRes.data.pangkalan, 'pangkalan_id', 'nama');
+    // Tambahkan opsi khusus GUDANG — bukan pangkalan asli, tidak ikut kalkulasi monitoring/pembayaran
+    document.getElementById('jm-pangkalan').insertAdjacentHTML('beforeend', `<option value="GUDANG">📦 Gudang (Stock Gudang)</option>`);
+  }
   if (spbeRes.success) fill('jm-spbe', spbeRes.data.spbe, 'spbe_id', 'nama');
   if (!driverRes.success) { UI.toast(driverRes.message || 'Gagal memuat daftar driver.', 'error'); return; }
   const drivers = driverRes.data.drivers;
