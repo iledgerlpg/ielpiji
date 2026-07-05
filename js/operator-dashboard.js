@@ -2427,23 +2427,27 @@ async function fetchRekapPangkalan() {
   document.getElementById('rp-stat-sisa-bagi-hasil').textContent = UI.formatRupiah(d.sisa_bagi_hasil);
 
   const rows = d.rows || [];
+  // Helper: kosongkan tampilan kalau nilainya 0 (bukan "0" atau "Rp.0")
+  const fmtRp = v => Number(v || 0) === 0 ? '' : UI.formatRupiah(v);
+  const fmtN  = v => Number(v || 0) === 0 ? '' : UI.formatNumber(v);
+
   document.getElementById('rp-tbody').innerHTML = rows.length ? rows.map(r => `
     <tr class="border-b border-slate-100 dark:border-slate-800">
       <td class="p-2 text-xs text-slate-500">${UI.formatDateShort(r.tanggal)}</td>
-      <td class="p-2 text-center">${r.laporan_driver || 0}</td>
-      <td class="p-2 text-center">${r.retur || 0}</td>
-      <td class="p-2 text-sm">${UI.escapeHtml(r.dikirim)}</td>
-      <td class="p-2 text-center">${r.master_sa || 0}</td>
-      <td class="p-2 text-center">${r.pengiriman || 0}</td>
-      <td class="p-2 text-center">${UI.formatRupiah(r.nominal_dibayar)}</td>
+      <td class="p-2 text-center">${fmtN(r.laporan_driver)}</td>
+      <td class="p-2 text-center">${fmtN(r.retur)}</td>
+      <td class="p-2 text-sm">${UI.escapeHtml(r.dikirim === '-' ? '' : r.dikirim)}</td>
+      <td class="p-2 text-center">${fmtN(r.master_sa)}</td>
+      <td class="p-2 text-center">${fmtN(r.pengiriman)}</td>
+      <td class="p-2 text-center">${fmtRp(r.nominal_dibayar)}</td>
       <td class="p-2 text-center text-xs">${UI.escapeHtml(r.brimola_oleh)}</td>
-      <td class="p-2 text-center">${UI.formatRupiah(r.bayar_brimola)}</td>
+      <td class="p-2 text-center">${fmtRp(r.bayar_brimola)}</td>
       <td class="p-2 text-center">
-        ${UI.formatRupiah(r.bukti_tf)}
+        ${fmtRp(r.bukti_tf)}
         ${r.bukti_tf_url ? `<a href="${r.bukti_tf_url}" target="_blank" class="text-blue-600 underline text-xs ml-1">(lihat)</a>` : ''}
       </td>
-      <td class="p-2 text-center">${UI.formatRupiah(r.bagi_hasil)}</td>
-      <td class="p-2 text-center font-semibold ${r.total_tabung > 0 ? 'text-red-500' : 'text-green-600'}">${UI.formatRupiah(r.total_tabung)}</td>
+      <td class="p-2 text-center">${fmtRp(r.bagi_hasil)}</td>
+      <td class="p-2 text-center font-semibold ${r.total_tabung < 0 ? 'text-red-500' : 'text-green-600'}">${fmtRp(r.total_tabung)}</td>
     </tr>`).join('') : `<tr><td colspan="12" class="text-center text-slate-400 py-6">Belum ada data untuk periode ini.</td></tr>`;
 
   document.getElementById('rp-total-laporan').textContent = UI.formatNumber(rows.reduce((s,r)=>s+Number(r.laporan_driver||0),0));
