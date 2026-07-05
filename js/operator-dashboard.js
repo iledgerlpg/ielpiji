@@ -939,17 +939,38 @@ async function fetchMasterSA() {
   let grandTotal = 0;
 
   // 1. Render Baris Pangkalan & Hitung Total Harian
-  const bodyHtml = data.map(row => {
-    let rowTotal = 0;
-    const cells = daysToShow.map(d => {
-      const key = `tgl_${String(d).padStart(2,'0')}`;
-      const val = Number(row[key] || 0);
-      
-      dailyTotals[d] += val;
-      rowTotal += val;
-      
-      return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">${val || ''}</td>`;
-    }).join('');
+const bodyHtml = data.map(row => {
+  let rowTotal = 0;
+  const cells = daysToShow.map(d => {
+    const key = `tgl_${String(d).padStart(2,'0')}`;
+    const val = Number(row[key] || 0);
+    dailyTotals[d] += val;
+    rowTotal += val;
+    return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 
+                        ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">
+      ${val || ''}
+    </td>`;
+  }).join('');
+
+  grandTotal += rowTotal;
+
+  return `
+    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+      <td style="left:0;min-width:180px;width:180px;"
+          class="font-medium text-slate-900 dark:text-white border border-slate-100 dark:border-slate-800 p-2
+                 sticky bg-white dark:bg-slate-900 z-20
+                 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+        ${UI.escapeHtml(row.pangkalan_nama)}
+      </td>
+      ${cells}
+      <td style="right:0;min-width:60px;"
+          class="text-center font-bold text-blue-600 border border-slate-100 dark:border-slate-800
+                 sticky bg-white dark:bg-slate-900 z-20
+                 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+        ${rowTotal}
+      </td>
+    </tr>`;
+}).join('');
     
     grandTotal += rowTotal;
     
@@ -1020,56 +1041,101 @@ async function fetchMasterSA() {
         </tr>`;
   });
 
-  const footerHtml = `
-    <!-- Total Harian Master SA -->
-    <tr class="bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
-      <td class="p-2 border border-slate-200 dark:border-slate-700">TOTAL HARIAN</td>
-      ${daysToShow.map(d => `
-        <td class="text-center text-xs border border-slate-200 dark:border-slate-700 text-blue-700 dark:text-blue-400">
-          ${dailyTotals[d] || 0}
-        </td>
-      `).join('')}
-      <td class="text-center border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400">
-        ${grandTotal}
+const footerHtml = `
+  <tr class="bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
+    <td style="left:0;min-width:180px;width:180px;"
+        class="p-2 border border-slate-200 dark:border-slate-700
+               sticky bg-slate-100 dark:bg-slate-800 z-20
+               shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+      TOTAL HARIAN
+    </td>
+    ${daysToShow.map(d => `
+      <td class="text-center text-xs border border-slate-200 dark:border-slate-700 text-blue-700 dark:text-blue-400">
+        ${dailyTotals[d] || 0}
       </td>
-    </tr>
+    `).join('')}
+    <td style="right:0;min-width:60px;"
+        class="text-center border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400
+               sticky bg-slate-100 dark:bg-slate-800 z-20
+               shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+      ${grandTotal}
+    </td>
+  </tr>
 
-    <!-- List SPBE -->
-    ${spbeRowsHtml}
+  ${spbeRowsHtml}
 
-    <!-- Total Pembelian SPBE -->
-    <tr class="bg-green-50 dark:bg-green-900/30 font-bold text-green-700 dark:text-green-400">
-      <td class="p-2 border border-slate-200 dark:border-slate-700">TOTAL PEMBELIAN SPBE</td>
-      ${daysToShow.map(d => `<td class="text-center text-xs border border-slate-200 dark:border-slate-700">${dailyTotalSPBE[d] || 0}</td>`).join('')}
-      <td class="text-center border border-slate-200 dark:border-slate-700">${grandTotalSPBE}</td>
-    </tr>
+  <tr class="bg-green-50 dark:bg-green-900/30 font-bold text-green-700 dark:text-green-400">
+    <td style="left:0;min-width:180px;width:180px;"
+        class="p-2 border border-slate-200 dark:border-slate-700
+               sticky bg-green-50 dark:bg-green-900/30 z-20
+               shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+      TOTAL PEMBELIAN SPBE
+    </td>
+    ${daysToShow.map(d => `<td class="text-center text-xs border border-slate-200 dark:border-slate-700">${dailyTotalSPBE[d] || 0}</td>`).join('')}
+    <td style="right:0;min-width:60px;"
+        class="text-center border border-slate-200 dark:border-slate-700
+               sticky bg-green-50 dark:bg-green-900/30 z-20
+               shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+      ${grandTotalSPBE}
+    </td>
+  </tr>
 
-    <!-- Stock Gudang -->
-    <tr class="bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-400">
-      <td class="p-2 border border-slate-200 dark:border-slate-700">STOCK GUDANG</td>
-      ${daysToShow.map(d => `<td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${dailyStock[d] < 0 ? 'text-red-500' : ''}">${dailyStock[d]}</td>`).join('')}
-      <td class="text-center border border-slate-200 dark:border-slate-700">-</td>
-    </tr>
-  `;
+  <tr class="bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-400">
+    <td style="left:0;min-width:180px;width:180px;"
+        class="p-2 border border-slate-200 dark:border-slate-700
+               sticky bg-amber-50 dark:bg-amber-900/30 z-20
+               shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+      STOCK GUDANG
+    </td>
+    ${daysToShow.map(d => `
+      <td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${dailyStock[d] < 0 ? 'text-red-500' : ''}">
+        ${dailyStock[d]}
+      </td>
+    `).join('')}
+    <td style="right:0;min-width:60px;"
+        class="text-center border border-slate-200 dark:border-slate-700
+               sticky bg-amber-50 dark:bg-amber-900/30 z-20
+               shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+      -
+    </td>
+  </tr>
+`;
 
   // Satukan komponen ke dalam tabel
   document.getElementById('sa-container').innerHTML = data.length ? `
     <table style="min-width:1000px" class="border-collapse border border-slate-200 dark:border-slate-700 w-full">
-      <thead>
-        <tr>
-          <th rowspan="2" class="align-middle border border-slate-200 dark:border-slate-700 p-2">Pangkalan</th>
-          <th colspan="${daysToShow.length}" class="text-center bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 font-bold text-xs tracking-wider text-slate-700 dark:text-slate-200 py-1">
-            ${namaBulan.toUpperCase()}
-          </th>
-          <th rowspan="2" class="text-center align-middle border border-slate-200 dark:border-slate-700">Total</th>
-        </tr>
-        <tr>
-          ${daysToShow.map(d => {
-            const tglDuaDigit = String(d).padStart(2, '0');
-            return `<th class="text-center text-xs border border-slate-200 dark:border-slate-700 font-semibold w-8">${tglDuaDigit}</th>`;
-          }).join('')}
-        </tr>
-      </thead>
+<thead>
+  <tr>
+    <th rowspan="2" 
+        style="left:0;min-width:180px;width:180px;"
+        class="align-middle border border-slate-200 dark:border-slate-700 p-2 
+               sticky bg-slate-100 dark:bg-slate-800 z-30
+               shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">
+      Pangkalan
+    </th>
+    <th colspan="${daysToShow.length}" 
+        class="text-center bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 
+               font-bold text-xs tracking-wider text-slate-700 dark:text-slate-200 py-1 top-0 sticky z-10">
+      ${namaBulan.toUpperCase()}
+    </th>
+    <th rowspan="2" 
+        style="right:0;min-width:60px;"
+        class="text-center align-middle border border-slate-200 dark:border-slate-700 
+               sticky bg-slate-100 dark:bg-slate-800 z-30
+               shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]">
+      Total
+    </th>
+  </tr>
+  <tr>
+    ${daysToShow.map(d => {
+      const tglDuaDigit = String(d).padStart(2, '0');
+      return `<th class="text-center text-xs border border-slate-200 dark:border-slate-700 
+                         font-semibold w-8 sticky top-0 bg-slate-100 dark:bg-slate-800 z-10">
+        ${tglDuaDigit}
+      </th>`;
+    }).join('')}
+  </tr>
+</thead>
       <tbody>
         ${bodyHtml}
       </tbody>
