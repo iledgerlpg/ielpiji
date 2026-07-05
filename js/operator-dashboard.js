@@ -939,19 +939,21 @@ async function fetchMasterSA() {
     </tr>`;
   }).join('');
 
-  // 2. Kalkulasi SPBE & Pembelian
+ // 2. Kalkulasi SPBE & Pembelian — dicocokkan berdasarkan NAMA (bukan spbe_id,
+  // karena sheet PEMBELIAN_STOK sekarang hanya menyimpan nama_spbe)
   const spbeData = {};
   spbeList.forEach(s => {
-    spbeData[s.spbe_id] = { nama: s.nama, daily: {}, total: 0 };
-    daysToShow.forEach(d => spbeData[s.spbe_id].daily[d] = 0);
+    spbeData[s.nama] = { nama: s.nama, daily: {}, total: 0 };
+    daysToShow.forEach(d => spbeData[s.nama].daily[d] = 0);
   });
 
   if (pembelianList && pembelianList.length) {
     pembelianList.forEach(p => {
       const pDay = parseInt(p.tanggal.split('-')[2], 10);
-      if (spbeData[p.spbe_id] && spbeData[p.spbe_id].daily[pDay] !== undefined) {
-        spbeData[p.spbe_id].daily[pDay] += Number(p.jumlah);
-        spbeData[p.spbe_id].total += Number(p.jumlah);
+      const key  = p.nama_spbe;
+      if (spbeData[key] && spbeData[key].daily[pDay] !== undefined) {
+        spbeData[key].daily[pDay] += Number(p.jumlah);
+        spbeData[key].total += Number(p.jumlah);
       }
     });
   }
@@ -960,25 +962,16 @@ async function fetchMasterSA() {
   let grandTotalSPBE = 0;
   daysToShow.forEach(d => {
     let sum = 0;
-    spbeList.forEach(s => { sum += spbeData[s.spbe_id].daily[d]; });
+    spbeList.forEach(s => { sum += spbeData[s.nama].daily[d]; });
     dailyTotalSPBE[d] = sum;
     grandTotalSPBE += sum;
   });
-
-  const dailyStock = {};
-  let runningStock = 0;
-  daysToShow.forEach((d, index) => {
-    const tHarian = dailyTotals[d] || 0;
-    const tSpbe   = dailyTotalSPBE[d] || 0;
-    runningStock  = index === 0 ? tSpbe - tHarian : runningStock + tSpbe - tHarian;
-    dailyStock[d] = runningStock;
-  });
-
+  
   // 3. Baris SPBE
-  let spbeRowsHtml = '';
+let spbeRowsHtml = '';
   spbeList.forEach(s => {
     const cells = daysToShow.map(d => {
-      const val = spbeData[s.spbe_id].daily[d];
+      const val = spbeData[s.nama].daily[d];
       return `<td class="text-center text-xs border border-slate-200 dark:border-slate-700 ${val > 0 ? 'text-green-600 font-semibold' : 'text-slate-400'}">${val || 0}</td>`;
     }).join('');
     spbeRowsHtml += `
@@ -994,11 +987,11 @@ async function fetchMasterSA() {
             class="text-center font-bold text-green-600 border border-slate-200 dark:border-slate-700
                    sticky bg-slate-50 dark:bg-slate-800/40 z-20
                    shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]">
-          ${spbeData[s.spbe_id].total}
+          ${spbeData[s.nama].total}
         </td>
       </tr>`;
   });
-
+  
   // 4. Footer
   const footerHtml = `
     <tr class="bg-slate-100 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-600">
