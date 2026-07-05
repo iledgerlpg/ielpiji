@@ -1984,6 +1984,7 @@ async function uploadStokGudangExcel(input) {
 
     if (missing.length) {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+    }
 // ============================================================
 // PANGKALAN
 // ============================================================
