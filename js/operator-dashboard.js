@@ -24,7 +24,7 @@ const NAV_ITEMS = [
   { id: 'bayar-refill',       label: 'Pembayaran Refill',     icon: 'money' },
   { id: 'bayar-bh',           label: 'Pembayaran Bagi Hasil', icon: 'money' },
   { id: 'monitoring-bayar',   label: 'Monitoring Pembayaran', icon: 'chart' },
-  { id: 'stok-gudang',        label: 'Stok Gudang',           icon: 'box' },
+  { id: 'stok-gudang',        label: 'Stok Agen',           icon: 'box' },
   { id: 'pangkalan',          label: 'Pangkalan',             icon: 'store' },
   { id: 'spbe',               label: 'SPBE',                  icon: 'fuel' },
 ];
@@ -104,12 +104,12 @@ function buildSidebar() {
    {
       id:'shipping',
       label:'iShipping',
-      items:['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa','rekap-pangkalan']
+      items:['jadwal-harian','laporan-pengiriman','monitoring-kirim','master-sa','stok-gudang']
     },
     {
       id:'operasional',
       label:'iOperasional',
-      items:['bayar-refill','bayar-bh','monitoring-bayar','stok-gudang']
+      items:['bayar-refill','bayar-bh','monitoring-bayar','rekap-pangkalan'']
     },
     {
       id:'setting',
