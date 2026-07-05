@@ -192,6 +192,7 @@ const API = (() => {
     createSPBE:                (b) => post('operator/spbe', b),
     updateSPBE:                (b) => post('operator/spbe/update', b),
     deleteSPBE:                (b) => post('operator/spbe/delete', b),
+    getRekapPangkalan:         (p) => get('operator/rekap-pangkalan', p),
   };
 
   // ============================================================
