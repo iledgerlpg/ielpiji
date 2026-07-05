@@ -109,7 +109,7 @@ function buildSidebar() {
     {
       id:'operasional',
       label:'iOperasional',
-      items:['bayar-refill','bayar-bh','monitoring-bayar','rekap-pangkalan'']
+      items:['bayar-refill','bayar-bh','monitoring-bayar','rekap-pangkalan']
     },
     {
       id:'setting',
