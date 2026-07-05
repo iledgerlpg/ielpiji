@@ -603,7 +603,6 @@ async function saveEditLaporan(id) {
     errEl.classList.remove('hidden');
   }
 }
-}
 
 async function verifikasiLaporan(id) {
   const res = await API.operator.updateLaporanPengiriman({ laporan_id: id, status: 'VERIFIED' });
