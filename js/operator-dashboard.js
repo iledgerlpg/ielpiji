@@ -1142,16 +1142,108 @@ async function fetchStok() {
       <div class="text-xs text-slate-400 mt-0.5">pembelian − terkirim</div>
     </div></div>`;
 
+  // Cache pembelian untuk edit, tambah nama SPBE
+  const spbeRes = await API.operator.getSPBE();
+  const spbeMap = {};
+  if (spbeRes.success) spbeRes.data.spbe.forEach(s => { spbeMap[s.spbe_id] = s.nama; });
+  window._allPembelian = pembelian || [];
+  window._spbeMap      = spbeMap;
+
   document.getElementById('sg-tbody').innerHTML = pembelian?.length ? pembelian.map(p => `
     <tr>
       <td class="text-xs text-slate-500">${UI.formatDateShort(p.tanggal)}</td>
-      <td>${UI.escapeHtml(p.spbe_id)}</td>
+      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(spbeMap[p.spbe_id] || p.spbe_id)}</td>
       <td class="font-semibold">${UI.formatNumber(p.jumlah)}</td>
       <td class="text-slate-500">${UI.formatRupiah(p.harga_satuan)}</td>
       <td class="font-semibold">${UI.formatRupiah(p.total)}</td>
       <td class="text-slate-500 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
-      <td class="text-right"><button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button></td>
+      <td class="text-right">
+        <div class="flex gap-1 justify-end">
+          <button class="btn-secondary text-xs py-1 px-2" onclick="editPembelian('${p.pembelian_id}')">Edit</button>
+          <button class="btn-danger text-xs py-1 px-2"    onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button>
+        </div>
+      </td>
     </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada pembelian.','📦')}</td></tr>`;
+}
+
+async function editPembelian(id) {
+  const p = (window._allPembelian || []).find(p => p.pembelian_id === id);
+  if (!p) { UI.toast('Data pembelian tidak ditemukan.', 'error'); return; }
+
+  const modal = document.createElement('div');
+  modal.id    = 'beli-edit-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h3 class="font-semibold text-slate-900 dark:text-white">Edit Pembelian Stok</h3>
+        <button class="btn-icon" onclick="document.getElementById('beli-edit-modal').remove()">✕</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="form-label">SPBE *</label>
+          <select id="be-spbe" class="form-select">
+            <option value="">Memuat...</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Tanggal *</label>
+            <input id="be-tgl" type="date" class="form-input" value="${p.tanggal}"/>
+          </div>
+          <div><label class="form-label">Jumlah (tabung) *</label>
+            <input id="be-jml" type="number" class="form-input" value="${p.jumlah}" min="1"/>
+          </div>
+        </div>
+        <div><label class="form-label">Harga/tabung *</label>
+          <input id="be-harga" type="number" class="form-input" value="${p.harga_satuan}" min="0"/>
+        </div>
+        <div><label class="form-label">Keterangan</label>
+          <input id="be-ket" class="form-input" value="${UI.escapeHtml(p.keterangan || '')}" placeholder="Opsional..."/>
+        </div>
+        <div id="be-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+        <button id="be-btn" class="btn-primary w-full justify-center" onclick="saveEditPembelian('${id}')">Simpan Perubahan</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // Load SPBE dropdown lalu pre-select
+  const spbeRes = await API.operator.getSPBE({ status: 'ACTIVE' });
+  const beSpbe  = document.getElementById('be-spbe');
+  if (beSpbe && spbeRes.success) {
+    beSpbe.innerHTML = `<option value="">-- Pilih SPBE --</option>` +
+      spbeRes.data.spbe.map(s => `<option value="${s.spbe_id}" ${s.spbe_id === p.spbe_id ? 'selected' : ''}>${UI.escapeHtml(s.nama)}</option>`).join('');
+  }
+}
+
+async function saveEditPembelian(id) {
+  const btn   = document.getElementById('be-btn');
+  const errEl = document.getElementById('be-err');
+  errEl.classList.add('hidden');
+  const spbeId = document.getElementById('be-spbe').value;
+  const jumlah = Number(document.getElementById('be-jml').value);
+  const harga  = Number(document.getElementById('be-harga').value);
+  if (!spbeId || !jumlah || !harga) {
+    errEl.textContent = 'SPBE, jumlah, dan harga wajib diisi.';
+    errEl.classList.remove('hidden'); return;
+  }
+  UI.setLoading(btn, true, 'Menyimpan...');
+  const res = await API.operator.updatePembelianStok({
+    pembelian_id: id,
+    spbe_id:      spbeId,
+    tanggal:      document.getElementById('be-tgl').value,
+    jumlah,
+    harga_satuan: harga,
+    keterangan:   document.getElementById('be-ket').value.trim(),
+  });
+  UI.setLoading(btn, false);
+  if (res.success) {
+    UI.toast('Pembelian berhasil diupdate.', 'success');
+    document.getElementById('beli-edit-modal').remove();
+    fetchStok();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 function openPembelianModal() {
