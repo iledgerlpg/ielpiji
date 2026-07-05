@@ -1732,11 +1732,19 @@ async function loadStokGudang() {
   main.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
       <div><h2 class="page-title">Stok Gudang</h2><p class="page-sub">Stok = Total Pembelian − Total Terkirim. Retur tidak menambah balik stok gudang.</p></div>
-      <button class="btn-primary" onclick="openPembelianModal()">+ Tambah Pembelian</button>
+      <div class="flex gap-2 flex-wrap">
+        <button class="btn-secondary text-sm" onclick="downloadTemplateStokGudang(this)">⬇️ Template Excel</button>
+        <label class="btn-secondary text-sm cursor-pointer">
+          ⬆️ Upload Excel
+          <input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadStokGudangExcel(this)"/>
+        </label>
+        <button class="btn-primary" onclick="openPembelianModal()">+ Tambah Pembelian</button>
+      </div>
     </div>
     <div class="filter-bar">
       <input type="month" id="sg-bln" class="form-input w-40" value="${UI.currentMonthValue()}" onchange="fetchStok()"/>
     </div>
+    <div id="sg-import-status" class="hidden mb-4"></div>
     <div id="sg-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">${skCards(4)}</div>
     <h3 class="font-semibold text-slate-900 dark:text-white mb-3">Riwayat Pembelian</h3>
     <div class="table-wrapper">
@@ -1755,7 +1763,6 @@ async function loadStokGudang() {
     </div>`;
   await fetchStok();
 }
-
 async function fetchStok() {
   const bulan = document.getElementById('sg-bln')?.value;
   
@@ -1866,7 +1873,117 @@ async function hapusPembelian(id) {
   if (res.success) { UI.toast('Pembelian dihapus.', 'success'); fetchStok(); }
   else UI.toast(res.message, 'error');
 }
+/** Download template Excel Stok Gudang dengan data real */
+async function downloadTemplateStokGudang(btnEl) {
+  const btn = btnEl || null;
+  try {
+    if (btn) UI.setLoading(btn, true, 'Menyiapkan...');
+    if (!window.XLSX) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    }
 
+    const spbeRes = await API.operator.getSPBE({ status: 'ACTIVE' });
+    const daftarSPBE = spbeRes.success ? (spbeRes.data.spbe || []) : [];
+
+    // Ambil data pembelian bulan aktif
+    const bulan = document.getElementById('sg-bln')?.value || UI.currentMonthValue();
+    const stokRes = await API.operator.getStokGudang({ bulan });
+    const pembelianList = stokRes.success ? (stokRes.data.pembelian || []) : [];
+
+    const wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: Petunjuk ──
+    const petunjukAOA = [
+      ['PETUNJUK PENGISIAN TEMPLATE STOK GUDANG — ILPG'],
+      [''],
+      ['Kolom', 'Keterangan'],
+      ['tanggal',    'Format YYYY-MM-DD, contoh: 2025-07-01'],
+      ['nama_spbe',  'Nama SPBE — HARUS SAMA PERSIS dengan sheet "Referensi SPBE"'],
+      ['jumlah',     'Jumlah tabung yang dibeli (angka, wajib diisi)'],
+      ['keterangan', 'Catatan bebas (boleh kosong)'],
+      [''],
+      ['ℹ Satu baris = satu transaksi pembelian.'],
+      ['⚠ Isi data mulai dari sheet "Data Pembelian", baris 2. Jangan ubah nama header.'],
+      ['⚠ Nama SPBE tidak boleh typo — cek daftar resmi di sheet Referensi SPBE.'],
+    ];
+    const wsPetunjuk = XLSX.utils.aoa_to_sheet(petunjukAOA);
+    wsPetunjuk['!cols']   = [{ wch: 15 }, { wch: 65 }];
+    wsPetunjuk['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+    XLSX.utils.book_append_sheet(wb, wsPetunjuk, 'Petunjuk');
+
+    // ── Sheet 2: Data Pembelian (data real bulan aktif) ──
+    const headers = ['tanggal', 'nama_spbe', 'jumlah', 'keterangan'];
+    const dataRows = pembelianList.length
+      ? pembelianList.map(p => [p.tanggal, p.nama_spbe, p.jumlah, p.keterangan || ''])
+      : [[UI.todayInputValue(), daftarSPBE[0]?.nama || 'NAMA_SPBE_DISINI', 0, '']];
+
+    const wsData = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+    wsData['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 10 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, wsData, 'Data Pembelian');
+
+    // ── Sheet 3: Referensi SPBE ──
+    const wsRefSPBE = XLSX.utils.aoa_to_sheet([
+      ['Nama SPBE'],
+      ...(daftarSPBE.length ? daftarSPBE.map(s => [s.nama]) : [['(Belum ada data SPBE aktif)']]),
+    ]);
+    wsRefSPBE['!cols'] = [{ wch: 35 }];
+    XLSX.utils.book_append_sheet(wb, wsRefSPBE, 'Referensi SPBE');
+
+    const bulanNama = new Date(bulan + '-01').toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).replace(' ', '_');
+    XLSX.writeFile(wb, `stok_gudang_${bulanNama}_ILPG.xlsx`);
+    UI.toast('Template Stok Gudang berhasil didownload.', 'success');
+  } catch (err) {
+    UI.toast(`Gagal membuat template: ${err.message}`, 'error');
+  } finally {
+    if (btn) UI.setLoading(btn, false);
+  }
+}
+
+/** Upload Excel Stok Gudang */
+async function uploadStokGudangExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('sg-import-status');
+  statusEl.className = 'mb-4 card bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300';
+  statusEl.textContent = '⏳ Membaca file...';
+  statusEl.classList.remove('hidden');
+
+  try {
+    // Pakai sheet 'Data Pembelian', fallback ke sheet pertama
+    if (!window.XLSX) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    }
+
+    const rows = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb   = XLSX.read(data, { type: 'array' });
+          const sheetName = wb.SheetNames.includes('Data Pembelian')
+            ? 'Data Pembelian'
+            : wb.SheetNames[0];
+          resolve(XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 }));
+        } catch (err) { reject(err); }
+      };
+      reader.onerror = () => reject(new Error('Gagal membaca file.'));
+      reader.readAsArrayBuffer(file);
+    });
+
+    if (!rows || rows.length < 2) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
+      statusEl.textContent = '❌ File kosong atau format salah.';
+      input.value = ''; return;
+    }
+
+    const headers  = rows[0].map(h => String(h).trim().toLowerCase());
+    const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
+    const reqCols  = ['tanggal', 'nama_spbe', 'jumlah'];
+    const missing  = reqCols.filter(c => !headers.includes(c));
+
+    if (missing.length) {
+      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
 // ============================================================
 // PANGKALAN
 // ============================================================
