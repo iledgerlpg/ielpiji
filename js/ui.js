@@ -309,6 +309,7 @@ const UI = (() => {
     LUNAS:       'badge-green',
     SEBAGIAN:    'badge-yellow',
     BELUM:       'badge-red',
+    SALDO_AGEN:  'badge-blue',   
     OPEN:        'badge-blue',
     IN_PROGRESS: 'badge-yellow',
     DONE:        'badge-green',
