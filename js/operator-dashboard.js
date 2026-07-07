@@ -1938,7 +1938,11 @@ function openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner, tipe) {
             </tr>
           </thead>
           <tbody id="riwayat-tbody">
-            ${riwayat.length ? riwayat.map(p => `
+            ${riwayat.length ? riwayat.map(p => {
+              // Pembayaran tanpa bukti TF & tanpa nominal transfer manual = otomatis dari Master SA (Brimola)
+              const isBrimola = !p.bukti_tf_url && !(Number(p.nominal_transfer) > 0);
+
+              return `
               <tr class="border-b border-slate-100 dark:border-slate-800">
                 <td class="py-2 text-xs text-slate-500">${UI.formatDateShort(p.tanggal_bayar)}</td>
                 <td class="py-2 text-center">${UI.formatRupiah(p.nominal_transfer || 0)}</td>
@@ -1949,14 +1953,17 @@ function openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner, tipe) {
                     : '<span class="text-slate-300 text-xs">-</span>'}
                 </td>
                 <td class="py-2 text-right">
-                  <div class="flex gap-2 justify-end">
-                    <button class="text-blue-600 hover:text-blue-800 text-xs font-semibold"
-                      onclick="openEditPembayaranModal('${p.bayar_id}','${pangkalanId}','${UI.escapeHtml(namaPangkalan)}','${tipe}')">Edit</button>
-                    <button class="text-red-600 hover:text-red-800 text-xs font-semibold"
-                      onclick="hapusPembayaranRiwayat('${p.bayar_id}','${pangkalanId}','${UI.escapeHtml(namaPangkalan)}','${UI.escapeHtml(namaOwner)}','${tipe}')">Hapus</button>
-                  </div>
+                  ${isBrimola
+                    ? `<span class="text-xs text-slate-400 italic">Pembayaran Lewat Brimola</span>`
+                    : `<div class="flex gap-2 justify-end">
+                         <button class="text-blue-600 hover:text-blue-800 text-xs font-semibold"
+                           onclick="openEditPembayaranModal('${p.bayar_id}','${pangkalanId}','${UI.escapeHtml(namaPangkalan)}','${tipe}')">Edit</button>
+                         <button class="text-red-600 hover:text-red-800 text-xs font-semibold"
+                           onclick="hapusPembayaranRiwayat('${p.bayar_id}','${pangkalanId}','${UI.escapeHtml(namaPangkalan)}','${UI.escapeHtml(namaOwner)}','${tipe}')">Hapus</button>
+                       </div>`}
                 </td>
-              </tr>`).join('')
+              </tr>`;
+            }).join('')
             : `<tr><td colspan="5" class="text-center text-slate-400 py-6">Belum ada riwayat.</td></tr>`}
           </tbody>
         </table>
