@@ -2852,40 +2852,102 @@ async function loadRekapPangkalan() {
   window._rpSelectedPangkalan = [];
 }
 
-async function openRekapPangkalanPicker() {
+async function openRekapPangkalanPicker(tab = 'owner') {
   const res = await API.operator.getPangkalan({ status: 'ACTIVE' });
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const list = res.data.pangkalan;
-  const selected = new Set((window._rpSelectedPangkalan || []).map(p => p.pangkalan_id));
+  window._rpPickerList = list; // cache untuk switch tab tanpa fetch ulang
+
+  const selectedIds = new Set((window._rpSelectedPangkalan || []).map(p => p.pangkalan_id));
+
+  // Kelompokkan pangkalan per owner
+  const ownerMap = {};
+  list.forEach(p => {
+    const owner = p.owner || '(Tanpa Owner)';
+    if (!ownerMap[owner]) ownerMap[owner] = [];
+    ownerMap[owner].push(p);
+  });
+
+  let existingModal = document.getElementById('rp-picker-modal');
+  if (existingModal) existingModal.remove();
 
   const modal = document.createElement('div');
   modal.id = 'rp-picker-modal';
   modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
   modal.innerHTML = `
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
         <h3 class="font-semibold text-slate-900 dark:text-white">Pilih Pangkalan</h3>
         <button class="btn-icon" onclick="document.getElementById('rp-picker-modal').remove()">✕</button>
       </div>
-      <div class="p-4 overflow-y-auto flex-1 space-y-2">
-        ${list.map(p => `
-          <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-            <input type="checkbox" value="${p.pangkalan_id}" data-nama="${UI.escapeHtml(p.nama)}" class="rp-pkln-cb" ${selected.has(p.pangkalan_id) ? 'checked' : ''}/>
-            <span class="text-sm text-slate-700 dark:text-slate-200">${UI.escapeHtml(p.nama)}</span>
-          </label>
-        `).join('')}
+
+      <div class="flex border-b border-slate-200 dark:border-slate-800 px-5">
+        <button type="button" id="rp-tab-owner"
+          class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors
+            ${tab === 'owner' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}"
+          onclick="openRekapPangkalanPicker('owner')">👤 Per Owner</button>
+        <button type="button" id="rp-tab-pangkalan"
+          class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors
+            ${tab === 'pangkalan' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}"
+          onclick="openRekapPangkalanPicker('pangkalan')">🏪 Per Pangkalan</button>
       </div>
+
+      <div class="p-4 overflow-y-auto flex-1 space-y-2">
+        ${tab === 'owner' ? `
+          ${Object.entries(ownerMap).map(([owner, pkList]) => {
+            const allSelected = pkList.every(p => selectedIds.has(p.pangkalan_id));
+            const idsAttr = pkList.map(p => p.pangkalan_id).join(',');
+            const namesAttr = pkList.map(p => p.nama).join('|');
+            return `
+              <label class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer border border-slate-100 dark:border-slate-800">
+                <input type="checkbox" class="rp-owner-cb" data-ids="${idsAttr}" data-names="${UI.escapeHtml(namesAttr)}" ${allSelected ? 'checked' : ''}/>
+                <div class="flex-1">
+                  <span class="text-sm font-semibold text-slate-800 dark:text-slate-100">👤 ${UI.escapeHtml(owner)}</span>
+                  <div class="text-xs text-slate-400">${pkList.length} pangkalan</div>
+                </div>
+              </label>`;
+          }).join('')}
+        ` : `
+          ${list.map(p => `
+            <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+              <input type="checkbox" value="${p.pangkalan_id}" data-nama="${UI.escapeHtml(p.nama)}" class="rp-pkln-cb" ${selectedIds.has(p.pangkalan_id) ? 'checked' : ''}/>
+              <div class="flex-1">
+                <span class="text-sm text-slate-700 dark:text-slate-200">${UI.escapeHtml(p.nama)}</span>
+                <div class="text-xs text-slate-400">${UI.escapeHtml(p.owner || '(Tanpa Owner)')}</div>
+              </div>
+            </label>
+          `).join('')}
+        `}
+      </div>
+
       <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
         <button class="btn-secondary" onclick="document.getElementById('rp-picker-modal').remove()">Batal</button>
-        <button class="btn-primary" onclick="confirmRekapPangkalanPicker()">Pilih</button>
+        <button class="btn-primary" onclick="confirmRekapPangkalanPicker('${tab}')">Pilih</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
 }
 
-function confirmRekapPangkalanPicker() {
-  const checked = Array.from(document.querySelectorAll('.rp-pkln-cb:checked'));
-  window._rpSelectedPangkalan = checked.map(cb => ({ pangkalan_id: cb.value, nama: cb.dataset.nama }));
+
+function confirmRekapPangkalanPicker(tab = 'owner') {
+  let result = [];
+
+  if (tab === 'owner') {
+    const checked = Array.from(document.querySelectorAll('.rp-owner-cb:checked'));
+    checked.forEach(cb => {
+      const ids   = (cb.dataset.ids || '').split(',').filter(Boolean);
+      const names = (cb.dataset.names || '').split('|').filter(Boolean);
+      ids.forEach((id, i) => result.push({ pangkalan_id: id, nama: names[i] || id }));
+    });
+  } else {
+    const checked = Array.from(document.querySelectorAll('.rp-pkln-cb:checked'));
+    result = checked.map(cb => ({ pangkalan_id: cb.value, nama: cb.dataset.nama }));
+  }
+
+  // Hilangkan duplikat (kalau user sempat pilih di kedua tab)
+  const uniqueMap = new Map(result.map(p => [p.pangkalan_id, p]));
+  window._rpSelectedPangkalan = Array.from(uniqueMap.values());
+
   const label = document.getElementById('rp-pangkalan-label');
   label.textContent = window._rpSelectedPangkalan.length
     ? window._rpSelectedPangkalan.map(p => p.nama).join(', ')
