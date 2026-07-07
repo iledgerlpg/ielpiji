@@ -1579,12 +1579,13 @@ main.innerHTML = `
         <label class="text-sm font-medium whitespace-nowrap">Sampai Tgl:</label>
         <input type="date" id="bp-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchPembayaran('${tipe}')"/>
       </div>
-      <select id="bp-status" class="form-select w-36 text-sm" onchange="filterPembayaranTable()">
-        <option value="">Semua Status</option>
-        <option value="LUNAS">Lunas</option>
-        <option value="SEBAGIAN">Sebagian</option>
-        <option value="BELUM">Belum Bayar</option>
-      </select>
+<select id="bp-status" class="form-select w-36 text-sm" onchange="filterPembayaranTable()">
+  <option value="">Semua Status</option>
+  <option value="LUNAS">Lunas</option>
+  <option value="SEBAGIAN">Sebagian</option>
+  <option value="BELUM">Belum Bayar</option>
+  <option value="SALDO_AGEN">Saldo Agen</option>
+</select>
       <input type="text" id="bp-search" class="form-input w-44 text-sm" placeholder="Cari pangkalan..."
         oninput="filterPembayaranTable()"/>
       <button class="btn-secondary text-sm py-1.5" onclick="
@@ -1838,17 +1839,19 @@ function filterPembayaranTable() {
 
   let html = '';
 
-  allOwners.forEach((ownerData, idx) => {
-    const ownerKey = ownerData.owner || `owner-${idx}`;
+allOwners.forEach((ownerData, idx) => {
+  const ownerKey = ownerData.owner || `owner-${idx}`;
 
-    const filteredPangkalan = (ownerData.pangkalan || []).filter(p => {
-      const matchStatus = !statusFilter || p.status === statusFilter;
-      const matchSearch = !searchFilter ||
-        p.nama.toLowerCase().includes(searchFilter) ||
-        ownerData.owner.toLowerCase().includes(searchFilter);
-      return matchStatus && matchSearch;
-    });
-    if (!filteredPangkalan.length) return;
+  // Filter di level OWNER dulu
+  if (statusFilter && ownerData.status !== statusFilter) return;
+
+  const filteredPangkalan = (ownerData.pangkalan || []).filter(p => {
+    const matchSearch = !searchFilter ||
+      p.nama.toLowerCase().includes(searchFilter) ||
+      ownerData.owner.toLowerCase().includes(searchFilter);
+    return matchSearch;
+  });
+  if (!filteredPangkalan.length) return;
 
     const isExpanded = window._bpExpandedOwners.has(ownerKey);
     const totalKirimOwner = filteredPangkalan.reduce((s, p) => s + Number(p.total_sa || 0), 0);
