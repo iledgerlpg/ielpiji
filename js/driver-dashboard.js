@@ -525,6 +525,7 @@ async function loadFormLaporan() {
     if (opt) { sel.value = _prefillData.pangkalanNama; document.getElementById('lp-kirim').value = _prefillData.jumlahKirim; }
     _prefillData = null;
   }
+}
 
 function updateJumlahKirim() {
   const sel = document.getElementById('lp-pangkalan');
