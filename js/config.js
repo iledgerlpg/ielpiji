@@ -1,4 +1,4 @@
 window.ILPG_CONFIG = {
 
-  API_URL: 'https://script.google.com/macros/s/AKfycbzobsxWwFm6sKt83G-WtFnZ75eq_oXuIAl5jFWyxMQYKy0ZcdeTC9FR1rlZ2XJZbtKdjQ/exec',
+  API_URL: 'https://script.google.com/macros/s/AKfycbwh2OLXu_bZ_DvQl1Szz4Olv_qvRiAKJIoDEFbJnM6fxbN1pe03Vu_dEsYUlDrsFBh5mw/exec',
 };
