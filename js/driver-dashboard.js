@@ -394,7 +394,7 @@ async function fetchJadwalSaya() {
             ${j.keterangan ? `<div class="text-slate-500 dark:text-slate-400 col-span-2">Ket: <span class="font-medium">${UI.escapeHtml(j.keterangan)}</span></div>` : ''}
           </div>
         </div>
-        <button class="btn-primary shrink-0 text-xs py-2 px-3" onclick="prefillJadwal('${j.jadwal_id}','${j.pangkalan_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim});showSection('laporan')">
+<button class="btn-primary shrink-0 text-xs py-2 px-3" onclick="prefillJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim});showSection('laporan')">
           Lapor
         </button>
       </div>
@@ -442,8 +442,8 @@ let _laporanPhotos  = {};
 let _laporanGPS     = null;
 let _prefillData    = null;
 
-function prefillJadwal(jadwalId, pangkalanId, pangkalanNamaEncoded, jumlahKirim) {
-  _prefillData = { jadwalId, pangkalanId, pangkalanNama: decodeURIComponent(pangkalanNamaEncoded), jumlahKirim };
+function prefillJadwal(jadwalId, pangkalanNamaEncoded, jumlahKirim) {
+  _prefillData = { jadwalId, pangkalanNama: decodeURIComponent(pangkalanNamaEncoded), jumlahKirim };
 }
 
 async function loadFormLaporan() {
@@ -451,11 +451,11 @@ async function loadFormLaporan() {
   _laporanPhotos = {};
   _laporanGPS    = null;
 
-  // Ambil daftar pangkalan dari jadwal hari ini
+// Ambil daftar pangkalan dari jadwal hari ini
   const jadwalRes = await API.driver.getJadwalSaya({ tanggal: UI.todayInputValue() });
   const jadwalList = jadwalRes.success ? jadwalRes.data.jadwal : [];
   const pangkalanOpts = jadwalList.map(j =>
-    `<option value="${j.pangkalan_id}" data-jumlah="${j.jumlah_kirim}" data-jadwal="${j.jadwal_id}">${UI.escapeHtml(j.pangkalan_nama)} (Rit ${j.rit})</option>`
+    `<option value="${UI.escapeHtml(j.pangkalan_nama)}" data-jumlah="${j.jumlah_kirim}" data-jadwal="${j.jadwal_id}">${UI.escapeHtml(j.pangkalan_nama)} (Rit ${j.rit})</option>`
   ).join('');
 
   main.innerHTML = `
@@ -518,14 +518,13 @@ async function loadFormLaporan() {
       <p class="text-xs text-slate-500 dark:text-slate-400 text-center">Jika tidak ada sinyal, laporan akan disimpan dan dikirim otomatis saat online.</p>
     </div>`;
 
-  // Prefill jika dari jadwal
+// Prefill jika dari jadwal
   if (_prefillData) {
     const sel = document.getElementById('lp-pangkalan');
-    const opt = Array.from(sel.options).find(o => o.value === _prefillData.pangkalanId);
-    if (opt) { sel.value = _prefillData.pangkalanId; document.getElementById('lp-kirim').value = _prefillData.jumlahKirim; }
+    const opt = Array.from(sel.options).find(o => o.value === _prefillData.pangkalanNama);
+    if (opt) { sel.value = _prefillData.pangkalanNama; document.getElementById('lp-kirim').value = _prefillData.jumlahKirim; }
     _prefillData = null;
   }
-}
 
 function updateJumlahKirim() {
   const sel = document.getElementById('lp-pangkalan');
@@ -571,14 +570,14 @@ async function submitLaporan() {
   const errEl  = document.getElementById('lp-error');
   errEl.classList.add('hidden');
 
-  const pangkalanEl = document.getElementById('lp-pangkalan');
-  const pangkalanId = pangkalanEl.value;
-  const jumlahKirim = Number(document.getElementById('lp-kirim').value);
-  const jumlahRetur = Number(document.getElementById('lp-retur').value || 0);
-  const tanggal     = document.getElementById('lp-tgl').value;
-  const jadwalId    = pangkalanEl.options[pangkalanEl.selectedIndex]?.dataset?.jadwal || '';
+  const pangkalanEl   = document.getElementById('lp-pangkalan');
+  const pangkalanNama = pangkalanEl.value;
+  const jumlahKirim   = Number(document.getElementById('lp-kirim').value);
+  const jumlahRetur   = Number(document.getElementById('lp-retur').value || 0);
+  const tanggal       = document.getElementById('lp-tgl').value;
+  const jadwalId      = pangkalanEl.options[pangkalanEl.selectedIndex]?.dataset?.jadwal || '';
 
-  if (!pangkalanId || pangkalanId === 'MANUAL') { errEl.textContent = 'Pilih pangkalan tujuan.'; errEl.classList.remove('hidden'); return; }
+  if (!pangkalanNama || pangkalanNama === 'MANUAL') { errEl.textContent = 'Pilih pangkalan tujuan.'; errEl.classList.remove('hidden'); return; }
   if (!jumlahKirim)                              { errEl.textContent = 'Jumlah terkirim wajib diisi.'; errEl.classList.remove('hidden'); return; }
   if (!_laporanPhotos['PENGIRIMAN'])             { errEl.textContent = 'Foto pengiriman (tabung terkirim) wajib diambil.'; errEl.classList.remove('hidden'); return; }
   if (!_laporanPhotos['PANGKALAN'])              { errEl.textContent = 'Foto kondisi pangkalan wajib diambil.'; errEl.classList.remove('hidden'); return; }
@@ -611,10 +610,10 @@ async function submitLaporan() {
 
   UI.setLoading(btn, true, 'Mengirim laporan...');
 
-  const body = {
+const body = {
     jadwal_id:            jadwalId,
     tanggal,
-    pangkalan_id:         pangkalanId,
+    pangkalan_nama:       pangkalanNama,
     jumlah_kirim:         jumlahKirim,
     jumlah_retur:         jumlahRetur,
     foto_pengiriman_url:  uploads['PENGIRIMAN'] || '',
