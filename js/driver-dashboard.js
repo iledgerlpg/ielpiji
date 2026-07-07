@@ -466,11 +466,12 @@ async function loadFormLaporan() {
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="form-label">Pangkalan *</label>
-          <select id="lp-pangkalan" class="form-select" onchange="updateJumlahKirim()">
+          <select id="lp-pangkalan" class="form-select" onchange="handlePangkalanChange()">
             <option value="">-- Pilih Pangkalan --</option>
             ${pangkalanOpts}
             <option value="MANUAL">Lainnya (input manual)</option>
           </select>
+          <input id="lp-pangkalan-manual" type="text" class="form-input mt-2 hidden" placeholder="Ketik nama pangkalan..."/>
         </div>
         <div>
           <label class="form-label">Tanggal *</label>
@@ -527,10 +528,20 @@ async function loadFormLaporan() {
   }
 }
 
-function updateJumlahKirim() {
-  const sel = document.getElementById('lp-pangkalan');
-  const opt = sel.options[sel.selectedIndex];
-  if (opt?.dataset.jumlah) document.getElementById('lp-kirim').value = opt.dataset.jumlah;
+function handlePangkalanChange() {
+  const sel        = document.getElementById('lp-pangkalan');
+  const manualInput = document.getElementById('lp-pangkalan-manual');
+  const opt        = sel.options[sel.selectedIndex];
+
+  if (sel.value === 'MANUAL') {
+    manualInput.classList.remove('hidden');
+    manualInput.value = '';
+    manualInput.focus();
+  } else {
+    manualInput.classList.add('hidden');
+    manualInput.value = '';
+    if (opt?.dataset.jumlah) document.getElementById('lp-kirim').value = opt.dataset.jumlah;
+  }
 }
 
 async function openLaporanCamera(photoType) {
@@ -571,14 +582,18 @@ async function submitLaporan() {
   const errEl  = document.getElementById('lp-error');
   errEl.classList.add('hidden');
 
-  const pangkalanEl   = document.getElementById('lp-pangkalan');
-  const pangkalanNama = pangkalanEl.value;
+const pangkalanEl   = document.getElementById('lp-pangkalan');
+  const isManual      = pangkalanEl.value === 'MANUAL';
+  const pangkalanNama = isManual
+    ? document.getElementById('lp-pangkalan-manual').value.trim()
+    : pangkalanEl.value;
   const jumlahKirim   = Number(document.getElementById('lp-kirim').value);
   const jumlahRetur   = Number(document.getElementById('lp-retur').value || 0);
   const tanggal       = document.getElementById('lp-tgl').value;
-  const jadwalId      = pangkalanEl.options[pangkalanEl.selectedIndex]?.dataset?.jadwal || '';
+  const jadwalId      = isManual ? '' : (pangkalanEl.options[pangkalanEl.selectedIndex]?.dataset?.jadwal || '');
 
-  if (!pangkalanNama || pangkalanNama === 'MANUAL') { errEl.textContent = 'Pilih pangkalan tujuan.'; errEl.classList.remove('hidden'); return; }
+  if (!pangkalanEl.value)  { errEl.textContent = 'Pilih pangkalan tujuan.'; errEl.classList.remove('hidden'); return; }
+  if (!pangkalanNama)      { errEl.textContent = 'Nama pangkalan manual wajib diisi.'; errEl.classList.remove('hidden'); return; }
   if (!jumlahKirim)                              { errEl.textContent = 'Jumlah terkirim wajib diisi.'; errEl.classList.remove('hidden'); return; }
   if (!_laporanPhotos['PENGIRIMAN'])             { errEl.textContent = 'Foto pengiriman (tabung terkirim) wajib diambil.'; errEl.classList.remove('hidden'); return; }
   if (!_laporanPhotos['PANGKALAN'])              { errEl.textContent = 'Foto kondisi pangkalan wajib diambil.'; errEl.classList.remove('hidden'); return; }
