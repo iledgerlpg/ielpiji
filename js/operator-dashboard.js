@@ -1088,14 +1088,26 @@ const cells = daysToShow.map(d => {
             Total
           </th>
         </tr>
-        <tr>
-          ${daysToShow.map(d => `
-            <th style="top:0;"
-                class="text-center text-xs border border-slate-200 dark:border-slate-700
-                       font-semibold w-8 sticky bg-slate-100 dark:bg-slate-800 z-10">
-              ${String(d).padStart(2, '0')}
-            </th>`).join('')}
-        </tr>
+<tr>
+  ${daysToShow.map(d => `
+    <th style="top:0;"
+        class="text-center text-xs border border-slate-200 dark:border-slate-700
+               font-semibold w-8 sticky bg-slate-100 dark:bg-slate-800 z-10">
+      <div class="flex flex-col items-center gap-0.5 py-0.5">
+        <span>${String(d).padStart(2, '0')}</span>
+        <div class="flex gap-0.5">
+          <button type="button"
+            class="text-[9px] leading-none px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800"
+            title="Verifikasi semua (tgl ${d})"
+            onclick="verifyAllMasterSADay(${d}, true, this)">✓</button>
+          <button type="button"
+            class="text-[9px] leading-none px-1 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800"
+            title="Batal verifikasi semua (tgl ${d})"
+            onclick="verifyAllMasterSADay(${d}, false, this)">✗</button>
+        </div>
+      </div>
+    </th>`).join('')}
+</tr>
       </thead>
       <tbody>${bodyHtml}</tbody>
       <tfoot>${footerHtml}</tfoot>
@@ -1206,6 +1218,35 @@ const existingData = window._masterSAData || [];
   } finally {
     if (btn) UI.setLoading(btn, false);
   }
+}
+async function verifyAllMasterSADay(hari, verified, btnEl) {
+  const data = window._masterSAData || [];
+  const key  = `tgl_${String(hari).padStart(2, '0')}`;
+
+  // Hanya baris yang punya angka > 0 di tanggal ini yang ikut diverifikasi
+  const targets = data.filter(r => Number(r[key] || 0) > 0);
+  if (!targets.length) {
+    UI.toast(`Tidak ada data (angka) pada tanggal ${hari} untuk diverifikasi.`, 'info');
+    return;
+  }
+
+  const original = btnEl.textContent;
+  btnEl.disabled = true;
+  btnEl.textContent = '…';
+
+  const res = await API.operator.verifyMasterSABatch({
+    sa_ids: targets.map(r => r.sa_id),
+    tanggal: hari,
+    verified,
+  });
+
+  btnEl.disabled = false;
+  btnEl.textContent = original;
+
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
+
+  UI.toast(res.message, 'success');
+  fetchMasterSA(); // re-render tabel supaya semua tombol angka di kolom ini ikut update
 }
 /** Upload & parse file Excel/CSV Master SA pakai NAMA PANGKALAN langsung */
 async function uploadMasterSAExcel(input) {
