@@ -903,13 +903,24 @@ async function fetchMasterSA() {
   // 1. Render Baris Pangkalan
   const bodyHtml = data.map(row => {
     let rowTotal = 0;
-    const cells = daysToShow.map(d => {
-      const key = `tgl_${String(d).padStart(2, '0')}`;
-      const val = Number(row[key] || 0);
+const cells = daysToShow.map(d => {
+      const key  = `tgl_${String(d).padStart(2, '0')}`;
+      const vKey = `${key}_v`;
+      const val  = Number(row[key] || 0);
+      const isVerified = row[vKey] === true || row[vKey] === 'TRUE' || row[vKey] === 1 || row[vKey] === '1';
       dailyTotals[d] += val;
       rowTotal += val;
-      return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 ${val > 0 ? 'font-semibold text-blue-700 dark:text-blue-400' : 'text-slate-300 dark:text-slate-700'}">
-        ${val || ''}
+
+      if (!val) {
+        return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 text-slate-300 dark:text-slate-700"></td>`;
+      }
+      return `<td class="text-center text-xs border border-slate-100 dark:border-slate-800 p-0">
+        <button
+          class="w-full h-full py-1 font-semibold transition-colors ${isVerified ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 'text-blue-700 dark:text-blue-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'}"
+          title="${isVerified ? 'Klik untuk batal verifikasi' : 'Klik untuk verifikasi'}"
+          onclick="toggleVerifikasiMasterSACell('${row.sa_id}', ${d}, this)">
+          ${val}${isVerified ? ' ✓' : ''}
+        </button>
       </td>`;
     }).join('');
 
@@ -1090,7 +1101,32 @@ async function fetchMasterSA() {
       <tfoot>${footerHtml}</tfoot>
     </table>` : UI.emptyState('Belum ada data alokasi untuk periode ini.', '📊');
 }
+async function toggleVerifikasiMasterSACell(saId, hari, btnEl) {
+  const wasVerified = btnEl.classList.contains('bg-green-100');
+  btnEl.disabled = true;
+  const res = await API.operator.verifyMasterSA({ sa_id: saId, tanggal: hari, verified: !wasVerified });
+  btnEl.disabled = false;
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
 
+  const nowVerified = res.data.verified;
+  const val = btnEl.textContent.replace('✓', '').trim();
+
+  if (nowVerified) {
+    btnEl.classList.add('bg-green-100','dark:bg-green-900/40','text-green-700','dark:text-green-400');
+    btnEl.classList.remove('text-blue-700','dark:text-blue-400','hover:bg-amber-50','dark:hover:bg-amber-900/20');
+    btnEl.title = 'Klik untuk batal verifikasi';
+    btnEl.textContent = `${val} ✓`;
+  } else {
+    btnEl.classList.remove('bg-green-100','dark:bg-green-900/40','text-green-700','dark:text-green-400');
+    btnEl.classList.add('text-blue-700','dark:text-blue-400','hover:bg-amber-50','dark:hover:bg-amber-900/20');
+    btnEl.title = 'Klik untuk verifikasi';
+    btnEl.textContent = val;
+  }
+
+  // sinkronkan cache lokal agar tidak hilang saat re-render
+  const rec = (window._masterSAData || []).find(r => r.sa_id === saId);
+  if (rec) rec[`tgl_${String(hari).padStart(2, '0')}_v`] = nowVerified;
+}
 /** Download template Excel (.xlsx) pakai NAMA PANGKALAN */
 async function downloadTemplateMasterSA(btnEl) {
   const btn = btnEl || null;
