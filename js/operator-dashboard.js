@@ -1867,7 +1867,7 @@ function filterPembayaranTable() {
         <td class="p-3 text-center font-semibold">${UI.formatNumber(totalKirimOwner)} <span class="text-slate-400 text-xs">tab</span></td>
         <td class="p-3 text-center font-bold text-red-600">${UI.formatRupiah(ownerData.total_tagihan)}</td>
         <td class="p-3 text-center font-bold text-green-600">${UI.formatRupiah(ownerData.total_bayar)}</td>
-        <td class="p-3 text-center font-bold text-amber-600">${UI.formatRupiah(ownerData.sisa)}</td>
+        <td class="p-3 text-center font-bold ${ownerData.sisa < 0 ? 'text-purple-600' : 'text-amber-600'}">${UI.formatRupiah(Math.abs(ownerData.sisa))}</td>
         <td class="p-3 text-center">${UI.badge(ownerData.status, ownerData.status)}</td>
         <td class="p-3"></td>
       </tr>`;
@@ -1887,12 +1887,14 @@ function filterPembayaranTable() {
           <td class="p-3 text-center">${UI.formatNumber(p.total_sa)} <span class="text-slate-400 text-xs">tab</span></td>
           <td class="p-3 text-center font-semibold text-red-600">${UI.formatRupiah(p.tagihan)}</td>
           <td class="p-3 text-center font-semibold text-green-600">${UI.formatRupiah(p.total_bayar)}</td>
-          <td class="p-3 text-center font-semibold ${p.sisa > 0 ? 'text-amber-600' : 'text-slate-400'}">${p.sisa > 0 ? UI.formatRupiah(p.sisa) : '-'}</td>
+         <td class="p-3 text-center font-semibold ${p.sisa > 0 ? 'text-amber-600' : p.sisa < 0 ? 'text-purple-600' : 'text-slate-400'}">
+  ${p.sisa > 0 ? UI.formatRupiah(p.sisa) : p.sisa < 0 ? UI.formatRupiah(Math.abs(p.sisa)) : '-'}
+</td>
           <td class="p-3 text-center">${UI.badge(p.status, p.status)}</td>
           <td class="p-3 text-right">
             <div class="flex gap-2 justify-end">
               ${p.status !== 'LUNAS' ? `<button class="btn-primary text-xs py-1 px-3" onclick="openPembayaranModalById('${p.pangkalan_id}','${tipe}')">Bayar</button>` : ''}
-              ${(p.pembayaran || []).length ? `<button class="btn-secondary text-xs py-1 px-3" onclick="openRiwayatBayarModal('${p.pangkalan_id}','${UI.escapeHtml(p.nama)}','${UI.escapeHtml(ownerData.owner)}')">Riwayat</button>` : ''}
+              ${(p.pembayaran || []).length ? `<button class="btn-secondary text-xs py-1 px-3" onclick="openRiwayatBayarModal('${p.pangkalan_id}','${UI.escapeHtml(p.nama)}','${UI.escapeHtml(ownerData.owner)}','${tipe}')">Riwayat</button>` : ''}
             </div>
           </td>
         </tr>`;
@@ -1901,7 +1903,7 @@ function filterPembayaranTable() {
 
   tbody.innerHTML = html || `<tr><td colspan="8">${UI.emptyState('Tidak ada data pembayaran.', '💰')}</td></tr>`;
 }
-function openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner) {
+function openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner, tipe) {
   const allOwners = window._pembayaranAllRows || [];
   let riwayat = [];
   allOwners.forEach(o => {
@@ -1913,7 +1915,7 @@ function openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner) {
   modal.id    = 'riwayat-modal';
   modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
   modal.innerHTML = `
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
         <div>
           <h3 class="font-semibold text-slate-900 dark:text-white">Riwayat Bayar — ${UI.escapeHtml(namaPangkalan)}</h3>
@@ -1929,9 +1931,10 @@ function openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner) {
               <th class="text-center py-2">Transfer</th>
               <th class="text-center py-2">Total</th>
               <th class="text-center py-2">Bukti</th>
+              <th class="text-right py-2">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="riwayat-tbody">
             ${riwayat.length ? riwayat.map(p => `
               <tr class="border-b border-slate-100 dark:border-slate-800">
                 <td class="py-2 text-xs text-slate-500">${UI.formatDateShort(p.tanggal_bayar)}</td>
@@ -1942,13 +1945,160 @@ function openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner) {
                     ? `<a href="${p.bukti_tf_url}" target="_blank" class="text-blue-600 underline text-xs">Lihat</a>`
                     : '<span class="text-slate-300 text-xs">-</span>'}
                 </td>
+                <td class="py-2 text-right">
+                  <div class="flex gap-2 justify-end">
+                    <button class="text-blue-600 hover:text-blue-800 text-xs font-semibold"
+                      onclick="openEditPembayaranModal('${p.bayar_id}','${pangkalanId}','${UI.escapeHtml(namaPangkalan)}','${tipe}')">Edit</button>
+                    <button class="text-red-600 hover:text-red-800 text-xs font-semibold"
+                      onclick="hapusPembayaranRiwayat('${p.bayar_id}','${pangkalanId}','${UI.escapeHtml(namaPangkalan)}','${UI.escapeHtml(namaOwner)}','${tipe}')">Hapus</button>
+                  </div>
+                </td>
               </tr>`).join('')
-            : `<tr><td colspan="4" class="text-center text-slate-400 py-6">Belum ada riwayat.</td></tr>`}
+            : `<tr><td colspan="5" class="text-center text-slate-400 py-6">Belum ada riwayat.</td></tr>`}
           </tbody>
         </table>
       </div>
     </div>`;
   document.body.appendChild(modal);
+}
+
+async function hapusPembayaranRiwayat(bayarId, pangkalanId, namaPangkalan, namaOwner, tipe) {
+  if (!await UI.confirm('Hapus data pembayaran ini?', 'Konfirmasi Hapus')) return;
+  const res = await API.operator.deletePembayaran({ bayar_id: bayarId });
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
+  UI.toast('Pembayaran dihapus.', 'success');
+  document.getElementById('riwayat-modal')?.remove();
+  await fetchPembayaran(tipe);
+  // buka ulang modal riwayat dengan data terbaru
+  openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner, tipe);
+}
+
+function openEditPembayaranModal(bayarId, pangkalanId, namaPangkalan, tipe) {
+  // cari data lama dari cache
+  const allOwners = window._pembayaranAllRows || [];
+  let existing = null;
+  allOwners.forEach(o => {
+    const p = o.pangkalan.find(p => p.pangkalan_id === pangkalanId);
+    if (p) existing = (p.pembayaran || []).find(b => b.bayar_id === bayarId);
+  });
+  if (!existing) { UI.toast('Data tidak ditemukan.', 'error'); return; }
+
+  document.getElementById('riwayat-modal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id    = 'edit-pay-modal';
+  modal.className = 'fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h3 class="font-semibold text-slate-900 dark:text-white">Edit Pembayaran — ${UI.escapeHtml(namaPangkalan)}</h3>
+        <button class="btn-icon" onclick="document.getElementById('edit-pay-modal').remove()">✕</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div><label class="form-label">Tanggal Bayar *</label>
+          <input id="epm-tgl" type="date" class="form-input" value="${existing.tanggal_bayar}"/>
+        </div>
+        <div><label class="form-label">Nominal Transfer *</label>
+          <input id="epm-transfer" type="number" class="form-input" value="${existing.nominal_transfer || 0}" min="0"/>
+        </div>
+        <div>
+          <label class="form-label">Bukti Transfer (kosongkan jika tidak ganti)</label>
+          <label class="flex items-center gap-2 cursor-pointer w-full">
+            <div id="epm-upload-btn" class="btn-secondary text-sm flex items-center gap-2 w-full justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+              </svg>
+              <span id="epm-upload-label">${existing.bukti_tf_url ? 'Ganti Foto Bukti TF' : 'Pilih Foto Bukti TF'}</span>
+            </div>
+            <input id="epm-bukti-file" type="file" accept="image/*" class="hidden" onchange="previewBuktiTFEdit(this)"/>
+          </label>
+          ${existing.bukti_tf_url ? `
+            <div class="mt-2">
+              <a href="${existing.bukti_tf_url}" target="_blank" class="text-blue-600 underline text-xs">Lihat bukti TF saat ini</a>
+            </div>` : ''}
+          <div id="epm-bukti-preview" class="hidden mt-2">
+            <img id="epm-bukti-img" src="" alt="Preview" class="w-full max-h-48 object-contain rounded-xl border border-slate-200 dark:border-slate-700"/>
+          </div>
+        </div>
+        <div id="epm-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
+        <button id="epm-btn" class="btn-primary w-full justify-center"
+          onclick="saveEditPembayaran('${bayarId}','${pangkalanId}','${UI.escapeHtml(namaPangkalan)}','${tipe}')">
+          Simpan Perubahan
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function previewBuktiTFEdit(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const label   = document.getElementById('epm-upload-label');
+  const preview = document.getElementById('epm-bukti-preview');
+  const img     = document.getElementById('epm-bukti-img');
+  label.textContent = file.name.length > 28 ? file.name.slice(0, 25) + '...' : file.name;
+  const reader = new FileReader();
+  reader.onload = e => { img.src = e.target.result; preview.classList.remove('hidden'); };
+  reader.readAsDataURL(file);
+}
+
+async function saveEditPembayaran(bayarId, pangkalanId, namaPangkalan, tipe) {
+  const btn      = document.getElementById('epm-btn');
+  const errEl    = document.getElementById('epm-err');
+  errEl.classList.add('hidden');
+
+  const tanggal   = document.getElementById('epm-tgl').value;
+  const transfer  = Number(document.getElementById('epm-transfer')?.value || 0);
+  const fileInput = document.getElementById('epm-bukti-file');
+
+  if (transfer <= 0) {
+    errEl.textContent = 'Nominal transfer wajib diisi.';
+    errEl.classList.remove('hidden'); return;
+  }
+
+  UI.setLoading(btn, true, 'Menyimpan...');
+
+  const body = {
+    bayar_id: bayarId,
+    tanggal_bayar: tanggal,
+    nominal_transfer: transfer,
+  };
+
+  if (fileInput?.files[0]) {
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = e => resolve(e.target.result);
+        reader.onerror = () => reject(new Error('Gagal membaca file.'));
+        reader.readAsDataURL(fileInput.files[0]);
+      });
+      const uploadRes = await API.uploadImage(base64, 'BUKTI_TF');
+      if (!uploadRes.success) {
+        errEl.textContent = `Gagal upload foto: ${uploadRes.message}`;
+        errEl.classList.remove('hidden');
+        UI.setLoading(btn, false); return;
+      }
+      body.bukti_tf_url = uploadRes.data.file_url;
+    } catch (err) {
+      errEl.textContent = `Gagal upload foto: ${err.message}`;
+      errEl.classList.remove('hidden');
+      UI.setLoading(btn, false); return;
+    }
+  }
+
+  const res = await API.operator.updatePembayaran(body);
+  UI.setLoading(btn, false);
+
+  if (res.success) {
+    UI.toast('Pembayaran berhasil diupdate.', 'success');
+    document.getElementById('edit-pay-modal')?.remove();
+    await fetchPembayaran(tipe);
+    openRiwayatBayarModal(pangkalanId, namaPangkalan, '', tipe);
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 function openPembayaranModalById(pangkalanId, tipe) {
   const item = (window._pembayaranData || []).find(d => d.pangkalan_id === pangkalanId);
