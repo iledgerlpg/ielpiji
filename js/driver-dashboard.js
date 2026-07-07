@@ -470,7 +470,7 @@ async function loadFormLaporan() {
     <div class="page-header"><h2 class="page-title">Laporan Pengiriman</h2><p class="page-sub">Kirim laporan pengiriman dengan foto bukti dan lokasi GPS.</p></div>
     <div class="card space-y-5">
 
-      <!-- Pangkalan & Tanggal -->
+<!-- Pangkalan & Info Tanggal -->
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="form-label">Pangkalan *</label>
@@ -483,9 +483,10 @@ async function loadFormLaporan() {
           <p id="lp-tgl-jadwal-info" class="text-xs text-slate-500 dark:text-slate-400 mt-1.5 hidden"></p>
         </div>
         <div>
-          <label class="form-label">Tanggal Dilaporkan *</label>
-          <input id="lp-tgl" type="date" class="form-input" value="${tanggalLaporanDefault}"/>
-          <p class="text-xs text-slate-400 mt-1.5">Tanggal aktual laporan ini dikirim (boleh beda dari tanggal jadwal).</p>
+          <label class="form-label">Tanggal Dilaporkan</label>
+          <div class="form-input bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed">
+            ${UI.formatDate(UI.todayInputValue())} <span class="text-xs">(otomatis, saat ini)</span>
+          </div>
         </div>
       </div>
 
@@ -618,7 +619,7 @@ const pangkalanEl   = document.getElementById('lp-pangkalan');
     : pangkalanEl.value;
   const jumlahKirim   = Number(document.getElementById('lp-kirim').value);
   const jumlahRetur   = Number(document.getElementById('lp-retur').value || 0);
-  const tanggal       = document.getElementById('lp-tgl').value;
+  const tanggal       = UI.todayInputValue(); // realtime — selalu tanggal & saat form ini disubmit
   const jadwalId      = isManual ? '' : (pangkalanEl.options[pangkalanEl.selectedIndex]?.dataset?.jadwal || '');
 
   if (!pangkalanEl.value)  { errEl.textContent = 'Pilih pangkalan tujuan.'; errEl.classList.remove('hidden'); return; }
