@@ -1235,7 +1235,6 @@ if (res.success) {
   statusEl.className = 'mb-4 card bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-sm text-green-700';
   statusEl.textContent = `✅ Import ${bulanLabel} selesai — ${res.data.inserted} baru ditambahkan, ${res.data.updated} data ditimpa.`;
   fetchMasterSA();
-}
     } else {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
       statusEl.textContent = `❌ Import gagal: ${res.message}`;
