@@ -1797,11 +1797,11 @@ async function fetchPembayaran(tipe) {
   if (activeSection !== expectedSection) return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
+// SESUDAH
   const data = res.data.pembayaran || [];
   window._pembayaranTipe    = tipe;
-  window._pembayaranAllRows = data; // array per owner
+  window._pembayaranAllRows = data; // array per owner (REFILL & BAGI_HASIL sekarang sama strukturnya)
 
-  // Summary — flat dari semua owner
   const totalTagihan = data.reduce((s, o) => s + o.total_tagihan, 0);
   const totalBayar   = data.reduce((s, o) => s + o.total_bayar, 0);
   const lunasCount   = data.filter(o => o.status === 'LUNAS').length;
@@ -1827,7 +1827,6 @@ function toggleOwnerPembayaran(ownerKey) {
   else window._bpExpandedOwners.add(ownerKey);
   filterPembayaranTable();
 }
-
 function filterPembayaranTable() {
   const statusFilter = document.getElementById('bp-status')?.value || '';
   const searchFilter = (document.getElementById('bp-search')?.value || '').toLowerCase();
@@ -1842,7 +1841,7 @@ function filterPembayaranTable() {
   allOwners.forEach((ownerData, idx) => {
     const ownerKey = ownerData.owner || `owner-${idx}`;
 
-    const filteredPangkalan = ownerData.pangkalan.filter(p => {
+    const filteredPangkalan = (ownerData.pangkalan || []).filter(p => {
       const matchStatus = !statusFilter || p.status === statusFilter;
       const matchSearch = !searchFilter ||
         p.nama.toLowerCase().includes(searchFilter) ||
@@ -1851,11 +1850,9 @@ function filterPembayaranTable() {
     });
     if (!filteredPangkalan.length) return;
 
-   // SESUDAH
     const isExpanded = window._bpExpandedOwners.has(ownerKey);
     const totalKirimOwner = filteredPangkalan.reduce((s, p) => s + Number(p.total_sa || 0), 0);
 
-    // Baris owner — cuma nama & total, klik untuk buka/tutup detail pangkalan
     html += `
       <tr class="bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
           onclick="toggleOwnerPembayaran('${ownerKey.replace(/'/g, "\\'")}')">
@@ -1875,7 +1872,7 @@ function filterPembayaranTable() {
         <td class="p-3"></td>
       </tr>`;
 
-    if (!isExpanded) return; // detail pangkalan disembunyikan sampai diklik
+    if (!isExpanded) return;
 
     filteredPangkalan.forEach(p => {
       const tglTerakhir = (p.pembayaran || [])
