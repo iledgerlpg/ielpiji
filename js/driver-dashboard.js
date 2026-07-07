@@ -454,15 +454,19 @@ async function loadFormLaporan() {
   _laporanPhotos = {};
   _laporanGPS    = null;
 
-  // PENTING: kalau datang dari "Lapor" di Jadwal Saya, ambil daftar pangkalan
-  // untuk TANGGAL JADWAL itu (bukan selalu hari ini) — supaya pangkalan yang
-  // mau di-default-kan benar-benar ada di dalam dropdown.
-  const tanggalJadwalUntukDropdown = _prefillData?.tanggalJadwal || UI.todayInputValue();
-  const jadwalRes  = await API.driver.getJadwalSaya({ tanggal: tanggalJadwalUntukDropdown });
-  const jadwalList = jadwalRes.success ? jadwalRes.data.jadwal : [];
-  const pangkalanOpts = jadwalList.map(j =>
-    `<option value="${UI.escapeHtml(j.pangkalan_nama)}" data-jumlah="${j.jumlah_kirim}" data-jadwal="${j.jadwal_id}" data-tanggal-jadwal="${j.tanggal}">${UI.escapeHtml(j.pangkalan_nama)} (Rit ${j.rit})</option>`
-  ).join('');
+// Ambil SEMUA jadwal milik driver ini (lintas tanggal), lalu tampilkan
+  // yang BELUM dilaporkan saja di dropdown — supaya driver bisa pilih jadwal
+  // dari hari manapun yang masih perlu dilaporkan, tidak cuma hari ini.
+  const jadwalRes  = await API.driver.getJadwalSaya({});
+  if (activeSection !== 'laporan') return;
+  const jadwalList = (jadwalRes.success ? jadwalRes.data.jadwal : []).filter(j => !j.sudah_lapor);
+
+  const pangkalanOpts = jadwalList.map(j => {
+    const namaDriver   = j.driver1_nama === SESSION.nama ? j.driver1_nama : (j.driver2_nama || j.driver1_nama);
+    const tglFormatted = UI.formatDate(j.tanggal);
+    const label = `${namaDriver}, ${j.pangkalan_nama} ${j.rit}, Jadwal Tgl ${tglFormatted}`;
+    return `<option value="${UI.escapeHtml(j.pangkalan_nama)}" data-jumlah="${j.jumlah_kirim}" data-jadwal="${j.jadwal_id}" data-tanggal-jadwal="${j.tanggal}">${UI.escapeHtml(label)}</option>`;
+  }).join('');
 
   const tanggalLaporanDefault = _prefillData?.tanggalJadwal || UI.todayInputValue();
 
