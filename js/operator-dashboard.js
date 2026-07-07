@@ -1708,94 +1708,125 @@ async function uploadBrimolaExcel(input) {
 async function fetchPembayaran(tipe) {
   const start = document.getElementById('bp-start')?.value;
   const end   = document.getElementById('bp-end')?.value;
-
   if (start > end) { UI.toast('Rentang tanggal tidak valid.', 'warning'); return; }
 
   const tbody = document.getElementById('bp-tbody');
   tbody.innerHTML = `<tr><td colspan="8">${skLine()}</td></tr>`;
 
-  // Ambil bulan dari start date untuk kalkulasi tagihan
   const bulan = start ? start.slice(0, 7) : UI.currentMonthValue();
-
-  const fn  = tipe === 'REFILL' ? API.operator.getPembayaranRefill : API.operator.getPembayaranBagiHasil;
-  const res = await fn({ bulan, start_date: start, end_date: end });
+  const fn    = tipe === 'REFILL' ? API.operator.getPembayaranRefill : API.operator.getPembayaranBagiHasil;
+  const res   = await fn({ bulan, start_date: start, end_date: end });
 
   const expectedSection = tipe === 'REFILL' ? 'bayar-refill' : 'bayar-bh';
   if (activeSection !== expectedSection) return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const data = res.data.pembayaran || [];
-  window._pembayaranData    = data;
   window._pembayaranTipe    = tipe;
-  window._pembayaranAllRows = data.map(d => {
-    // Cari tanggal bayar terakhir dari array pembayaran detail
-    const tglTerakhir = (d.pembayaran || [])
-      .map(p => p.tanggal_bayar)
-      .filter(Boolean)
-      .sort()
-      .pop() || '';
-    return { ...d, tgl_terakhir: tglTerakhir };
-  });
+  window._pembayaranAllRows = data; // array per owner
 
-  // Summary
-  const totalTagihan = data.reduce((s, d) => s + (d.tagihan || 0), 0);
-  const totalBayar   = data.reduce((s, d) => s + (d.total_bayar || 0), 0);
-  const lunas        = data.filter(d => d.status === 'LUNAS').length;
+  // Summary — flat dari semua owner
+  const totalTagihan = data.reduce((s, o) => s + o.total_tagihan, 0);
+  const totalBayar   = data.reduce((s, o) => s + o.total_bayar, 0);
+  const lunasCount   = data.filter(o => o.status === 'LUNAS').length;
 
   document.getElementById('bp-summary').innerHTML = `
     <div class="stat-card"><div class="stat-icon bg-slate-100 dark:bg-slate-800">💰</div>
-      <div><div class="stat-label">Total Tagihan</div><div class="stat-value text-lg">${UI.formatRupiah(totalTagihan)}</div></div></div>
+      <div><div class="stat-label">Total Tagihan</div>
+      <div class="stat-value text-lg">${UI.formatRupiah(totalTagihan)}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">✅</div>
-      <div><div class="stat-label">Total Terbayar</div><div class="stat-value text-lg text-green-600">${UI.formatRupiah(totalBayar)}</div></div></div>
+      <div><div class="stat-label">Total Terbayar</div>
+      <div class="stat-value text-lg text-green-600">${UI.formatRupiah(totalBayar)}</div></div></div>
     <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">🏦</div>
-      <div><div class="stat-label">Pangkalan Lunas</div><div class="stat-value">${lunas}/${data.length}</div></div></div>`;
+      <div><div class="stat-label">Owner Lunas</div>
+      <div class="stat-value">${lunasCount}/${data.length}</div></div></div>`;
 
   filterPembayaranTable();
 }
+
 function filterPembayaranTable() {
   const statusFilter = document.getElementById('bp-status')?.value || '';
   const searchFilter = (document.getElementById('bp-search')?.value || '').toLowerCase();
   const tipe         = window._pembayaranTipe || 'REFILL';
-  const allRows      = window._pembayaranAllRows || [];
-
-  const filtered = allRows.filter(d => {
-    const matchStatus = !statusFilter || d.status === statusFilter;
-    const matchSearch = !searchFilter || d.nama.toLowerCase().includes(searchFilter);
-    return matchStatus && matchSearch;
-  });
+  const allOwners    = window._pembayaranAllRows || [];
 
   const tbody = document.getElementById('bp-tbody');
   if (!tbody) return;
 
-  tbody.innerHTML = filtered.length ? filtered.map(d => `
-    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-      <td class="p-3 font-medium text-slate-900 dark:text-white">${UI.escapeHtml(d.nama)}</td>
-      <td class="p-3 text-center text-xs text-slate-500">
-        ${d.tgl_terakhir ? UI.formatDateShort(d.tgl_terakhir) : '-'}
-      </td>
-      <td class="p-3 text-center">${UI.formatNumber(d.total_kirim)} <span class="text-slate-400 text-xs">tab</span></td>
-      <td class="p-3 text-center font-semibold text-red-600">${UI.formatRupiah(d.tagihan)}</td>
-      <td class="p-3 text-center font-semibold text-green-600">${UI.formatRupiah(d.total_bayar)}</td>
-      <td class="p-3 text-center font-semibold ${d.sisa > 0 ? 'text-amber-600' : 'text-slate-400'}">
-        ${d.sisa > 0 ? UI.formatRupiah(d.sisa) : '-'}
-      </td>
-      <td class="p-3 text-center">${UI.badge(d.status, d.status)}</td>
-      <td class="p-3 text-right">
-        <div class="flex gap-2 justify-end">
-          ${d.status !== 'LUNAS' ? `
-            <button class="btn-primary text-xs py-1 px-3"
-              onclick="openPembayaranModalById('${d.pangkalan_id}','${tipe}')">Bayar</button>` : ''}
-          ${(d.pembayaran || []).length ? `
-            <button class="btn-secondary text-xs py-1 px-3"
-              onclick="openRiwayatBayarModal('${d.pangkalan_id}','${UI.escapeHtml(d.nama)}')">Riwayat</button>` : ''}
-        </div>
-      </td>
-    </tr>`).join('')
-  : `<tr><td colspan="8">${UI.emptyState('Tidak ada data pembayaran.', '💰')}</td></tr>`;
+  let html = '';
+
+  allOwners.forEach(ownerData => {
+    // Filter pangkalan di dalam owner
+    const filteredPangkalan = ownerData.pangkalan.filter(p => {
+      const matchStatus = !statusFilter || p.status === statusFilter;
+      const matchSearch = !searchFilter ||
+        p.nama.toLowerCase().includes(searchFilter) ||
+        ownerData.owner.toLowerCase().includes(searchFilter);
+      return matchStatus && matchSearch;
+    });
+    if (!filteredPangkalan.length) return;
+
+    // Baris header owner
+    html += `
+      <tr class="bg-slate-100 dark:bg-slate-800">
+        <td colspan="8" class="px-3 py-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-800 dark:text-white text-sm">
+              👤 ${UI.escapeHtml(ownerData.owner)}
+            </span>
+            <div class="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-400">
+              <span>Tagihan: <strong class="text-red-600">${UI.formatRupiah(ownerData.total_tagihan)}</strong></span>
+              <span>Terbayar: <strong class="text-green-600">${UI.formatRupiah(ownerData.total_bayar)}</strong></span>
+              <span>Sisa: <strong class="text-amber-600">${UI.formatRupiah(ownerData.sisa)}</strong></span>
+              ${UI.badge(ownerData.status, ownerData.status)}
+            </div>
+          </div>
+        </td>
+      </tr>`;
+
+    // Baris per pangkalan
+    filteredPangkalan.forEach(p => {
+      const tglTerakhir = (p.pembayaran || [])
+        .map(b => b.tanggal_bayar).filter(Boolean).sort().pop() || '';
+      html += `
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+          <td class="p-3 pl-8 text-slate-700 dark:text-slate-300">
+            ↳ ${UI.escapeHtml(p.nama)}
+            <div class="text-xs text-slate-400 font-mono">${UI.escapeHtml(p.id_reg)}</div>
+          </td>
+          <td class="p-3 text-center text-xs text-slate-500">
+            ${tglTerakhir ? UI.formatDateShort(tglTerakhir) : '-'}
+          </td>
+          <td class="p-3 text-center">${UI.formatNumber(p.total_sa)} <span class="text-slate-400 text-xs">tab</span></td>
+          <td class="p-3 text-center font-semibold text-red-600">${UI.formatRupiah(p.tagihan)}</td>
+          <td class="p-3 text-center font-semibold text-green-600">${UI.formatRupiah(p.total_bayar)}</td>
+          <td class="p-3 text-center font-semibold ${p.sisa > 0 ? 'text-amber-600' : 'text-slate-400'}">
+            ${p.sisa > 0 ? UI.formatRupiah(p.sisa) : '-'}
+          </td>
+          <td class="p-3 text-center">${UI.badge(p.status, p.status)}</td>
+          <td class="p-3 text-right">
+            <div class="flex gap-2 justify-end">
+              ${p.status !== 'LUNAS' ? `
+                <button class="btn-primary text-xs py-1 px-3"
+                  onclick="openPembayaranModalById('${p.pangkalan_id}','${tipe}')">Bayar</button>` : ''}
+              ${(p.pembayaran || []).length ? `
+                <button class="btn-secondary text-xs py-1 px-3"
+                  onclick="openRiwayatBayarModal('${p.pangkalan_id}','${UI.escapeHtml(p.nama)}','${UI.escapeHtml(ownerData.owner)}')">Riwayat</button>` : ''}
+            </div>
+          </td>
+        </tr>`;
+    });
+  });
+
+  tbody.innerHTML = html || `<tr><td colspan="8">${UI.emptyState('Tidak ada data pembayaran.', '💰')}</td></tr>`;
 }
-function openRiwayatBayarModal(pangkalanId, namaPangkalan) {
-  const item = (window._pembayaranAllRows || []).find(d => d.pangkalan_id === pangkalanId);
-  const riwayat = item?.pembayaran || [];
+function openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner) {
+  const allOwners = window._pembayaranAllRows || [];
+  let riwayat = [];
+  allOwners.forEach(o => {
+    const p = o.pangkalan.find(p => p.pangkalan_id === pangkalanId);
+    if (p) riwayat = p.pembayaran || [];
+  });
 
   const modal = document.createElement('div');
   modal.id    = 'riwayat-modal';
@@ -1803,7 +1834,10 @@ function openRiwayatBayarModal(pangkalanId, namaPangkalan) {
   modal.innerHTML = `
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
-        <h3 class="font-semibold text-slate-900 dark:text-white">Riwayat Bayar — ${UI.escapeHtml(namaPangkalan)}</h3>
+        <div>
+          <h3 class="font-semibold text-slate-900 dark:text-white">Riwayat Bayar — ${UI.escapeHtml(namaPangkalan)}</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Owner: ${UI.escapeHtml(namaOwner)}</p>
+        </div>
         <button class="btn-icon" onclick="document.getElementById('riwayat-modal').remove()">✕</button>
       </div>
       <div class="flex-1 overflow-y-auto p-4">
@@ -1824,12 +1858,11 @@ function openRiwayatBayarModal(pangkalanId, namaPangkalan) {
                 <td class="py-2 text-center font-semibold text-green-600">${UI.formatRupiah(p.total_bayar || 0)}</td>
                 <td class="py-2 text-center">
                   ${p.bukti_tf_url
-                    ? `<a href="${p.bukti_tf_url}" target="_blank"
-                        class="text-blue-600 underline text-xs">Lihat</a>`
+                    ? `<a href="${p.bukti_tf_url}" target="_blank" class="text-blue-600 underline text-xs">Lihat</a>`
                     : '<span class="text-slate-300 text-xs">-</span>'}
                 </td>
               </tr>`).join('')
-            : `<tr><td colspan="4" class="text-center text-slate-400 py-6">Belum ada riwayat pembayaran.</td></tr>`}
+            : `<tr><td colspan="4" class="text-center text-slate-400 py-6">Belum ada riwayat.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -2353,13 +2386,26 @@ async function loadPangkalan() {
       <button class="btn-primary" onclick="openPangkalanModal()">+ Tambah Pangkalan</button>
     </div>
     <div class="filter-bar">
-      <input type="text" id="pkln-search" class="form-input w-48" placeholder="Cari pangkalan..." oninput="filterPangkalan()"/>
+      <input type="text" id="pkln-search" class="form-input w-48" placeholder="Cari pangkalan / owner..."
+        oninput="filterPangkalan()"/>
       <select id="pkln-status" class="form-select w-36" onchange="filterPangkalan()">
-        <option value="ACTIVE">Aktif</option><option value="">Semua</option><option value="INACTIVE">Nonaktif</option>
+        <option value="ACTIVE">Aktif</option>
+        <option value="">Semua</option>
+        <option value="INACTIVE">Nonaktif</option>
       </select>
     </div>
     <div class="table-wrapper">
-<table><thead><tr><th>Nama</th><th>ID Reg</th><th>DO Dimiliki</th><th>Tipe Bayar</th><th>Harga Refill</th><th>Harga BH</th><th>Status</th><th class="text-right">Aksi</th></tr></thead>
+      <table><thead><tr>
+        <th>Nama</th>
+        <th>Owner</th>
+        <th>ID Reg</th>
+        <th>DO Dimiliki</th>
+        <th>Tipe Bayar</th>
+        <th>Harga Refill</th>
+        <th>Harga BH</th>
+        <th>Status</th>
+        <th class="text-right">Aksi</th>
+      </tr></thead>
       <tbody id="pkln-tbody"></tbody></table>
     </div>`;
   await fetchPangkalan();
@@ -2381,7 +2427,9 @@ function filterPangkalan() {
   const q = document.getElementById('pkln-search')?.value.toLowerCase() || '';
   const s = document.getElementById('pkln-status')?.value || '';
   const filtered = _allPangkalan.filter(p =>
-    (!q || p.nama.toLowerCase().includes(q) || p.id_reg.toLowerCase().includes(q)) &&
+    (!q || p.nama.toLowerCase().includes(q) ||
+           (p.owner || '').toLowerCase().includes(q) ||
+           p.id_reg.toLowerCase().includes(q)) &&
     (!s || p.status === s)
   );
   const tbody = document.getElementById('pkln-tbody');
@@ -2389,6 +2437,7 @@ function filterPangkalan() {
   tbody.innerHTML = filtered.length ? filtered.map(p => `
     <tr>
       <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(p.nama)}</td>
+      <td class="text-sm text-slate-600 dark:text-slate-400">${UI.escapeHtml(p.owner || '-')}</td>
       <td class="font-mono text-xs text-slate-500">${UI.escapeHtml(p.id_reg)}</td>
       <td class="text-center text-sm">${UI.formatNumber(p.do_dimiliki || 0)}</td>
       <td>${UI.badge(p.tipe_pembayaran, null)}</td>
@@ -2397,13 +2446,15 @@ function filterPangkalan() {
       <td>${UI.badge(p.status, p.status)}</td>
       <td class="text-right">
         <div class="flex gap-1 justify-end">
-          <button class="btn-secondary text-xs py-1 px-2" onclick="openPangkalanModalById('${p.pangkalan_id}')">Edit</button>
-          <button class="btn-danger text-xs py-1 px-2"    onclick="hapusPangkalanById('${p.pangkalan_id}')">Nonaktifkan</button>
+          <button class="btn-secondary text-xs py-1 px-2"
+            onclick="openPangkalanModalById('${p.pangkalan_id}')">Edit</button>
+          <button class="btn-danger text-xs py-1 px-2"
+            onclick="hapusPangkalanById('${p.pangkalan_id}')">Nonaktifkan</button>
         </div>
       </td>
-    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada pangkalan.','🏪')}</td></tr>`;
+    </tr>`).join('')
+  : `<tr><td colspan="9">${UI.emptyState('Tidak ada pangkalan.','🏪')}</td></tr>`;
 }
-
 function openPangkalanModal(data = null) {
   const modal = document.createElement('div');
   modal.id    = 'pkln-modal';
@@ -2415,15 +2466,20 @@ function openPangkalanModal(data = null) {
         <button class="btn-icon" onclick="document.getElementById('pkln-modal').remove()">✕</button>
       </div>
       <div class="p-5 space-y-4">
-   <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">Nama *</label><input id="pm-nama" class="form-input" value="${UI.escapeHtml(data?.nama||'')}" placeholder="Nama Pangkalan"/></div>
-          <div><label class="form-label">ID Reg *</label><input id="pm-idreg" class="form-input" value="${UI.escapeHtml(data?.id_reg||'')}" placeholder="REG-001"/></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Nama *</label>
+            <input id="pm-nama" class="form-input" value="${UI.escapeHtml(data?.nama||'')}" placeholder="Nama Pangkalan"/></div>
+          <div><label class="form-label">ID Reg *</label>
+            <input id="pm-idreg" class="form-input" value="${UI.escapeHtml(data?.id_reg||'')}" placeholder="REG-001"/></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="form-label">DO Dimiliki</label><input id="pm-do" type="number" class="form-input" value="${data?.do_dimiliki||0}" placeholder="0" min="0"/></div>
-          <div></div>
+          <div><label class="form-label">Owner</label>
+            <input id="pm-owner" class="form-input" value="${UI.escapeHtml(data?.owner||'')}" placeholder="Nama pemilik pangkalan"/></div>
+          <div><label class="form-label">DO Dimiliki</label>
+            <input id="pm-do" type="number" class="form-input" value="${data?.do_dimiliki||0}" min="0"/></div>
         </div>
-        <div><label class="form-label">Alamat</label><input id="pm-alamat" class="form-input" value="${UI.escapeHtml(data?.alamat||'')}" placeholder="Alamat lengkap..."/></div>
+        <div><label class="form-label">Alamat</label>
+          <input id="pm-alamat" class="form-input" value="${UI.escapeHtml(data?.alamat||'')}" placeholder="Alamat lengkap..."/></div>
         <div class="grid grid-cols-3 gap-3">
           <div><label class="form-label">Tipe Bayar</label>
             <select id="pm-tipe" class="form-select">
@@ -2432,28 +2488,51 @@ function openPangkalanModal(data = null) {
               <option ${data?.tipe_pembayaran==='KEDUANYA'?'selected':''}>KEDUANYA</option>
             </select>
           </div>
-          <div><label class="form-label">Harga Refill</label><input id="pm-hrefill" type="number" class="form-input" value="${data?.harga_refill||0}" min="0"/></div>
-          <div><label class="form-label">Harga BH</label><input id="pm-hbh" type="number" class="form-input" value="${data?.harga_bagi_hasil||0}" min="0"/></div>
+          <div><label class="form-label">Harga Refill</label>
+            <input id="pm-hrefill" type="number" class="form-input" value="${data?.harga_refill||0}" min="0"/></div>
+          <div><label class="form-label">Harga BH</label>
+            <input id="pm-hbh" type="number" class="form-input" value="${data?.harga_bagi_hasil||0}" min="0"/></div>
         </div>
         <div id="pm-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
-        <button id="pm-btn" class="btn-primary w-full justify-center" onclick="savePangkalan('${data?.pangkalan_id||''}')">
+        <button id="pm-btn" class="btn-primary w-full justify-center"
+          onclick="savePangkalan('${data?.pangkalan_id||''}')">
           ${data ? 'Simpan Perubahan' : 'Tambah Pangkalan'}
         </button>
       </div>
     </div>`;
   document.body.appendChild(modal);
 }
-
 async function savePangkalan(id) {
-  const btn = document.getElementById('pm-btn'), errEl = document.getElementById('pm-err');
+  const btn = document.getElementById('pm-btn');
+  const errEl = document.getElementById('pm-err');
   errEl.classList.add('hidden');
-  const body = { nama: document.getElementById('pm-nama').value.trim(), id_reg: document.getElementById('pm-idreg').value.trim(), do_dimiliki: Number(document.getElementById('pm-do').value || 0), alamat: document.getElementById('pm-alamat').value.trim(), tipe_pembayaran: document.getElementById('pm-tipe').value, harga_refill: Number(document.getElementById('pm-hrefill').value), harga_bagi_hasil: Number(document.getElementById('pm-hbh').value) };
-  if (!body.nama || !body.id_reg) { errEl.textContent = 'Nama dan ID Registrasi wajib diisi.'; errEl.classList.remove('hidden'); return; }
+  const body = {
+    nama:             document.getElementById('pm-nama').value.trim(),
+    id_reg:           document.getElementById('pm-idreg').value.trim(),
+    owner:            document.getElementById('pm-owner').value.trim(),
+    do_dimiliki:      Number(document.getElementById('pm-do').value || 0),
+    alamat:           document.getElementById('pm-alamat').value.trim(),
+    tipe_pembayaran:  document.getElementById('pm-tipe').value,
+    harga_refill:     Number(document.getElementById('pm-hrefill').value),
+    harga_bagi_hasil: Number(document.getElementById('pm-hbh').value),
+  };
+  if (!body.nama || !body.id_reg) {
+    errEl.textContent = 'Nama dan ID Registrasi wajib diisi.';
+    errEl.classList.remove('hidden'); return;
+  }
   UI.setLoading(btn, true, 'Menyimpan...');
-  const res = id ? await API.operator.updatePangkalan({ pangkalan_id: id, ...body }) : await API.operator.createPangkalan(body);
+  const res = id
+    ? await API.operator.updatePangkalan({ pangkalan_id: id, ...body })
+    : await API.operator.createPangkalan(body);
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast(id ? 'Pangkalan diupdate.' : 'Pangkalan ditambahkan.', 'success'); document.getElementById('pkln-modal').remove(); fetchPangkalan(); }
-  else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+  if (res.success) {
+    UI.toast(id ? 'Pangkalan diupdate.' : 'Pangkalan ditambahkan.', 'success');
+    document.getElementById('pkln-modal').remove();
+    fetchPangkalan();
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
 
 function openPangkalanModalById(id) {
