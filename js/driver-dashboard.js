@@ -396,9 +396,9 @@ async function fetchJadwalSaya() {
             ${j.sudah_lapor && j.dilaporkan_oleh ? `<div class="text-slate-500 dark:text-slate-400 col-span-2">Dilaporkan oleh: <span class="font-medium">${UI.escapeHtml(j.dilaporkan_oleh)}</span></div>` : ''}
           </div>
         </div>
-        ${j.sudah_lapor
+${j.sudah_lapor
           ? `<span class="badge badge-gray shrink-0 self-start">Selesai</span>`
-          : `<button class="btn-primary shrink-0 text-xs py-2 px-3" onclick="prefillJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim});showSection('laporan')">
+          : `<button class="btn-primary shrink-0 text-xs py-2 px-3" onclick="prefillJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim},'${j.tanggal}');showSection('laporan')">
               Lapor
             </button>`}
       </div>
@@ -446,21 +446,25 @@ let _laporanPhotos  = {};
 let _laporanGPS     = null;
 let _prefillData    = null;
 
-function prefillJadwal(jadwalId, pangkalanNamaEncoded, jumlahKirim) {
-  _prefillData = { jadwalId, pangkalanNama: decodeURIComponent(pangkalanNamaEncoded), jumlahKirim };
+function prefillJadwal(jadwalId, pangkalanNamaEncoded, jumlahKirim, tanggalJadwal) {
+  _prefillData = { jadwalId, pangkalanNama: decodeURIComponent(pangkalanNamaEncoded), jumlahKirim, tanggalJadwal };
 }
-
 async function loadFormLaporan() {
   const main = document.getElementById('main-content');
   _laporanPhotos = {};
   _laporanGPS    = null;
 
-// Ambil daftar pangkalan dari jadwal hari ini
-  const jadwalRes = await API.driver.getJadwalSaya({ tanggal: UI.todayInputValue() });
+  // PENTING: kalau datang dari "Lapor" di Jadwal Saya, ambil daftar pangkalan
+  // untuk TANGGAL JADWAL itu (bukan selalu hari ini) — supaya pangkalan yang
+  // mau di-default-kan benar-benar ada di dalam dropdown.
+  const tanggalJadwalUntukDropdown = _prefillData?.tanggalJadwal || UI.todayInputValue();
+  const jadwalRes  = await API.driver.getJadwalSaya({ tanggal: tanggalJadwalUntukDropdown });
   const jadwalList = jadwalRes.success ? jadwalRes.data.jadwal : [];
   const pangkalanOpts = jadwalList.map(j =>
-    `<option value="${UI.escapeHtml(j.pangkalan_nama)}" data-jumlah="${j.jumlah_kirim}" data-jadwal="${j.jadwal_id}">${UI.escapeHtml(j.pangkalan_nama)} (Rit ${j.rit})</option>`
+    `<option value="${UI.escapeHtml(j.pangkalan_nama)}" data-jumlah="${j.jumlah_kirim}" data-jadwal="${j.jadwal_id}" data-tanggal-jadwal="${j.tanggal}">${UI.escapeHtml(j.pangkalan_nama)} (Rit ${j.rit})</option>`
   ).join('');
+
+  const tanggalLaporanDefault = _prefillData?.tanggalJadwal || UI.todayInputValue();
 
   main.innerHTML = `
     <div class="page-header"><h2 class="page-title">Laporan Pengiriman</h2><p class="page-sub">Kirim laporan pengiriman dengan foto bukti dan lokasi GPS.</p></div>
@@ -476,10 +480,12 @@ async function loadFormLaporan() {
             <option value="MANUAL">Lainnya (input manual)</option>
           </select>
           <input id="lp-pangkalan-manual" type="text" class="form-input mt-2 hidden" placeholder="Ketik nama pangkalan..."/>
+          <p id="lp-tgl-jadwal-info" class="text-xs text-slate-500 dark:text-slate-400 mt-1.5 hidden"></p>
         </div>
         <div>
-          <label class="form-label">Tanggal *</label>
-          <input id="lp-tgl" type="date" class="form-input" value="${UI.todayInputValue()}"/>
+          <label class="form-label">Tanggal Dilaporkan *</label>
+          <input id="lp-tgl" type="date" class="form-input" value="${tanggalLaporanDefault}"/>
+          <p class="text-xs text-slate-400 mt-1.5">Tanggal aktual laporan ini dikirim (boleh beda dari tanggal jadwal).</p>
         </div>
       </div>
 
@@ -497,7 +503,7 @@ async function loadFormLaporan() {
 
       <!-- 3 Foto Wajib -->
       <div>
-        <label class="form-label">Foto Bukti <span class="text-slate-400 font-normal">(3 foto, kamera depan)</span></label>
+        <label class="form-label">Foto Bukti <span class="text-slate-400 font-normal">(3 foto, kamera belakang)</span></label>
         <div class="grid grid-cols-3 gap-3">
           ${['PENGIRIMAN','RETUR','PANGKALAN'].map(type => `
             <div class="text-center">
@@ -514,7 +520,6 @@ async function loadFormLaporan() {
         </div>
       </div>
 
-
       <div id="lp-error" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
 
       <button id="lp-submit-btn" class="btn-primary w-full justify-center py-3" onclick="submitLaporan()">
@@ -523,15 +528,29 @@ async function loadFormLaporan() {
       <p class="text-xs text-slate-500 dark:text-slate-400 text-center">Jika tidak ada sinyal, laporan akan disimpan dan dikirim otomatis saat online.</p>
     </div>`;
 
-// Prefill jika dari jadwal
+  // Prefill jika dari jadwal (tombol "Lapor")
   if (_prefillData) {
     const sel = document.getElementById('lp-pangkalan');
     const opt = Array.from(sel.options).find(o => o.value === _prefillData.pangkalanNama);
-    if (opt) { sel.value = _prefillData.pangkalanNama; document.getElementById('lp-kirim').value = _prefillData.jumlahKirim; }
+    if (opt) {
+      sel.value = _prefillData.pangkalanNama;
+      document.getElementById('lp-kirim').value = _prefillData.jumlahKirim;
+      showTanggalJadwalInfo(_prefillData.tanggalJadwal);
+    }
     _prefillData = null;
   }
 }
 
+function showTanggalJadwalInfo(tanggalJadwal) {
+  const infoEl = document.getElementById('lp-tgl-jadwal-info');
+  if (!infoEl) return;
+  if (tanggalJadwal) {
+    infoEl.textContent = `📅 Jadwal untuk tanggal: ${UI.formatDate(tanggalJadwal)}`;
+    infoEl.classList.remove('hidden');
+  } else {
+    infoEl.classList.add('hidden');
+  }
+}
 function handlePangkalanChange() {
   const sel        = document.getElementById('lp-pangkalan');
   const manualInput = document.getElementById('lp-pangkalan-manual');
@@ -541,10 +560,16 @@ function handlePangkalanChange() {
     manualInput.classList.remove('hidden');
     manualInput.value = '';
     manualInput.focus();
+    showTanggalJadwalInfo(null);
+  } else if (sel.value === '') {
+    manualInput.classList.add('hidden');
+    manualInput.value = '';
+    showTanggalJadwalInfo(null);
   } else {
     manualInput.classList.add('hidden');
     manualInput.value = '';
     if (opt?.dataset.jumlah) document.getElementById('lp-kirim').value = opt.dataset.jumlah;
+    showTanggalJadwalInfo(opt?.dataset.tanggalJadwal || null);
   }
 }
 
