@@ -1851,27 +1851,29 @@ function filterPembayaranTable() {
     });
     if (!filteredPangkalan.length) return;
 
+   // SESUDAH
     const isExpanded = window._bpExpandedOwners.has(ownerKey);
+    const totalKirimOwner = filteredPangkalan.reduce((s, p) => s + Number(p.total_sa || 0), 0);
 
     // Baris owner — cuma nama & total, klik untuk buka/tutup detail pangkalan
-html += `
-  <tr class="bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
-      onclick="toggleOwnerPembayaran('${ownerKey.replace(/'/g, "\\'")}')">
-    <td class="p-3">
-      <span class="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
-        <span style="display:inline-block;transition:transform .15s;transform:rotate(${isExpanded ? '90deg' : '0deg'})">▶</span>
-        👤 ${UI.escapeHtml(ownerData.owner)}
-        <span class="text-xs font-normal text-slate-400">(${filteredPangkalan.length} pangkalan)</span>
-      </span>
-    </td>
-    <td class="p-3 text-center text-xs text-slate-400">—</td>
-    <td class="p-3 text-center text-xs text-slate-400">—</td>
-    <td class="p-3 text-center font-bold text-red-600">${UI.formatRupiah(ownerData.total_tagihan)}</td>
-    <td class="p-3 text-center font-bold text-green-600">${UI.formatRupiah(ownerData.total_bayar)}</td>
-    <td class="p-3 text-center font-bold text-amber-600">${UI.formatRupiah(ownerData.sisa)}</td>
-    <td class="p-3 text-center">${UI.badge(ownerData.status, ownerData.status)}</td>
-    <td class="p-3"></td>
-  </tr>`;
+    html += `
+      <tr class="bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
+          onclick="toggleOwnerPembayaran('${ownerKey.replace(/'/g, "\\'")}')">
+        <td class="p-3">
+          <span class="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
+            <span style="display:inline-block;transition:transform .15s;transform:rotate(${isExpanded ? '90deg' : '0deg'})">▶</span>
+            👤 ${UI.escapeHtml(ownerData.owner)}
+            <span class="text-xs font-normal text-slate-400">(${filteredPangkalan.length} pangkalan)</span>
+          </span>
+        </td>
+        <td class="p-3 text-center text-xs text-slate-400">—</td>
+        <td class="p-3 text-center font-semibold">${UI.formatNumber(totalKirimOwner)} <span class="text-slate-400 text-xs">tab</span></td>
+        <td class="p-3 text-center font-bold text-red-600">${UI.formatRupiah(ownerData.total_tagihan)}</td>
+        <td class="p-3 text-center font-bold text-green-600">${UI.formatRupiah(ownerData.total_bayar)}</td>
+        <td class="p-3 text-center font-bold text-amber-600">${UI.formatRupiah(ownerData.sisa)}</td>
+        <td class="p-3 text-center">${UI.badge(ownerData.status, ownerData.status)}</td>
+        <td class="p-3"></td>
+      </tr>`;
 
     if (!isExpanded) return; // detail pangkalan disembunyikan sampai diklik
 
