@@ -267,21 +267,12 @@ async function fetchDashboard() {
 async function loadJadwalHarian() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
-      <div><h2 class="page-title">Jadwal Harian</h2><p class="page-sub">Atur jadwal pengiriman driver ke pangkalan.</p></div>
-      <div class="flex gap-2 flex-wrap">
-        <button class="btn-secondary text-sm" onclick="downloadTemplateJadwal(this)">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          Template Excel
-        </button>
-        <label class="btn-secondary text-sm cursor-pointer" title="Upload Excel Jadwal">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-          Upload Excel
-          <input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadJadwalExcel(this)"/>
-        </label>
-        <button class="btn-primary" onclick="openJadwalModal()">+ Tambah Manual</button>
-      </div>
-    </div>
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
+  <div>
+    <h2 class="page-title">${label}</h2>
+    <p class="page-sub">${tipe === 'REFILL' ? 'Tagihan dihitung otomatis dari Master SA yang sudah diverifikasi (✓).' : 'Tagihan dan realisasi pembayaran pangkalan.'}</p>
+  </div>
+</div>
     <div class="filter-bar">
       <input type="date"  id="jh-tgl" class="form-input w-44" value="${UI.todayInputValue()}" onchange="fetchJadwalHarian()"/>
       <input type="month" id="jh-bln" class="form-input w-40" onchange="fetchJadwalHarian()"/>
@@ -1744,6 +1735,14 @@ async function fetchPembayaran(tipe) {
   filterPembayaranTable();
 }
 
+window._bpExpandedOwners = window._bpExpandedOwners || new Set();
+
+function toggleOwnerPembayaran(ownerKey) {
+  if (window._bpExpandedOwners.has(ownerKey)) window._bpExpandedOwners.delete(ownerKey);
+  else window._bpExpandedOwners.add(ownerKey);
+  filterPembayaranTable();
+}
+
 function filterPembayaranTable() {
   const statusFilter = document.getElementById('bp-status')?.value || '';
   const searchFilter = (document.getElementById('bp-search')?.value || '').toLowerCase();
@@ -1755,8 +1754,9 @@ function filterPembayaranTable() {
 
   let html = '';
 
-  allOwners.forEach(ownerData => {
-    // Filter pangkalan di dalam owner
+  allOwners.forEach((ownerData, idx) => {
+    const ownerKey = ownerData.owner || `owner-${idx}`;
+
     const filteredPangkalan = ownerData.pangkalan.filter(p => {
       const matchStatus = !statusFilter || p.status === statusFilter;
       const matchSearch = !searchFilter ||
@@ -1766,13 +1766,18 @@ function filterPembayaranTable() {
     });
     if (!filteredPangkalan.length) return;
 
-    // Baris header owner
+    const isExpanded = window._bpExpandedOwners.has(ownerKey);
+
+    // Baris owner — cuma nama & total, klik untuk buka/tutup detail pangkalan
     html += `
-      <tr class="bg-slate-100 dark:bg-slate-800">
+      <tr class="bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
+          onclick="toggleOwnerPembayaran('${ownerKey.replace(/'/g, "\\'")}')">
         <td colspan="8" class="px-3 py-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-800 dark:text-white text-sm">
+            <span class="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
+              <span style="display:inline-block;transition:transform .15s;transform:rotate(${isExpanded ? '90deg' : '0deg'})">▶</span>
               👤 ${UI.escapeHtml(ownerData.owner)}
+              <span class="text-xs font-normal text-slate-400">(${filteredPangkalan.length} pangkalan)</span>
             </span>
             <div class="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-400">
               <span>Tagihan: <strong class="text-red-600">${UI.formatRupiah(ownerData.total_tagihan)}</strong></span>
@@ -1784,7 +1789,8 @@ function filterPembayaranTable() {
         </td>
       </tr>`;
 
-    // Baris per pangkalan
+    if (!isExpanded) return; // detail pangkalan disembunyikan sampai diklik
+
     filteredPangkalan.forEach(p => {
       const tglTerakhir = (p.pembayaran || [])
         .map(b => b.tanggal_bayar).filter(Boolean).sort().pop() || '';
@@ -1794,24 +1800,16 @@ function filterPembayaranTable() {
             ↳ ${UI.escapeHtml(p.nama)}
             <div class="text-xs text-slate-400 font-mono">${UI.escapeHtml(p.id_reg)}</div>
           </td>
-          <td class="p-3 text-center text-xs text-slate-500">
-            ${tglTerakhir ? UI.formatDateShort(tglTerakhir) : '-'}
-          </td>
+          <td class="p-3 text-center text-xs text-slate-500">${tglTerakhir ? UI.formatDateShort(tglTerakhir) : '-'}</td>
           <td class="p-3 text-center">${UI.formatNumber(p.total_sa)} <span class="text-slate-400 text-xs">tab</span></td>
           <td class="p-3 text-center font-semibold text-red-600">${UI.formatRupiah(p.tagihan)}</td>
           <td class="p-3 text-center font-semibold text-green-600">${UI.formatRupiah(p.total_bayar)}</td>
-          <td class="p-3 text-center font-semibold ${p.sisa > 0 ? 'text-amber-600' : 'text-slate-400'}">
-            ${p.sisa > 0 ? UI.formatRupiah(p.sisa) : '-'}
-          </td>
+          <td class="p-3 text-center font-semibold ${p.sisa > 0 ? 'text-amber-600' : 'text-slate-400'}">${p.sisa > 0 ? UI.formatRupiah(p.sisa) : '-'}</td>
           <td class="p-3 text-center">${UI.badge(p.status, p.status)}</td>
           <td class="p-3 text-right">
             <div class="flex gap-2 justify-end">
-              ${p.status !== 'LUNAS' ? `
-                <button class="btn-primary text-xs py-1 px-3"
-                  onclick="openPembayaranModalById('${p.pangkalan_id}','${tipe}')">Bayar</button>` : ''}
-              ${(p.pembayaran || []).length ? `
-                <button class="btn-secondary text-xs py-1 px-3"
-                  onclick="openRiwayatBayarModal('${p.pangkalan_id}','${UI.escapeHtml(p.nama)}','${UI.escapeHtml(ownerData.owner)}')">Riwayat</button>` : ''}
+              ${p.status !== 'LUNAS' ? `<button class="btn-primary text-xs py-1 px-3" onclick="openPembayaranModalById('${p.pangkalan_id}','${tipe}')">Bayar</button>` : ''}
+              ${(p.pembayaran || []).length ? `<button class="btn-secondary text-xs py-1 px-3" onclick="openRiwayatBayarModal('${p.pangkalan_id}','${UI.escapeHtml(p.nama)}','${UI.escapeHtml(ownerData.owner)}')">Riwayat</button>` : ''}
             </div>
           </td>
         </tr>`;
