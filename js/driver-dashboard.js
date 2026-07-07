@@ -386,17 +386,21 @@ async function fetchJadwalSaya() {
           <div class="flex items-center gap-2 flex-wrap">
             <span class="font-semibold text-slate-900 dark:text-white">Rit ${j.rit}</span>
             <span class="badge badge-blue">${UI.escapeHtml(j.pangkalan_nama)}</span>
+            ${j.sudah_lapor ? '<span class="badge badge-green">✓ Sudah Dilaporkan</span>' : ''}
           </div>
           <div class="grid grid-cols-2 gap-2 mt-2 text-sm">
             <div class="text-slate-500 dark:text-slate-400">SPBE: <span class="font-medium text-slate-700 dark:text-slate-300">${UI.escapeHtml(j.spbe_nama || '-')}</span></div>
             <div class="text-slate-500 dark:text-slate-400">Target Kirim: <span class="font-medium text-slate-700 dark:text-slate-300">${j.jumlah_kirim} tabung</span></div>
             <div class="text-slate-500 dark:text-slate-400">Tanggal: <span class="font-medium text-slate-700 dark:text-slate-300">${UI.formatDate(j.tanggal)}</span></div>
             ${j.keterangan ? `<div class="text-slate-500 dark:text-slate-400 col-span-2">Ket: <span class="font-medium">${UI.escapeHtml(j.keterangan)}</span></div>` : ''}
+            ${j.sudah_lapor && j.dilaporkan_oleh ? `<div class="text-slate-500 dark:text-slate-400 col-span-2">Dilaporkan oleh: <span class="font-medium">${UI.escapeHtml(j.dilaporkan_oleh)}</span></div>` : ''}
           </div>
         </div>
-<button class="btn-primary shrink-0 text-xs py-2 px-3" onclick="prefillJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim});showSection('laporan')">
-          Lapor
-        </button>
+        ${j.sudah_lapor
+          ? `<span class="badge badge-gray shrink-0 self-start">Selesai</span>`
+          : `<button class="btn-primary shrink-0 text-xs py-2 px-3" onclick="prefillJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim});showSection('laporan')">
+              Lapor
+            </button>`}
       </div>
     </div>`).join('') : UI.emptyState('Tidak ada jadwal untuk tanggal ini.', '📋');
 }
