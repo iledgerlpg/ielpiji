@@ -1481,26 +1481,69 @@ const rowsToSave = window._samLocalData;
 async function loadPembayaran(tipe) {
   const label = tipe === 'REFILL' ? 'Pembayaran Refill' : 'Pembayaran Bagi Hasil';
   const main  = document.getElementById('main-content');
+  const today = new Date().toISOString().split('T')[0];
+  const firstDay = today.slice(0, 7) + '-01';
+
   main.innerHTML = `
-    <div class="page-header">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;">
-        <div><h2 class="page-title">${label}</h2><p class="page-sub">Tagihan dan realisasi pembayaran pangkalan.</p></div>
-        ${tipe === 'REFILL' ? `
-        <div class="flex gap-2 flex-wrap">
-          <button class="btn-secondary text-sm" onclick="downloadTemplateBrimola(this)">⬇️ Template Brimola</button>
-          <label class="btn-secondary text-sm cursor-pointer">
-            ⬆️ Upload Brimola
-            <input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadBrimolaExcel(this)"/>
-          </label>
-        </div>` : ''}
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
+      <div><h2 class="page-title">${label}</h2><p class="page-sub">Tagihan dan realisasi pembayaran pangkalan.</p></div>
+      ${tipe === 'REFILL' ? `
+      <div class="flex gap-2 flex-wrap">
+        <button class="btn-secondary text-sm" onclick="downloadTemplateBrimola(this)">⬇️ Template Brimola</button>
+        <label class="btn-secondary text-sm cursor-pointer">
+          ⬆️ Upload Brimola
+          <input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadBrimolaExcel(this)"/>
+        </label>
+      </div>` : ''}
+    </div>
+
+    <div class="filter-bar flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-4">
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-medium whitespace-nowrap">Dari Tgl:</label>
+        <input type="date" id="bp-start" class="form-input w-36 text-sm" value="${firstDay}" onchange="fetchPembayaran('${tipe}')"/>
       </div>
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-medium whitespace-nowrap">Sampai Tgl:</label>
+        <input type="date" id="bp-end" class="form-input w-36 text-sm" value="${today}" onchange="fetchPembayaran('${tipe}')"/>
+      </div>
+      <select id="bp-status" class="form-select w-36 text-sm" onchange="filterPembayaranTable()">
+        <option value="">Semua Status</option>
+        <option value="LUNAS">Lunas</option>
+        <option value="SEBAGIAN">Sebagian</option>
+        <option value="BELUM">Belum Bayar</option>
+      </select>
+      <input type="text" id="bp-search" class="form-input w-44 text-sm" placeholder="Cari pangkalan..."
+        oninput="filterPembayaranTable()"/>
+      <button class="btn-secondary text-sm py-1.5" onclick="
+        document.getElementById('bp-start').value='${firstDay}';
+        document.getElementById('bp-end').value='${today}';
+        document.getElementById('bp-status').value='';
+        document.getElementById('bp-search').value='';
+        fetchPembayaran('${tipe}')">Reset</button>
     </div>
-    <div class="filter-bar">
-      <input type="month" id="bp-bln" class="form-input w-40" value="${UI.currentMonthValue()}" onchange="fetchPembayaran('${tipe}')"/>
-    </div>
+
     <div id="bp-import-status" class="hidden mb-4"></div>
+
     <div id="bp-summary" class="grid grid-cols-3 gap-4 mb-4">${skCards(3)}</div>
-    <div id="bp-list" class="space-y-3">${skList(4)}</div>`;
+
+    <div class="table-wrapper overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr>
+            <th class="text-left p-3">Pangkalan</th>
+            <th class="text-center p-3">Tgl Bayar Terakhir</th>
+            <th class="text-center p-3">Total Kirim</th>
+            <th class="text-center p-3">Tagihan</th>
+            <th class="text-center p-3">Terbayar</th>
+            <th class="text-center p-3">Sisa</th>
+            <th class="text-center p-3">Status</th>
+            <th class="text-right p-3">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="bp-tbody"></tbody>
+      </table>
+    </div>`;
+
   await fetchPembayaran(tipe);
 }
 async function downloadTemplateBrimola(btnEl) {
@@ -1666,55 +1709,144 @@ async function uploadBrimolaExcel(input) {
   }
 }
 async function fetchPembayaran(tipe) {
-  const bulan = document.getElementById('bp-bln')?.value || UI.currentMonthValue();
-  const fn    = tipe === 'REFILL' ? API.operator.getPembayaranRefill : API.operator.getPembayaranBagiHasil;
-  const res   = await fn({ bulan });
+  const start = document.getElementById('bp-start')?.value;
+  const end   = document.getElementById('bp-end')?.value;
+
+  if (start > end) { UI.toast('Rentang tanggal tidak valid.', 'warning'); return; }
+
+  const tbody = document.getElementById('bp-tbody');
+  tbody.innerHTML = `<tr><td colspan="8">${skLine()}</td></tr>`;
+
+  // Ambil bulan dari start date untuk kalkulasi tagihan
+  const bulan = start ? start.slice(0, 7) : UI.currentMonthValue();
+
+  const fn  = tipe === 'REFILL' ? API.operator.getPembayaranRefill : API.operator.getPembayaranBagiHasil;
+  const res = await fn({ bulan, start_date: start, end_date: end });
+
   const expectedSection = tipe === 'REFILL' ? 'bayar-refill' : 'bayar-bh';
   if (activeSection !== expectedSection) return;
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const data = res.data.pembayaran || [];
+  window._pembayaranData    = data;
+  window._pembayaranTipe    = tipe;
+  window._pembayaranAllRows = data.map(d => {
+    // Cari tanggal bayar terakhir dari array pembayaran detail
+    const tglTerakhir = (d.pembayaran || [])
+      .map(p => p.tanggal_bayar)
+      .filter(Boolean)
+      .sort()
+      .pop() || '';
+    return { ...d, tgl_terakhir: tglTerakhir };
+  });
+
+  // Summary
   const totalTagihan = data.reduce((s, d) => s + (d.tagihan || 0), 0);
   const totalBayar   = data.reduce((s, d) => s + (d.total_bayar || 0), 0);
   const lunas        = data.filter(d => d.status === 'LUNAS').length;
 
   document.getElementById('bp-summary').innerHTML = `
-    <div class="stat-card"><div class="stat-icon bg-slate-100 dark:bg-slate-800">💰</div><div><div class="stat-label">Total Tagihan</div><div class="stat-value text-lg">${UI.formatRupiah(totalTagihan)}</div></div></div>
-    <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">✅</div><div><div class="stat-label">Total Terbayar</div><div class="stat-value text-lg text-green-600">${UI.formatRupiah(totalBayar)}</div></div></div>
-    <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">🏦</div><div><div class="stat-label">Pangkalan Lunas</div><div class="stat-value">${lunas}/${data.length}</div></div></div>`;
+    <div class="stat-card"><div class="stat-icon bg-slate-100 dark:bg-slate-800">💰</div>
+      <div><div class="stat-label">Total Tagihan</div><div class="stat-value text-lg">${UI.formatRupiah(totalTagihan)}</div></div></div>
+    <div class="stat-card"><div class="stat-icon bg-green-100 dark:bg-green-900/40">✅</div>
+      <div><div class="stat-label">Total Terbayar</div><div class="stat-value text-lg text-green-600">${UI.formatRupiah(totalBayar)}</div></div></div>
+    <div class="stat-card"><div class="stat-icon bg-blue-100 dark:bg-blue-900/40">🏦</div>
+      <div><div class="stat-label">Pangkalan Lunas</div><div class="stat-value">${lunas}/${data.length}</div></div></div>`;
 
-  window._pembayaranData = data;
-
-  document.getElementById('bp-list').innerHTML = data.length ? data.map(d => `
-    <div class="card">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex-1">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-semibold text-slate-900 dark:text-white">${UI.escapeHtml(d.nama)}</span>
-            ${UI.badge(d.status, d.status)}
-          </div>
-          <div class="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
-            <div class="text-slate-500">Terkirim: <span class="font-medium text-slate-700 dark:text-slate-300">${d.total_kirim} tab</span></div>
-            <div class="text-slate-500">Harga/tab: <span class="font-medium">${UI.formatRupiah(d.harga)}</span></div>
-            <div class="text-slate-500">Tagihan: <span class="font-semibold text-red-600">${UI.formatRupiah(d.tagihan)}</span></div>
-            <div class="text-slate-500">Terbayar: <span class="font-semibold text-green-600">${UI.formatRupiah(d.total_bayar)}</span></div>
-            ${d.sisa > 0 ? `<div class="col-span-2 text-slate-500">Sisa: <span class="font-semibold text-amber-600">${UI.formatRupiah(d.sisa)}</span></div>` : ''}
-          </div>
-        </div>
-        ${d.status !== 'LUNAS' ? `<button class="btn-primary text-xs py-2 px-3 shrink-0" onclick="openPembayaranModalById('${d.pangkalan_id}','${tipe}')">Bayar</button>` : ''}
-      </div>
-    </div>`).join('') : UI.emptyState('Belum ada data pembayaran.', '💰');
+  filterPembayaranTable();
 }
+function filterPembayaranTable() {
+  const statusFilter = document.getElementById('bp-status')?.value || '';
+  const searchFilter = (document.getElementById('bp-search')?.value || '').toLowerCase();
+  const tipe         = window._pembayaranTipe || 'REFILL';
+  const allRows      = window._pembayaranAllRows || [];
 
+  const filtered = allRows.filter(d => {
+    const matchStatus = !statusFilter || d.status === statusFilter;
+    const matchSearch = !searchFilter || d.nama.toLowerCase().includes(searchFilter);
+    return matchStatus && matchSearch;
+  });
+
+  const tbody = document.getElementById('bp-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = filtered.length ? filtered.map(d => `
+    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+      <td class="p-3 font-medium text-slate-900 dark:text-white">${UI.escapeHtml(d.nama)}</td>
+      <td class="p-3 text-center text-xs text-slate-500">
+        ${d.tgl_terakhir ? UI.formatDateShort(d.tgl_terakhir) : '-'}
+      </td>
+      <td class="p-3 text-center">${UI.formatNumber(d.total_kirim)} <span class="text-slate-400 text-xs">tab</span></td>
+      <td class="p-3 text-center font-semibold text-red-600">${UI.formatRupiah(d.tagihan)}</td>
+      <td class="p-3 text-center font-semibold text-green-600">${UI.formatRupiah(d.total_bayar)}</td>
+      <td class="p-3 text-center font-semibold ${d.sisa > 0 ? 'text-amber-600' : 'text-slate-400'}">
+        ${d.sisa > 0 ? UI.formatRupiah(d.sisa) : '-'}
+      </td>
+      <td class="p-3 text-center">${UI.badge(d.status, d.status)}</td>
+      <td class="p-3 text-right">
+        <div class="flex gap-2 justify-end">
+          ${d.status !== 'LUNAS' ? `
+            <button class="btn-primary text-xs py-1 px-3"
+              onclick="openPembayaranModalById('${d.pangkalan_id}','${tipe}')">Bayar</button>` : ''}
+          ${(d.pembayaran || []).length ? `
+            <button class="btn-secondary text-xs py-1 px-3"
+              onclick="openRiwayatBayarModal('${d.pangkalan_id}','${UI.escapeHtml(d.nama)}')">Riwayat</button>` : ''}
+        </div>
+      </td>
+    </tr>`).join('')
+  : `<tr><td colspan="8">${UI.emptyState('Tidak ada data pembayaran.', '💰')}</td></tr>`;
+}
+function openRiwayatBayarModal(pangkalanId, namaPangkalan) {
+  const item = (window._pembayaranAllRows || []).find(d => d.pangkalan_id === pangkalanId);
+  const riwayat = item?.pembayaran || [];
+
+  const modal = document.createElement('div');
+  modal.id    = 'riwayat-modal';
+  modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+        <h3 class="font-semibold text-slate-900 dark:text-white">Riwayat Bayar — ${UI.escapeHtml(namaPangkalan)}</h3>
+        <button class="btn-icon" onclick="document.getElementById('riwayat-modal').remove()">✕</button>
+      </div>
+      <div class="flex-1 overflow-y-auto p-4">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+              <th class="text-left py-2">Tanggal</th>
+              <th class="text-center py-2">Transfer</th>
+              <th class="text-center py-2">Total</th>
+              <th class="text-center py-2">Bukti</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${riwayat.length ? riwayat.map(p => `
+              <tr class="border-b border-slate-100 dark:border-slate-800">
+                <td class="py-2 text-xs text-slate-500">${UI.formatDateShort(p.tanggal_bayar)}</td>
+                <td class="py-2 text-center">${UI.formatRupiah(p.nominal_transfer || 0)}</td>
+                <td class="py-2 text-center font-semibold text-green-600">${UI.formatRupiah(p.total_bayar || 0)}</td>
+                <td class="py-2 text-center">
+                  ${p.bukti_tf_url
+                    ? `<a href="${p.bukti_tf_url}" target="_blank"
+                        class="text-blue-600 underline text-xs">Lihat</a>`
+                    : '<span class="text-slate-300 text-xs">-</span>'}
+                </td>
+              </tr>`).join('')
+            : `<tr><td colspan="4" class="text-center text-slate-400 py-6">Belum ada riwayat pembayaran.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
 function openPembayaranModalById(pangkalanId, tipe) {
   const item = (window._pembayaranData || []).find(d => d.pangkalan_id === pangkalanId);
   openPembayaranModal(pangkalanId, tipe, item ? item.nama : '-');
 }
 
 function openPembayaranModal(pangkalanId, tipe, namaPangkalan) {
-  const isRefill = tipe === 'REFILL';
-  const modal    = document.createElement('div');
-  modal.id       = 'pay-modal';
+  const modal = document.createElement('div');
+  modal.id    = 'pay-modal';
   modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
   modal.innerHTML = `
     <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
@@ -1723,84 +1855,114 @@ function openPembayaranModal(pangkalanId, tipe, namaPangkalan) {
         <button class="btn-icon" onclick="document.getElementById('pay-modal').remove()">✕</button>
       </div>
       <div class="p-5 space-y-4">
-        <div><label class="form-label">Tanggal Bayar *</label><input id="pm-tgl" type="date" class="form-input" value="${UI.todayInputValue()}"/></div>
-
-        ${isRefill ? `
-        <div class="bg-blue-50 dark:bg-blue-950/30 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
-          💡 Bisa via Brimola, Transfer, atau keduanya. Jika ada nominal Transfer, bukti TF wajib diupload.
-        </div>
-        <div><label class="form-label">Nominal Brimola</label>
-          <input id="pm-brimola" type="number" class="form-input" placeholder="0" min="0" oninput="toggleBuktiTF()"/>
-        </div>
-        <div><label class="form-label">Nominal Transfer</label>
-          <input id="pm-transfer" type="number" class="form-input" placeholder="0" min="0" oninput="toggleBuktiTF()"/>
-        </div>
-        <div id="pm-bukti-wrap">
-          <label class="form-label">Bukti Transfer <span id="pm-bukti-required" class="text-slate-400 font-normal">(wajib jika ada transfer)</span></label>
-          <input id="pm-bukti" type="url" class="form-input" placeholder="URL bukti TF di Drive..."/>
-        </div>` : `
-        <div class="bg-amber-50 dark:bg-amber-950/30 rounded-xl px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-          ⚠️ Pembayaran Bagi Hasil wajib via Transfer dan harus menyertakan bukti TF.
+        <div><label class="form-label">Tanggal Bayar *</label>
+          <input id="pm-tgl" type="date" class="form-input" value="${UI.todayInputValue()}"/>
         </div>
         <div><label class="form-label">Nominal Transfer *</label>
           <input id="pm-transfer" type="number" class="form-input" placeholder="0" min="0"/>
         </div>
         <div>
           <label class="form-label">Bukti Transfer *</label>
-          <input id="pm-bukti" type="url" class="form-input" placeholder="URL bukti TF di Drive..."/>
-        </div>`}
-
+          <label class="flex items-center gap-2 cursor-pointer w-full">
+            <div id="pm-upload-btn" class="btn-secondary text-sm flex items-center gap-2 w-full justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+              </svg>
+              <span id="pm-upload-label">Pilih Foto Bukti TF</span>
+            </div>
+            <input id="pm-bukti-file" type="file" accept="image/*" class="hidden"
+              onchange="previewBuktiTF(this)"/>
+          </label>
+          <div id="pm-bukti-preview" class="hidden mt-2">
+            <img id="pm-bukti-img" src="" alt="Preview"
+              class="w-full max-h-48 object-contain rounded-xl border border-slate-200 dark:border-slate-700"/>
+          </div>
+        </div>
         <div id="pm-err" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
-        <button id="pm-btn" class="btn-primary w-full justify-center" onclick="savePembayaran('${pangkalanId}','${tipe}')">Simpan Pembayaran</button>
+        <button id="pm-btn" class="btn-primary w-full justify-center"
+          onclick="savePembayaran('${pangkalanId}','${tipe}')">
+          Simpan Pembayaran
+        </button>
       </div>
     </div>`;
   document.body.appendChild(modal);
 }
-
 /** Tampilkan/sembunyikan label wajib pada bukti TF berdasarkan nominal transfer */
 function toggleBuktiTF() {
   const transfer = Number(document.getElementById('pm-transfer')?.value || 0);
   const label    = document.getElementById('pm-bukti-required');
   if (label) label.textContent = transfer > 0 ? '* (wajib)' : '(wajib jika ada transfer)';
 }
-
+function previewBuktiTF(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const label   = document.getElementById('pm-upload-label');
+  const preview = document.getElementById('pm-bukti-preview');
+  const img     = document.getElementById('pm-bukti-img');
+  label.textContent = file.name.length > 28 ? file.name.slice(0, 25) + '...' : file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    img.src = e.target.result;
+    preview.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
 async function savePembayaran(pangkalanId, tipe) {
   const btn      = document.getElementById('pm-btn');
   const errEl    = document.getElementById('pm-err');
   errEl.classList.add('hidden');
-  const isRefill = tipe === 'REFILL';
-  const tanggal  = document.getElementById('pm-tgl').value;
-  const brimola  = Number(document.getElementById('pm-brimola')?.value || 0);
-  const transfer = Number(document.getElementById('pm-transfer')?.value || 0);
-  const buktiUrl = document.getElementById('pm-bukti')?.value.trim() || '';
 
-  // Validasi sesuai tipe
-  if (isRefill) {
-    if (brimola <= 0 && transfer <= 0) {
-      errEl.textContent = 'Isi minimal satu metode pembayaran (Brimola atau Transfer).';
-      errEl.classList.remove('hidden'); return;
+  const tanggal   = document.getElementById('pm-tgl').value;
+  const transfer  = Number(document.getElementById('pm-transfer')?.value || 0);
+  const fileInput = document.getElementById('pm-bukti-file');
+
+  if (transfer <= 0) {
+    errEl.textContent = 'Nominal transfer wajib diisi.';
+    errEl.classList.remove('hidden'); return;
+  }
+  if (!fileInput?.files[0]) {
+    errEl.textContent = 'Foto bukti transfer wajib diupload.';
+    errEl.classList.remove('hidden'); return;
+  }
+
+  UI.setLoading(btn, true, 'Mengupload foto...');
+
+  let buktiUrl = '';
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Gagal membaca file.'));
+      reader.readAsDataURL(fileInput.files[0]);
+    });
+    const uploadRes = await API.uploadImage(base64, 'BUKTI_TF');
+    if (!uploadRes.success) {
+      errEl.textContent = `Gagal upload foto: ${uploadRes.message}`;
+      errEl.classList.remove('hidden');
+      UI.setLoading(btn, false); return;
     }
-    // Jika ada nominal Transfer, bukti TF wajib
-    if (transfer > 0 && !buktiUrl) {
-      errEl.textContent = 'Bukti transfer wajib diisi jika ada nominal transfer.';
-      errEl.classList.remove('hidden'); return;
-    }
-  } else {
-    // Bagi Hasil: Transfer wajib, bukti wajib
-    if (transfer <= 0) {
-      errEl.textContent = 'Nominal transfer wajib untuk Pembayaran Bagi Hasil.';
-      errEl.classList.remove('hidden'); return;
-    }
-    if (!buktiUrl) {
-      errEl.textContent = 'Bukti transfer wajib untuk Pembayaran Bagi Hasil.';
-      errEl.classList.remove('hidden'); return;
-    }
+    buktiUrl = uploadRes.data.file_url;
+  } catch (err) {
+    errEl.textContent = `Gagal upload foto: ${err.message}`;
+    errEl.classList.remove('hidden');
+    UI.setLoading(btn, false); return;
   }
 
   UI.setLoading(btn, true, 'Menyimpan...');
-  const fn  = isRefill ? API.operator.createPembayaranRefill : API.operator.createPembayaranBagiHasil;
-  const res = await fn({ pangkalan_id: pangkalanId, laporan_id: '', tanggal_bayar: tanggal, nominal_brimola: brimola, nominal_transfer: transfer, bukti_tf_url: buktiUrl });
+
+  const fn  = tipe === 'REFILL' ? API.operator.createPembayaranRefill : API.operator.createPembayaranBagiHasil;
+  const res = await fn({
+    pangkalan_id:     pangkalanId,
+    laporan_id:       '',
+    tanggal_bayar:    tanggal,
+    nominal_brimola:  0,
+    nominal_transfer: transfer,
+    bukti_tf_url:     buktiUrl,
+  });
+
   UI.setLoading(btn, false);
+
   if (res.success) {
     UI.toast('Pembayaran berhasil dicatat.', 'success');
     document.getElementById('pay-modal').remove();
@@ -1810,7 +1972,6 @@ async function savePembayaran(pangkalanId, tipe) {
     errEl.classList.remove('hidden');
   }
 }
-
 // ============================================================
 // MONITORING PEMBAYARAN
 // ============================================================
