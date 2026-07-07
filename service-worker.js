@@ -82,14 +82,20 @@ async function cacheFirstWithNetwork(request) {
 async function networkFirstWithCache(request) {
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    // Cache API hanya mendukung method GET — POST/PUT/DELETE tidak bisa di-cache.put()
+    if (response.ok && request.method === 'GET') {
       const cache = await caches.open(API_CACHE);
       cache.put(request, response.clone());
     }
     return response;
   } catch {
-    const cached = await caches.match(request);
-    return cached || new Response(JSON.stringify({
+    // Fallback ke cache HANYA untuk GET (cache tidak menyimpan apa pun untuk POST,
+    // jadi caches.match pada request POST akan selalu null — itu wajar)
+    if (request.method === 'GET') {
+      const cached = await caches.match(request);
+      if (cached) return cached;
+    }
+    return new Response(JSON.stringify({
       success: false, code: 503,
       message: 'Tidak ada koneksi internet. Data mungkin belum terbaru.',
       data: null,
