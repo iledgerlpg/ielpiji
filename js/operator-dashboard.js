@@ -1184,8 +1184,14 @@ const existingData = window._masterSAData || [];
 async function uploadMasterSAExcel(input) {
   const file = input.files[0];
   if (!file) return;
-  const bulan = document.getElementById('sa-bln')?.value || UI.currentMonthValue();
-  const [tahun, bulanNum] = bulan.split('-');
+
+  // Ambil bulan & tahun dari filter sa-start yang aktif di halaman
+  const saStart   = document.getElementById('sa-start')?.value;
+  const startDate = saStart ? new Date(saStart) : new Date();
+  const tahun     = String(startDate.getFullYear());
+  const bulanNum  = String(startDate.getMonth() + 1).padStart(2, '0');
+  const bulanLabel = startDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
   const statusEl = document.getElementById('sa-import-status');
   statusEl.className = 'mb-4 card bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300';
   statusEl.textContent = '⏳ Membaca file...';
@@ -1198,6 +1204,7 @@ async function uploadMasterSAExcel(input) {
       statusEl.textContent = '❌ File kosong atau format salah.';
       input.value = ''; return;
     }
+
     const headers  = rows[0].map(h => String(h).trim().toLowerCase());
     const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
 
@@ -1219,25 +1226,16 @@ async function uploadMasterSAExcel(input) {
       input.value = ''; return;
     }
 
-    // Tidak perlu resolve nama pangkalan ke ID lagi — kirim langsung apa adanya
-    const resolved = mapped;
-    const notFound = [];
-
-    if (notFound.length) {
-      statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
-      statusEl.innerHTML = `❌ ${notFound.length} baris gagal dicocokkan:<br/>${notFound.slice(0, 8).map(m => UI.escapeHtml(m)).join('<br/>')}${notFound.length > 8 ? `<br/>...dan ${notFound.length - 8} lainnya.` : ''}<br/>Cek ejaan nama pada sheet Referensi.`;
-      input.value = '';
-      return;
-    }
-
-    statusEl.textContent = `⏳ Mengirim ${resolved.length} data Master SA ke server untuk bulan ${bulanNum}/${tahun}...`;
-    const res = await API.operator.importMasterSA({ rows: resolved, bulan: bulanNum, tahun });
+    statusEl.textContent = `⏳ Mengirim ${mapped.length} data Master SA ke server untuk ${bulanLabel}...`;
+    const res = await API.operator.importMasterSA({ rows: mapped, bulan: bulanNum, tahun });
     input.value = '';
 
-    if (res.success) {
-      statusEl.className = 'mb-4 card bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-sm text-green-700';
-      statusEl.textContent = `✅ ${res.data.inserted} data Master SA berhasil diimport.`;
-      fetchMasterSA();
+// ganti bagian if (res.success) di uploadMasterSAExcel
+if (res.success) {
+  statusEl.className = 'mb-4 card bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-sm text-green-700';
+  statusEl.textContent = `✅ Import ${bulanLabel} selesai — ${res.data.inserted} baru ditambahkan, ${res.data.updated} data ditimpa.`;
+  fetchMasterSA();
+}
     } else {
       statusEl.className = 'mb-4 card bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600';
       statusEl.textContent = `❌ Import gagal: ${res.message}`;
