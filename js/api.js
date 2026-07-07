@@ -195,6 +195,7 @@ const API = (() => {
     getRekapPangkalan:         (p) => get('operator/rekap-pangkalan', p),
     importPembayaranRefill: (b) => post('operator/pembayaran-refill/import', b),
     verifyMasterSA: (b) => post('operator/master-sa/verify', b),
+    verifyMasterSABatch: (b) => post('operator/master-sa/verify-batch', b),
   };
 
   // ============================================================
