@@ -267,12 +267,24 @@ async function fetchDashboard() {
 async function loadJadwalHarian() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
-<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
-  <div>
-    <h2 class="page-title">${label}</h2>
-    <p class="page-sub">${tipe === 'REFILL' ? 'Tagihan dihitung otomatis dari Master SA yang sudah diverifikasi (✓).' : 'Tagihan dan realisasi pembayaran pangkalan.'}</p>
-  </div>
-</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem;">
+      <div>
+        <h2 class="page-title">Jadwal Harian</h2>
+        <p class="page-sub">Atur jadwal pengiriman driver ke pangkalan.</p>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button class="btn-secondary text-sm" onclick="downloadTemplateJadwal(this)">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Template Excel
+        </button>
+        <label class="btn-secondary text-sm cursor-pointer" title="Upload Excel Jadwal">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Upload Excel
+          <input type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadJadwalExcel(this)"/>
+        </label>
+        <button class="btn-primary" onclick="openJadwalModal()">+ Tambah Manual</button>
+      </div>
+    </div>
     <div class="filter-bar">
       <input type="date"  id="jh-tgl" class="form-input w-44" value="${UI.todayInputValue()}" onchange="fetchJadwalHarian()"/>
       <input type="month" id="jh-bln" class="form-input w-40" onchange="fetchJadwalHarian()"/>
