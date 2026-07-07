@@ -275,9 +275,9 @@ async function openAbsenCamera() {
   const title  = document.getElementById('camera-modal-title');
   title.textContent = 'Foto Selfie Absensi';
 
-  UI.openModal('camera-modal');
+UI.openModal('camera-modal');
   try {
-    await Camera.init(video, 'environment');
+    await Camera.init(video, 'user');
     document.getElementById('camera-capture-btn').onclick = async () => {
       const result = await Camera.capture();
       _absenPhotoB64 = result.base64;
@@ -538,9 +538,9 @@ async function openLaporanCamera(photoType) {
   const labels = { PENGIRIMAN: 'Foto Tabung Terkirim', RETUR: 'Foto Tabung Retur', PANGKALAN: 'Foto Kondisi Pangkalan' };
   title.textContent = labels[photoType] || 'Ambil Foto';
 
-  UI.openModal('camera-modal');
+UI.openModal('camera-modal');
   try {
-    await Camera.init(video);
+    await Camera.init(video, 'environment');
     document.getElementById('camera-capture-btn').onclick = async () => {
       const result = await Camera.capture();
       _laporanPhotos[photoType] = result.base64;
