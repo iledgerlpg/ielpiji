@@ -419,7 +419,7 @@ async function loadJadwalGlobal() {
       <input type="date" id="jadwal-global-tgl" class="form-input w-44" value="${UI.todayInputValue()}" onchange="fetchJadwalGlobal()"/>
     </div>
     <div id="jadwal-global-list" class="table-wrapper">
-      <table><thead><tr><th>Rit</th><th>Pangkalan</th><th>Target Kirim</th><th>Driver 1</th><th>Driver 2</th><th>Status</th><th>Aksi</th></tr></thead>
+      <table><thead><tr><th>SPBE</th><th>Rit</th><th>Pangkalan</th><th>Target Kirim</th><th>Driver 1</th><th>Driver 2</th><th>Status</th><th>Aksi</th></tr></thead>
       <tbody id="jadwal-global-tbody"></tbody></table>
     </div>`;
   await fetchJadwalGlobal();
