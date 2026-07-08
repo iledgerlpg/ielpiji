@@ -219,12 +219,12 @@ async function loadUsers() {
         <option>ACTIVE</option><option>PENDING</option><option>INACTIVE</option>
       </select>
     </div>
-    <div id="users-container" class="table-wrapper">
-      <table><thead><tr>
-        <th>Nama</th><th>Email</th><th>Role</th><th>Status</th><th class="text-right">Aksi</th>
-      </tr></thead>
-      <tbody id="users-table-body"></tbody></table>
-    </div>`;
+<div id="users-container" class="table-wrapper">
+  <table><thead><tr>
+    <th>Nama</th><th>Email</th><th>Role</th><th>Status</th><th class="text-center">Akses Operator</th><th class="text-right">Aksi</th>
+  </tr></thead>
+  <tbody id="users-table-body"></tbody></table>
+</div>`;
 
   const res = await API.hrd.getUsers();
   if (!res.success) { UI.toast(res.message, 'error'); return; }
@@ -247,7 +247,26 @@ function filterUsers() {
 function renderUsers(users) {
   const tbody = document.getElementById('users-table-body');
   if (!tbody) return;
-  tbody.innerHTML = users.length ? users.map(u => `
+  tbody.innerHTML = users.length ? users.map(u => {
+    let permsArr = [];
+    if (u.permissions) {
+      try { permsArr = JSON.parse(u.permissions); } catch (e) { permsArr = []; }
+    }
+    const hasOperatorAccess = permsArr.includes('OPERATOR');
+
+    const operatorToggle = u.role === 'STAFF_ADMIN' ? `
+      <button
+        class="text-xs py-1 px-2.5 rounded-full font-semibold transition-colors ${
+          hasOperatorAccess
+            ? 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60'
+            : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+        }"
+        title="${hasOperatorAccess ? 'Klik untuk cabut akses impersonate Operator' : 'Klik untuk beri akses impersonate Operator'}"
+        onclick="toggleStaffOperatorAccess('${u.user_id}')">
+        ${hasOperatorAccess ? '🎭 Operator: ON' : '🔒 Operator: OFF'}
+      </button>` : '<span class="text-xs text-slate-300 dark:text-slate-700">—</span>';
+
+    return `
     <tr>
       <td>
         <div class="flex items-center gap-3">
@@ -258,6 +277,7 @@ function renderUsers(users) {
       <td class="text-slate-500 dark:text-slate-400 text-xs">${UI.escapeHtml(u.email)}</td>
       <td>${UI.badge(u.role.replace('_',' '), u.role)}</td>
       <td>${UI.badge(u.status, u.status)}</td>
+      <td class="text-center">${operatorToggle}</td>
       <td class="text-right">
         <div class="flex gap-1 justify-end">
           ${u.status === 'PENDING' ? `<button class="btn-success text-xs py-1 px-2" onclick="approveUser('${u.user_id}','APPROVE')">✓ Setujui</button>` : ''}
@@ -265,7 +285,8 @@ function renderUsers(users) {
           <button class="btn-danger text-xs py-1 px-2"    onclick="deleteUserById('${u.user_id}')">Hapus</button>
         </div>
       </td>
-    </tr>`).join('') : `<tr><td colspan="5">${UI.emptyState('Tidak ada user ditemukan.', '👤')}</td></tr>`;
+    </tr>`;
+  }).join('') : `<tr><td colspan="6">${UI.emptyState('Tidak ada user ditemukan.', '👤')}</td></tr>`;
 }
 
 /** Cari user dari cache allUsers berdasarkan ID, lalu buka modal edit (hindari inject JSON ke onclick). */
@@ -469,7 +490,44 @@ async function approveUser(userId, action) {
   if (res.success) { UI.toast(`Akun berhasil di-${label}.`, 'success'); loadDashboard(); }
   else UI.toast(res.message, 'error');
 }
+async function toggleStaffOperatorAccess(userId) {
+  const user = allUsers.find(u => u.user_id === userId);
+  if (!user) { UI.toast('Data user tidak ditemukan.', 'error'); return; }
+  if (user.role !== 'STAFF_ADMIN') return;
 
+  let permsArr = [];
+  if (user.permissions) {
+    try { permsArr = JSON.parse(user.permissions); } catch (e) { permsArr = []; }
+  }
+
+  const hasAccess = permsArr.includes('OPERATOR');
+  const newPerms  = hasAccess
+    ? permsArr.filter(p => p !== 'OPERATOR')
+    : [...permsArr, 'OPERATOR'];
+
+  const ok = await UI.confirm(
+    hasAccess
+      ? `Cabut akses impersonate Operator dari "${UI.escapeHtml(user.nama)}"?`
+      : `Berikan akses impersonate Operator ke "${UI.escapeHtml(user.nama)}"?`,
+    'Konfirmasi'
+  );
+  if (!ok) return;
+
+  const res = await API.hrd.updateUser({
+    user_id:     userId,
+    nama:        user.nama,
+    no_hp:       user.no_hp || '',
+    role:        user.role,
+    permissions: newPerms,
+  });
+
+  if (res.success) {
+    UI.toast(hasAccess ? 'Akses Operator dicabut.' : 'Akses Operator diberikan.', 'success');
+    loadUsers();
+  } else {
+    UI.toast(res.message, 'error');
+  }
+}
 // ============================================================
 // ABSENSI
 // ============================================================
