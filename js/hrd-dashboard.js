@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('topbar-title').textContent = 'HRD Dashboard';
   showSection('dashboard');
   loadDashboard();
+  appendSwitchRoleMenu(); // ← tambah ini
 });
 
 // ============================================================
