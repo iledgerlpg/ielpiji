@@ -159,15 +159,87 @@ const Auth = (() => {
 })();
 
 window.Auth = Auth;
-// ── SWITCH ROLE BANNER ──
 
+// ============================================================
+// IMPERSONATE — Dropdown Switcher (ditaruh dekat toggle dark/light)
+// ============================================================
+
+const ROLE_LABEL = {
+  HRD:         'HRD',
+  OPERATOR:    'Operator',
+  DRIVER:      'Driver',
+  KERNET:      'Kernet',
+  STAFF_ADMIN: 'Staff Admin',
+};
+
+/**
+ * Render dropdown "Ganti Role" di topbar, tepat di sebelah tombol dark/light mode
+ * ([data-toggle-theme]). Hanya muncul jika:
+ *  - User sedang impersonate (butuh cara balik), ATAU
+ *  - User punya izin impersonate (field `permissions` di data user, diatur HRD).
+ * Kalau tidak punya izin & tidak sedang impersonate → dropdown tidak dirender sama sekali.
+ */
+async function renderImpersonateSwitcher() {
+  const session = Auth.getSession();
+  if (!session) return;
+
+  // Hindari duplikat kalau fungsi ini dipanggil ulang (misal setelah switch role)
+  document.getElementById('impersonate-switcher')?.remove();
+
+  let permissions = [];
+  if (!session.original_role) {
+    // Hanya cek izin kalau BUKAN sedang dalam mode impersonate.
+    // (Saat impersonate, target_role biasanya tidak punya izin impersonate lanjutan.)
+    const res = await API.auth.getMyPermissions();
+    if (res.success) permissions = res.data.permissions || [];
+  }
+
+  // Tidak sedang impersonate DAN tidak ada izin sama sekali → jangan render apapun
+  if (!session.original_role && !permissions.length) return;
+
+  let optionsHtml = '';
+  if (session.original_role) {
+    optionsHtml += `<option value="__restore__">↩ Kembali ke ${ROLE_LABEL[session.original_role] || session.original_role}</option>`;
+  }
+  permissions.forEach(role => {
+    optionsHtml += `<option value="${role}">🎭 Sebagai ${ROLE_LABEL[role] || role}</option>`;
+  });
+
+  const wrap = document.createElement('div');
+  wrap.id = 'impersonate-switcher';
+  wrap.className = 'inline-flex items-center';
+  wrap.innerHTML = `
+    <select id="impersonate-select"
+      class="text-xs font-semibold rounded-lg border border-purple-300 dark:border-purple-700
+             bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300
+             px-2 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-400
+             max-w-[170px]">
+      <option value="" selected disabled>${session.original_role ? '⚡ ' + ROLE_LABEL[session.role] : '🎭 Ganti Role'}</option>
+      ${optionsHtml}
+    </select>`;
+
+  wrap.querySelector('#impersonate-select').addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (!val) return;
+    if (val === '__restore__') handleRestoreRole();
+    else handleSwitchRole(val);
+  });
+
+  const themeBtn = document.querySelector('[data-toggle-theme]');
+  if (themeBtn && themeBtn.parentElement) {
+    themeBtn.parentElement.insertBefore(wrap, themeBtn);
+  } else {
+    // fallback kalau tombol tema tidak ditemukan di halaman
+    (document.querySelector('#topbar, .topbar, header') || document.body).appendChild(wrap);
+  }
+}
+window.renderImpersonateSwitcher = renderImpersonateSwitcher;
+
+/** Banner ungu di atas layar saat sedang dalam mode impersonate (tetap dipakai). */
 function renderImpersonateBanner() {
   const session = Auth.getSession();
   if (!session?.original_role) return;
-
-  // Tampilkan banner impersonate di atas topbar
-  const existing = document.getElementById('impersonate-banner');
-  if (existing) return;
+  if (document.getElementById('impersonate-banner')) return;
 
   const banner = document.createElement('div');
   banner.id = 'impersonate-banner';
@@ -179,25 +251,24 @@ function renderImpersonateBanner() {
     align-items: center; justify-content: center; gap: 12px;
   `;
   banner.innerHTML = `
-    <span>⚡ Mode Impersonate: <strong>${session.role}</strong> (asli: ${session.original_role})</span>
+    <span>⚡ Mode Impersonate: <strong>${ROLE_LABEL[session.role] || session.role}</strong> (asli: ${ROLE_LABEL[session.original_role] || session.original_role})</span>
     <button onclick="handleRestoreRole()"
       style="background:white;color:#4f46e5;border:none;border-radius:8px;
              padding:3px 12px;font-size:12px;font-weight:700;cursor:pointer;">
-      ✕ Kembali ke ${session.original_role}
+      ✕ Kembali ke ${ROLE_LABEL[session.original_role] || session.original_role}
     </button>
   `;
   document.body.prepend(banner);
 
-  // Geser topbar ke bawah banner
   const topbar = document.querySelector('.topbar, header, #topbar');
   if (topbar) topbar.style.marginTop = '36px';
 }
+window.renderImpersonateBanner = renderImpersonateBanner;
 
 async function handleSwitchRole(targetRole) {
   const res = await API.auth.switchRole({ target_role: targetRole });
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
-  // Update session
   const session = Auth.getSession();
   Auth.saveSession({
     ...session,
@@ -206,10 +277,10 @@ async function handleSwitchRole(targetRole) {
     original_role: res.data.original_role,
   });
 
-  UI.toast(`Beralih ke ${res.data.role}`, 'success');
+  UI.toast(`Beralih ke ${ROLE_LABEL[res.data.role] || res.data.role}`, 'success');
 
-  // Redirect ke dashboard role yang sesuai
   const rolePages = {
+    HRD:         '/hrd-dashboard.html',
     OPERATOR:    '/operator-dashboard.html',
     DRIVER:      '/driver-dashboard.html',
     KERNET:      '/driver-dashboard.html',
@@ -218,6 +289,7 @@ async function handleSwitchRole(targetRole) {
   const page = rolePages[res.data.role];
   if (page) setTimeout(() => { window.location.href = page; }, 500);
 }
+window.handleSwitchRole = handleSwitchRole;
 
 async function handleRestoreRole() {
   const res = await API.auth.restoreRole();
@@ -231,7 +303,7 @@ async function handleRestoreRole() {
     original_role: null,
   });
 
-  UI.toast(`Kembali ke ${res.data.role}`, 'success');
+  UI.toast(`Kembali ke ${ROLE_LABEL[res.data.role] || res.data.role}`, 'success');
 
   const rolePages = {
     HRD:         '/hrd-dashboard.html',
@@ -240,3 +312,4 @@ async function handleRestoreRole() {
   const page = rolePages[res.data.role];
   if (page) setTimeout(() => { window.location.href = page; }, 500);
 }
+window.handleRestoreRole = handleRestoreRole;
