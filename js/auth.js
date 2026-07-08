@@ -254,6 +254,7 @@ function renderImpersonateBanner() {
     color: white; text-align: center; padding: 8px 16px;
     font-size: 13px; font-weight: 600; display: flex;
     align-items: center; justify-content: center; gap: 12px;
+    flex-wrap: wrap;
   `;
   banner.innerHTML = `
     <span>⚡ Mode Impersonate: <strong>${ROLE_LABEL[session.role] || session.role}</strong> (asli: ${ROLE_LABEL[session.original_role] || session.original_role})</span>
@@ -265,8 +266,29 @@ function renderImpersonateBanner() {
   `;
   document.body.prepend(banner);
 
+  // Ukur tinggi banner SETELAH dirender (bisa 2 baris di layar sempit)
+  const bannerHeight = banner.offsetHeight;
+
+  // Geser topbar sesuai posisi CSS aktualnya (fixed/sticky butuh `top`, bukan margin)
   const topbar = document.querySelector('.topbar, header, #topbar');
-  if (topbar) topbar.style.marginTop = '36px';
+  if (topbar) {
+    const pos = window.getComputedStyle(topbar).position;
+    if (pos === 'fixed' || pos === 'sticky') {
+      topbar.style.top = bannerHeight + 'px';
+    } else {
+      topbar.style.marginTop = bannerHeight + 'px';
+    }
+  }
+
+  // Geser sidebar juga kalau posisinya fixed/sticky (biasanya full-height dari top:0)
+  const sidebar = document.querySelector('#sidebar, aside, .sidebar');
+  if (sidebar) {
+    const pos = window.getComputedStyle(sidebar).position;
+    if (pos === 'fixed' || pos === 'sticky') {
+      sidebar.style.top = bannerHeight + 'px';
+      sidebar.style.height = `calc(100% - ${bannerHeight}px)`;
+    }
+  }
 }
 window.renderImpersonateBanner = renderImpersonateBanner;
 
