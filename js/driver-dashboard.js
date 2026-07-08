@@ -439,16 +439,16 @@ async function fetchJadwalGlobal() {
           ? `<span class="badge badge-green">✓ ${UI.escapeHtml(j.dilaporkan_oleh || '-')}</span>`
           : '<span class="badge badge-gray">Belum</span>'}</td>
 <td>${j.sudah_lapor
-          ? '<span class="text-xs text-slate-400">—</span>'
-          : `<button class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1 px-3 rounded-lg transition-colors" onclick="ambilAlihJadwal('${j.jadwal_id}')">Ambil Alih</button>`}</td>
-    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
+    ? '<span class="text-xs text-slate-400">—</span>'
+    : `<button class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1 px-3 rounded-lg transition-colors" onclick="ambilAlihJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim},'${j.tanggal}')">Ambil Alih</button>`}</td>
 }
-async function ambilAlihJadwal(jadwalId) {
+async function ambilAlihJadwal(jadwalId, pangkalanNamaEncoded, jumlahKirim, tanggalJadwal) {
   if (!confirm('Ambil alih jadwal ini sebagai driver Anda?')) return;
   const res = await API.driver.ambilAlihJadwal({ jadwal_id: jadwalId });
   if (res.success) {
     UI.toast(res.message || 'Jadwal berhasil diambil alih.', 'success');
-    fetchJadwalGlobal();
+    prefillJadwal(jadwalId, pangkalanNamaEncoded, jumlahKirim, tanggalJadwal);
+    showSection('laporan');
   } else {
     UI.toast(res.message, 'error');
   }
