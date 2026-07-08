@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('topbar-title').textContent = 'Driver Dashboard';
   showSection('dashboard');
   prefetchPangkalan();
+  renderImpersonateSwitcher();
+  renderImpersonateBanner();
 });
 
 function buildSidebar() {
