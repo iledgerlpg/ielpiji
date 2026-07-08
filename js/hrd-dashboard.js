@@ -58,7 +58,8 @@ function buildSidebar() {
       <span class="nav-label">${item.label}</span>
     </button>`).join('');
 }
-/async function appendSwitchRoleMenu() {
+
+async function appendSwitchRoleMenu() {
   const session = Auth.getSession();
   if (!session) return;
 
