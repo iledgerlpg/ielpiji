@@ -225,13 +225,17 @@ async function renderImpersonateSwitcher() {
     else handleSwitchRole(val);
   });
 
-  const themeBtn = document.querySelector('[data-toggle-theme]');
-  if (themeBtn && themeBtn.parentElement) {
-    themeBtn.parentElement.insertBefore(wrap, themeBtn);
-  } else {
-    // fallback kalau tombol tema tidak ditemukan di halaman
-    (document.querySelector('#topbar, .topbar, header') || document.body).appendChild(wrap);
-  }
+// Ambil SEMUA toggle tema, lalu pilih yang bukan di dalam sidebar/nav
+// (halaman ini bisa punya lebih dari satu toggle: topbar & sidebar footer/mobile).
+const themeBtnCandidates = Array.from(document.querySelectorAll('[data-toggle-theme]'));
+const themeBtn = themeBtnCandidates.find(
+  el => !el.closest('aside, nav, #sidebar, .sidebar, #sidebar-nav')
+) || themeBtnCandidates[0];
+
+if (themeBtn && themeBtn.parentElement) {
+  themeBtn.parentElement.insertBefore(wrap, themeBtn);
+} else {
+  (document.querySelector('#topbar, .topbar, header') || document.body).appendChild(wrap);
 }
 window.renderImpersonateSwitcher = renderImpersonateSwitcher;
 
