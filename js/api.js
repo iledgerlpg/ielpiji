@@ -203,17 +203,16 @@ const API = (() => {
     deletePembayaran: (b) => post('operator/pembayaran/delete', b),
   };
 
-  // ============================================================
-  // DRIVER ENDPOINTS
-  // ============================================================
-  const driver = {
+const driver = {
     getDashboard:           ()  => get('driver/dashboard'),
     absenMasuk:             (b) => post('driver/absen-masuk', b, { offlineQueue: true, queueType: 'ABSEN_MASUK' }),
     absenPulang:            (b) => post('driver/absen-pulang', b, { offlineQueue: true, queueType: 'ABSEN_PULANG' }),
     getJadwalSaya:          (p) => get('driver/jadwal-saya', p),
     getJadwalGlobal:        (p) => get('driver/jadwal-global', p),
+    ambilAlihJadwal:        (b) => post('driver/jadwal-ambil-alih', b),
     submitLaporan:          (b) => post('driver/laporan-pengiriman', b, { offlineQueue: true, queueType: 'LAPORAN' }),
     getRiwayatLaporan:      (p) => get('driver/riwayat-laporan', p),
+    
   };
 
   // ============================================================
