@@ -49,6 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
   buildSidebar();
   UI.init();
   showSection('dashboard');
+  renderImpersonateSwitcher();
+  renderImpersonateBanner();
 });
 
 const SIDEBAR_STATE = {
