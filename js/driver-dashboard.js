@@ -369,42 +369,40 @@ async function loadJadwalSaya() {
     <div class="filter-bar">
       <input type="date" id="jadwal-tgl" class="form-input w-44" value="${UI.todayInputValue()}" onchange="fetchJadwalSaya()"/>
     </div>
-    <div id="jadwal-list" class="space-y-3">
-      ${skeletonList(3)}
+    <div id="jadwal-list" class="table-wrapper">
+      <table>
+        <thead><tr>
+          <th>Tanggal</th><th>SPBE</th><th>Rit</th><th>Pangkalan</th><th>Target Kirim</th><th>Retur</th><th>Catatan</th><th>Aksi</th>
+        </tr></thead>
+        <tbody id="jadwal-tbody">
+          <tr><td colspan="8">${skeletonLine()}</td></tr>
+        </tbody>
+      </table>
     </div>`;
   await fetchJadwalSaya();
 }
 
 async function fetchJadwalSaya() {
-  const el  = document.getElementById('jadwal-list');
-  el.innerHTML = skeletonList(3);
+  const tbody = document.getElementById('jadwal-tbody');
+  tbody.innerHTML = `<tr><td colspan="8">${skeletonLine()}</td></tr>`;
   const res = await API.driver.getJadwalSaya({ tanggal: document.getElementById('jadwal-tgl')?.value });
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
-  el.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
-    <div class="card">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex-1">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-semibold text-slate-900 dark:text-white">Rit ${j.rit}</span>
-            <span class="badge badge-blue">${UI.escapeHtml(j.pangkalan_nama)}</span>
-            ${j.sudah_lapor ? '<span class="badge badge-green">✓ Sudah Dilaporkan</span>' : ''}
-          </div>
-          <div class="grid grid-cols-2 gap-2 mt-2 text-sm">
-            <div class="text-slate-500 dark:text-slate-400">SPBE: <span class="font-medium text-slate-700 dark:text-slate-300">${UI.escapeHtml(j.spbe_nama || '-')}</span></div>
-            <div class="text-slate-500 dark:text-slate-400">Target Kirim: <span class="font-medium text-slate-700 dark:text-slate-300">${j.jumlah_kirim} tabung</span></div>
-            <div class="text-slate-500 dark:text-slate-400">Tanggal: <span class="font-medium text-slate-700 dark:text-slate-300">${UI.formatDate(j.tanggal)}</span></div>
-            ${j.keterangan ? `<div class="text-slate-500 dark:text-slate-400 col-span-2">Ket: <span class="font-medium">${UI.escapeHtml(j.keterangan)}</span></div>` : ''}
-            ${j.sudah_lapor && j.dilaporkan_oleh ? `<div class="text-slate-500 dark:text-slate-400 col-span-2">Dilaporkan oleh: <span class="font-medium">${UI.escapeHtml(j.dilaporkan_oleh)}</span></div>` : ''}
-          </div>
-        </div>
-${j.sudah_lapor
-          ? `<span class="badge badge-gray shrink-0 self-start">Selesai</span>`
-          : `<button class="btn-primary shrink-0 text-xs py-2 px-3" onclick="prefillJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim},'${j.tanggal}');showSection('laporan')">
-              Lapor
-            </button>`}
-      </div>
-    </div>`).join('') : UI.emptyState('Tidak ada jadwal untuk tanggal ini.', '📋');
+  tbody.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
+    <tr>
+      <td>${UI.formatDate(j.tanggal)}</td>
+      <td>${UI.escapeHtml(j.spbe_nama || '-')}</td>
+      <td class="font-semibold">Rit ${j.rit}</td>
+      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(j.pangkalan_nama)}</td>
+      <td>${j.jumlah_kirim} tabung</td>
+      <td>${j.jumlah_retur ?? '-'}</td>
+      <td class="text-slate-500 dark:text-slate-400">${j.keterangan ? UI.escapeHtml(j.keterangan) : '-'}</td>
+      <td>
+        ${j.sudah_lapor
+          ? '<span class="badge badge-green">✓ Terkirim</span>'
+          : `<button class="btn-primary text-xs py-1 px-3" onclick="prefillJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim},'${j.tanggal}');showSection('laporan')">Lapor</button>`}
+      </td>
+    </tr>`).join('') : `<tr><td colspan="8">${UI.emptyState('Tidak ada jadwal untuk tanggal ini.', '📋')}</td></tr>`;
 }
 
 // ============================================================
@@ -419,7 +417,7 @@ async function loadJadwalGlobal() {
       <input type="date" id="jadwal-global-tgl" class="form-input w-44" value="${UI.todayInputValue()}" onchange="fetchJadwalGlobal()"/>
     </div>
     <div id="jadwal-global-list" class="table-wrapper">
-      <table><thead><tr><th>Rit</th><th>Pangkalan</th><th>Target Kirim</th><th>Driver 1</th><th>Driver 2</th></tr></thead>
+      <table><thead><tr><th>Rit</th><th>Pangkalan</th><th>Target Kirim</th><th>Driver 1</th><th>Driver 2</th><th>Status</th><th>Aksi</th></tr></thead>
       <tbody id="jadwal-global-tbody"></tbody></table>
     </div>`;
   await fetchJadwalGlobal();
@@ -427,7 +425,7 @@ async function loadJadwalGlobal() {
 
 async function fetchJadwalGlobal() {
   const tbody = document.getElementById('jadwal-global-tbody');
-  tbody.innerHTML = `<tr><td colspan="5">${skeletonLine()}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7">${skeletonLine()}</td></tr>`;
   const res = await API.driver.getJadwalGlobal({ tanggal: document.getElementById('jadwal-global-tgl')?.value });
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   tbody.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
@@ -437,9 +435,20 @@ async function fetchJadwalGlobal() {
       <td>${j.jumlah_kirim} tabung</td>
       <td>${UI.escapeHtml(j.driver1_nama)}</td>
       <td class="text-slate-500">${j.driver2_nama !== '-' ? UI.escapeHtml(j.driver2_nama) : '—'}</td>
-    </tr>`).join('') : `<tr><td colspan="5">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
+      <td>${j.sudah_lapor ? '<span class="badge badge-green">✓ Dilaporkan</span>' : '<span class="badge badge-gray">Belum</span>'}</td>
+      <td><button class="btn-secondary text-xs py-1 px-3" onclick="ambilAlihJadwal('${j.jadwal_id}')">Ambil Alih</button></td>
+    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
 }
-
+async function ambilAlihJadwal(jadwalId) {
+  if (!confirm('Ambil alih jadwal ini sebagai driver Anda?')) return;
+  const res = await API.driver.ambilAlihJadwal({ jadwal_id: jadwalId });
+  if (res.success) {
+    UI.toast(res.message || 'Jadwal berhasil diambil alih.', 'success');
+    fetchJadwalGlobal();
+  } else {
+    UI.toast(res.message, 'error');
+  }
+}
 // ============================================================
 // FORM LAPORAN PENGIRIMAN
 // ============================================================
