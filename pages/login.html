@@ -32,241 +32,120 @@
     .dark .tab-btn:not(.active):hover { color:#cbd5e1; }
     .step { display: none; }
     .step.active { display: block; }
-    /* BG grid pattern */
-    .bg-grid { background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0); background-size: 28px 28px; }
+    /* Form Card Styles */
+    .form-card { background:#fff; border-radius:1rem; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); padding:2rem; width:100%; max-width:400px; }
+    .dark .form-card { background:#0f172a; border:1px solid #1e293b; box-shadow:none; }
   </style>
 </head>
-<body class="min-h-screen bg-slate-950 dark:bg-slate-950 flex">
+<body class="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 md:p-8">
 
-  <!-- Left pane (hidden on mobile) -->
-  <div class="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950 items-center justify-center p-12 overflow-hidden">
-    <div class="absolute inset-0 bg-grid"></div>
-    <!-- Decorative blobs -->
-    <div class="absolute -top-32 -left-32 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl"></div>
-    <div class="absolute -bottom-24 -right-24 w-80 h-80 bg-blue-400/15 rounded-full blur-3xl"></div>
+  <div class="form-card animate-slide-up">
 
-    <div class="relative z-10 text-white space-y-8 max-w-md">
-      <!-- Logo -->
-      <div class="flex items-center gap-4">
-        <div class="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="8" fill="white" opacity=".9"/>
-            <circle cx="16" cy="16" r="14" stroke="white" stroke-width="2" opacity=".3" fill="none"/>
-            <path d="M16 10v12M10 16h12" stroke="#1d4ed8" stroke-width="2.5" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div>
-          <div class="text-2xl font-bold tracking-tight">ILPG</div>
-          <div class="text-blue-300 text-sm">Informasi Logistik Pangkalan Gas</div>
-        </div>
+    <div class="flex flex-col items-center mb-10 gap-4">
+      <img src="/assets/icon-128.png" alt="ILPG Logo" class="w-24 h-24 rounded-3xl" />
+      <div class="text-center">
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">ILPG</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Informasi Logistik Pangkalan Gas</p>
       </div>
+    </div>
 
+    <div class="flex bg-slate-100 dark:bg-slate-900 rounded-xl p-1 mb-6" id="tab-bar">
+      <button class="tab-btn active" data-tab="login" onclick="switchTab('login')">Masuk</button>
+      <button class="tab-btn" data-tab="reset" onclick="switchTab('reset')">Reset Sandi</button>
+    </div>
+
+    <div id="tab-login" class="step active space-y-5">
       <div>
-        <h2 class="text-3xl font-bold leading-tight">Distribusi gas, terkelola dengan tepat.</h2>
-        <p class="text-blue-200/80 mt-3 text-sm leading-relaxed">
-          Pantau absensi, jadwal pengiriman, laporan pangkalan, dan pembayaran—semua dalam satu platform.
-        </p>
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white">Selamat datang</h2>
+        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Masuk menggunakan kode PT, email, dan sandi Anda.</p>
       </div>
 
-      <!-- Feature list -->
-      <ul class="space-y-3">
-        <li class="flex items-center gap-3 text-sm text-blue-100">
-          <div class="w-6 h-6 rounded-lg bg-blue-400/20 flex items-center justify-center shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Kode Perusahaan</label>
+          <input id="l-kode" type="text" class="form-input font-mono uppercase" placeholder="ILPG-001" autocomplete="organization" oninput="this.value=this.value.toUpperCase()"/>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Email</label>
+          <input id="l-email" type="email" class="form-input" placeholder="nama@perusahaan.com" autocomplete="email"/>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Sandi</label>
+          <div class="relative">
+            <input id="l-password" type="password" class="form-input pr-12" placeholder="Sandi Anda" autocomplete="current-password"/>
+            <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 transition-colors" onclick="togglePwd('l-password', this)" tabindex="-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            </button>
           </div>
-          Absensi digital dengan verifikasi foto & GPS
-        </li>
-        <li class="flex items-center gap-3 text-sm text-blue-100">
-          <div class="w-6 h-6 rounded-lg bg-blue-400/20 flex items-center justify-center shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-          </div>
-          Monitoring pengiriman & stok refill real-time
-        </li>
-        <li class="flex items-center gap-3 text-sm text-blue-100">
-          <div class="w-6 h-6 rounded-lg bg-blue-400/20 flex items-center justify-center shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-          </div>
-          Mode offline — data tetap aman tanpa sinyal
-        </li>
-        <li class="flex items-center gap-3 text-sm text-blue-100">
-          <div class="w-6 h-6 rounded-lg bg-blue-400/20 flex items-center justify-center shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-          </div>
-          Multi-perusahaan dengan isolasi data penuh
-        </li>
-      </ul>
+        </div>
+      </div>
+
+      <div id="login-error" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
+
+      <button id="login-btn" class="btn-primary" onclick="doLogin()">
+        Masuk ke Dashboard
+      </button>
+
+      <p class="text-center text-xs text-slate-400 dark:text-slate-500">
+        Belum punya akun? HRD harus
+        <a class="text-blue-500 hover:underline font-medium" href="/register.html">daftar PT terlebih dahulu.</a>
+      </p>
     </div>
-  </div>
 
-  <!-- Right pane — form -->
-  <div class="flex-1 flex items-center justify-center p-6 bg-white dark:bg-slate-950 overflow-y-auto">
-    <div class="w-full max-w-[400px] animate-slide-up">
-
-      <!-- Tab switcher: Login / Register PT / Reset -->
-      <div class="flex bg-slate-100 dark:bg-slate-900 rounded-xl p-1 mb-6" id="tab-bar">
-        <button class="tab-btn active" data-tab="login" onclick="switchTab('login')">Masuk</button>
-        <button class="tab-btn" data-tab="register" onclick="switchTab('register')">Daftar PT</button>
-        <button class="tab-btn" data-tab="reset" onclick="switchTab('reset')">Reset Sandi</button>
+    <div id="tab-reset" class="step space-y-5">
+      <div>
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white">Reset Sandi</h2>
+        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Kami akan kirim kode OTP ke email Anda.</p>
       </div>
 
-      <!-- ── LOGIN TAB ── -->
-      <div id="tab-login" class="step active space-y-5">
+      <div id="reset-step-1" class="space-y-4">
         <div>
-          <h2 class="text-xl font-bold text-slate-900 dark:text-white">Selamat datang</h2>
-          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Masuk menggunakan kode PT, email, dan sandi Anda.</p>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Kode Perusahaan</label>
+          <input id="rs-kode" type="text" class="form-input font-mono uppercase" placeholder="ILPG-001" oninput="this.value=this.value.toUpperCase()"/>
         </div>
-
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Kode Perusahaan</label>
-            <input id="l-kode" type="text" class="form-input font-mono uppercase" placeholder="ILPG-001" autocomplete="organization" oninput="this.value=this.value.toUpperCase()"/>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Email</label>
-            <input id="l-email" type="email" class="form-input" placeholder="nama@perusahaan.com" autocomplete="email"/>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Sandi</label>
-            <div class="relative">
-              <input id="l-password" type="password" class="form-input pr-12" placeholder="Sandi Anda" autocomplete="current-password"/>
-              <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 transition-colors" onclick="togglePwd('l-password', this)" tabindex="-1">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div id="login-error" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
-
-        <button id="login-btn" class="btn-primary" onclick="doLogin()">
-          Masuk ke Dashboard
-        </button>
-
-        <p class="text-center text-xs text-slate-400 dark:text-slate-500">
-          Belum punya akun? HRD harus
-          <button class="text-blue-500 hover:underline font-medium" onclick="switchTab('register')">daftar PT terlebih dahulu.</button>
-        </p>
-      </div>
-
-      <!-- ── REGISTER PT TAB ── -->
-      <div id="tab-register" class="step space-y-5">
         <div>
-          <h2 class="text-xl font-bold text-slate-900 dark:text-white">Daftarkan Perusahaan</h2>
-          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Satu kali pendaftaran. HRD pertama akan otomatis dibuat.</p>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Email Terdaftar</label>
+          <input id="rs-email" type="email" class="form-input" placeholder="email@perusahaan.com"/>
         </div>
-
-        <div class="space-y-3">
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama PT <span class="text-red-400">*</span></label>
-              <input id="r-nama-pt" type="text" class="form-input" placeholder="PT Maju Jaya"/>
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Unik <span class="text-red-400">*</span></label>
-              <input id="r-kode" type="text" class="form-input font-mono uppercase" placeholder="ILPG-001" oninput="this.value=this.value.toUpperCase()"/>
-            </div>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Email PT <span class="text-red-400">*</span></label>
-            <input id="r-email-pt" type="email" class="form-input" placeholder="info@pt.com"/>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Alamat PT <span class="text-red-400">*</span></label>
-            <input id="r-alamat" type="text" class="form-input" placeholder="Jl. Merpati No.42, Jakarta"/>
-          </div>
-          <div class="border-t border-slate-200 dark:border-slate-800 pt-3">
-            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Data HRD Pertama</p>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Nama HRD <span class="text-red-400">*</span></label>
-                <input id="r-hrd-nama" type="text" class="form-input" placeholder="Budi Santoso"/>
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">No. HP HRD</label>
-                <input id="r-hrd-hp" type="tel" class="form-input" placeholder="081234567890"/>
-              </div>
-            </div>
-            <div class="mt-2">
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Email HRD <span class="text-red-400">*</span></label>
-              <input id="r-hrd-email" type="email" class="form-input" placeholder="hrd@pt.com"/>
-            </div>
-            <div class="mt-2 relative">
-              <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Sandi HRD <span class="text-red-400">*</span> <span class="text-slate-400 font-normal">(min. 8 karakter)</span></label>
-              <input id="r-hrd-pass" type="password" class="form-input pr-12" placeholder="Minimal 8 karakter"/>
-              <button type="button" class="absolute right-3 bottom-3 text-slate-400 hover:text-slate-600 p-0.5" onclick="togglePwd('r-hrd-pass',this)" tabindex="-1">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div id="register-error" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
-        <div id="register-success" class="hidden bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3 text-sm text-green-700 dark:text-green-400"></div>
-
-        <button id="register-btn" class="btn-primary" onclick="doRegister()">
-          Daftarkan Perusahaan
+        <div id="reset-error-1" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
+        <button id="otp-btn" class="btn-primary" onclick="doRequestOTP()">
+          Kirim Kode OTP ke Email
         </button>
       </div>
 
-      <!-- ── RESET PASSWORD TAB ── -->
-      <div id="tab-reset" class="step space-y-5">
+      <div id="reset-step-2" class="hidden space-y-4">
+        <div class="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
+          ✅ Kode OTP telah dikirim ke email Anda. Berlaku 15 menit.
+        </div>
         <div>
-          <h2 class="text-xl font-bold text-slate-900 dark:text-white">Reset Sandi</h2>
-          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Kami akan kirim kode OTP ke email Anda.</p>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Kode OTP (6 digit)</label>
+          <input id="rs-otp" type="number" class="form-input text-center text-2xl font-mono tracking-widest" placeholder="000000" maxlength="6"/>
         </div>
-
-        <!-- Step 1: Request OTP -->
-        <div id="reset-step-1" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Kode Perusahaan</label>
-            <input id="rs-kode" type="text" class="form-input font-mono uppercase" placeholder="ILPG-001" oninput="this.value=this.value.toUpperCase()"/>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Email Terdaftar</label>
-            <input id="rs-email" type="email" class="form-input" placeholder="email@perusahaan.com"/>
-          </div>
-          <div id="reset-error-1" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
-          <button id="otp-btn" class="btn-primary" onclick="doRequestOTP()">
-            Kirim Kode OTP ke Email
-          </button>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Sandi Baru</label>
+          <input id="rs-newpass" type="password" class="form-input" placeholder="Minimal 8 karakter"/>
         </div>
-
-        <!-- Step 2: Confirm OTP -->
-        <div id="reset-step-2" class="hidden space-y-4">
-          <div class="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
-            ✅ Kode OTP telah dikirim ke email Anda. Berlaku 15 menit.
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Kode OTP (6 digit)</label>
-            <input id="rs-otp" type="number" class="form-input text-center text-2xl font-mono tracking-widest" placeholder="000000" maxlength="6"/>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Sandi Baru</label>
-            <input id="rs-newpass" type="password" class="form-input" placeholder="Minimal 8 karakter"/>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Konfirmasi Sandi Baru</label>
-            <input id="rs-confirm" type="password" class="form-input" placeholder="Ulangi sandi baru"/>
-          </div>
-          <div id="reset-error-2" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
-          <button id="confirm-btn" class="btn-primary" onclick="doConfirmReset()">
-            Simpan Sandi Baru
-          </button>
-          <button class="w-full text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" onclick="document.getElementById('reset-step-1').classList.remove('hidden');document.getElementById('reset-step-2').classList.add('hidden')">
-            ← Kembali
-          </button>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Konfirmasi Sandi Baru</label>
+          <input id="rs-confirm" type="password" class="form-input" placeholder="Ulangi sandi baru"/>
         </div>
-      </div>
-
-      <!-- Theme toggle + version -->
-      <div class="mt-8 flex items-center justify-between text-xs text-slate-400 dark:text-slate-600">
-        <span>ILPG v1.0</span>
-        <button onclick="toggleTheme()" class="flex items-center gap-1 hover:text-slate-600 dark:hover:text-slate-400 transition-colors">
-          <span id="theme-toggle-icon">🌙</span> Ganti tema
+        <div id="reset-error-2" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
+        <button id="confirm-btn" class="btn-primary" onclick="doConfirmReset()">
+          Simpan Sandi Baru
+        </button>
+        <button class="w-full text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" onclick="document.getElementById('reset-step-1').classList.remove('hidden');document.getElementById('reset-step-2').classList.add('hidden')">
+          ← Kembali
         </button>
       </div>
-
     </div>
+
+    <div class="mt-8 flex items-center justify-between text-xs text-slate-400 dark:text-slate-600">
+      <span>ILPG v1.0</span>
+      <button onclick="toggleTheme()" class="flex items-center gap-1 hover:text-slate-600 dark:hover:text-slate-400 transition-colors">
+        <span id="theme-toggle-icon">🌙</span> Ganti tema
+      </button>
+    </div>
+
   </div>
 
   <script src="/js/config.js"></script>
@@ -294,10 +173,12 @@
 
     // ── Tab switcher ──
     function switchTab(tab) {
-      ['login','register','reset'].forEach(t => {
-        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
-        document.getElementById('tab-' + t).classList.toggle('step', true);
-        document.querySelector(`[data-tab="${t}"]`).classList.toggle('active', t === tab);
+      ['login','reset'].forEach(t => {
+        const tabEl = document.getElementById('tab-' + t);
+        const tabBtnEl = document.querySelector(`[data-tab="${t}"]`);
+        if(tabEl) tabEl.classList.toggle('active', t === tab);
+        if(tabEl) tabEl.classList.toggle('step', true);
+        if(tabBtnEl) tabBtnEl.classList.toggle('active', t === tab);
       });
     }
 
@@ -332,40 +213,6 @@
         setTimeout(() => window.location.replace(result.redirectUrl), 600);
       } else {
         showError('login-error', result.message || 'Login gagal. Periksa kembali data Anda.');
-      }
-    }
-
-    // ── REGISTER PT ──
-    async function doRegister() {
-      hideError('register-error');
-      document.getElementById('register-success').classList.add('hidden');
-
-      const body = {
-        nama_pt:      document.getElementById('r-nama-pt').value.trim(),
-        kode_unik:    document.getElementById('r-kode').value.trim().toUpperCase(),
-        email_pt:     document.getElementById('r-email-pt').value.trim(),
-        alamat:       document.getElementById('r-alamat').value.trim(),
-        hrd_nama:     document.getElementById('r-hrd-nama').value.trim(),
-        hrd_email:    document.getElementById('r-hrd-email').value.trim(),
-        hrd_password: document.getElementById('r-hrd-pass').value,
-        hrd_no_hp:    document.getElementById('r-hrd-hp').value.trim(),
-      };
-
-      const missing = ['nama_pt','kode_unik','email_pt','alamat','hrd_nama','hrd_email','hrd_password'].filter(k => !body[k]);
-      if (missing.length) { showError('register-error', 'Semua field bertanda * wajib diisi.'); return; }
-      if (body.hrd_password.length < 8) { showError('register-error', 'Sandi HRD minimal 8 karakter.'); return; }
-
-      const btn = document.getElementById('register-btn');
-      UI.setLoading(btn, true, 'Mendaftarkan...');
-
-      const res = await Auth.registerPT(body);
-      UI.setLoading(btn, false);
-
-      if (res.success) {
-        showSuccess('register-success', `✅ PT "${body.nama_pt}" berhasil didaftarkan! Kode PT: ${res.data.kode_unik}. Silakan login.`);
-        setTimeout(() => switchTab('login'), 2500);
-      } else {
-        showError('register-error', res.message || 'Pendaftaran gagal.');
       }
     }
 
@@ -417,7 +264,6 @@
       if (e.key !== 'Enter') return;
       const activeTab = document.querySelector('.step.active')?.id;
       if (activeTab === 'tab-login')    doLogin();
-      if (activeTab === 'tab-register') doRegister();
     });
   </script>
 </body>
