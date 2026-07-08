@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildSidebar();
   UI.init();
   showSection('dashboard');
+  appendSwitchRoleMenu(); // ← tambah ini
 });
 
 function buildSidebar() {
