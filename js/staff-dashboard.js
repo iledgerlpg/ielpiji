@@ -40,7 +40,13 @@ function buildSidebar() {
   ).join('');
 }
 
-
+function showSection(id) {
+  activeSection = id;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById(`nav-${id}`)?.classList.add('active');
+  document.getElementById('topbar-title').textContent = NAV_ITEMS.find(n => n.id === id)?.label || 'Staff Admin';
+  ({ dashboard: loadDashboard, absensi: loadAbsensi, tugas: loadTugas, catatan: loadCatatan, piket: loadPiket })[id]?.();
+}
 // ── DASHBOARD ──
 async function loadDashboard() {
   const main = document.getElementById('main-content');
