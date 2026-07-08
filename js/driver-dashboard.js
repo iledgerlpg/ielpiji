@@ -438,10 +438,12 @@ async function fetchJadwalGlobal() {
       <td>${j.sudah_lapor
           ? `<span class="badge badge-green">✓ ${UI.escapeHtml(j.dilaporkan_oleh || '-')}</span>`
           : '<span class="badge badge-gray">Belum</span>'}</td>
-<td>${j.sudah_lapor
-    ? '<span class="text-xs text-slate-400">—</span>'
-    : `<button class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1 px-3 rounded-lg transition-colors" onclick="ambilAlihJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim},'${j.tanggal}')">Ambil Alih</button>`}</td>
+      <td>${j.sudah_lapor
+          ? '<span class="text-xs text-slate-400">—</span>'
+          : `<button class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1 px-3 rounded-lg transition-colors" onclick="ambilAlihJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim},'${j.tanggal}')">Ambil Alih</button>`}</td>
+    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
 }
+
 async function ambilAlihJadwal(jadwalId, pangkalanNamaEncoded, jumlahKirim, tanggalJadwal) {
   if (!confirm('Ambil alih jadwal ini sebagai driver Anda?')) return;
   const res = await API.driver.ambilAlihJadwal({ jadwal_id: jadwalId });
@@ -453,10 +455,6 @@ async function ambilAlihJadwal(jadwalId, pangkalanNamaEncoded, jumlahKirim, tang
     UI.toast(res.message, 'error');
   }
 }
-// ============================================================
-// FORM LAPORAN PENGIRIMAN
-// ============================================================
-
 let _laporanPhotos  = {};
 let _laporanGPS     = null;
 let _prefillData    = null;
