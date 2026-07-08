@@ -318,9 +318,7 @@ function openUserModal(user = null) {
 
   // Parse permissions user yang sedang diedit
 let userPerms = [];
-if (isEdit) userPerms = parsePermissions(user); 
-    try { userPerms = JSON.parse(user.permissions); } catch (e) { userPerms = []; }
-  }
+if (isEdit) userPerms = parsePermissions(user);
 
   // Daftar permission yang bisa diberikan (sesuai role)
   const permOptions = [
