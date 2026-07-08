@@ -16,21 +16,22 @@ const Auth = (() => {
     catch { return null; }
   }
 
-  function saveSession(data) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({
-      token:      data.token,
-      user_id:    data.user_id,
-      nama:       data.nama,
-      email:      data.email,
-      role:       data.role,
-      pt_id:      data.pt_id,
-      kode_unik:  data.kode_unik,
-      nama_pt:    data.nama_pt,
-      foto_url:   data.foto_url || '',
-      token_exp:  data.token_exp,
-      saved_at:   new Date().toISOString(),
-    }));
-  }
+function saveSession(data) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({
+    token:         data.token,
+    user_id:       data.user_id,
+    nama:          data.nama,
+    email:         data.email,
+    role:          data.role,
+    original_role: data.original_role || null,   // ← tambahan ini
+    pt_id:         data.pt_id,
+    kode_unik:     data.kode_unik,
+    nama_pt:       data.nama_pt,
+    foto_url:      data.foto_url || '',
+    token_exp:     data.token_exp,
+    saved_at:      new Date().toISOString(),
+  }));
+}
 
   function clearSession() {
     localStorage.removeItem(SESSION_KEY);
