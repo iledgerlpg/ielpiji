@@ -133,6 +133,8 @@ const API = (() => {
     logout:         ()     => post('auth/logout'),
     resetPassword:  (body) => post('auth/reset-password', body),
     confirmReset:   (body) => post('auth/confirm-reset', body),
+    switchRole:     (body) => post('auth/switch-role', body),
+    restoreRole:    ()     => post('auth/restore-role'),
   };
 
   // ============================================================
