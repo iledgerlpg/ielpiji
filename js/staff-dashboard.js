@@ -30,7 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
   buildSidebar();
   UI.init();
   showSection('dashboard');
-  appendSwitchRoleMenu(); // ← tambah ini
+  renderImpersonateSwitcher(); 
+  renderImpersonateBanner();
 });
 
 function buildSidebar() {
@@ -38,53 +39,7 @@ function buildSidebar() {
     `<button class="nav-item w-full text-left" id="nav-${n.id}" onclick="showSection('${n.id}')">${ICONS[n.icon]||''}<span class="nav-label">${n.label}</span></button>`
   ).join('');
 }
-async function appendSwitchRoleMenu() {
-  const session = Auth.getSession();
-  if (!session) return;
 
-  // Jangan tampilkan switch menu kalau sedang dalam mode impersonate
-  if (session.original_role) {
-    renderImpersonateBanner();
-    return;
-  }
-
-  // Ambil permissions dari server (bukan dari token — supaya selalu fresh)
-  const res = await API.auth.getMyPermissions();
-  if (!res.success || !res.data.permissions?.length) return;
-
-  const permissions = res.data.permissions;
-  const nav = document.getElementById('sidebar-nav');
-  if (!nav) return;
-
-  const divider = document.createElement('div');
-  divider.className = 'px-3 pt-4 pb-1';
-  divider.innerHTML = `
-    <div class="text-xs font-semibold text-slate-400 dark:text-slate-600 uppercase tracking-wider">
-      Beralih Role
-    </div>`;
-  nav.appendChild(divider);
-
-  const roleLabel = {
-    OPERATOR:    'Operator',
-    DRIVER:      'Driver',
-    KERNET:      'Kernet',
-    STAFF_ADMIN: 'Staff Admin',
-  };
-
-  permissions.forEach(role => {
-    const btn = document.createElement('button');
-    btn.className = 'nav-item w-full text-left';
-    btn.style.color = '#7c3aed';
-    btn.innerHTML = `
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-      </svg>
-      <span class="nav-label">Sebagai ${roleLabel[role] || role}</span>`;
-    btn.onclick = () => handleSwitchRole(role);
-    nav.appendChild(btn);
-  });
-}
 function showSection(id) {
   activeSection = id;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
