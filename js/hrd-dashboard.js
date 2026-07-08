@@ -42,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
   UI.init();
   document.getElementById('topbar-title').textContent = 'HRD Dashboard';
   showSection('dashboard');
-  loadDashboard();
   renderImpersonateSwitcher(); 
   renderImpersonateBanner();
 });
