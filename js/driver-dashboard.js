@@ -427,11 +427,12 @@ async function loadJadwalGlobal() {
 
 async function fetchJadwalGlobal() {
   const tbody = document.getElementById('jadwal-global-tbody');
-  tbody.innerHTML = `<tr><td colspan="7">${skeletonLine()}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8">${skeletonLine()}</td></tr>`;
   const res = await API.driver.getJadwalGlobal({ tanggal: document.getElementById('jadwal-global-tgl')?.value });
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   tbody.innerHTML = res.data.jadwal.length ? res.data.jadwal.map(j => `
     <tr>
+      <td>${UI.escapeHtml(j.spbe_nama || '-')}</td>
       <td class="font-semibold">Rit ${j.rit}</td>
       <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(j.pangkalan_nama)}</td>
       <td>${j.jumlah_kirim} tabung</td>
@@ -443,7 +444,7 @@ async function fetchJadwalGlobal() {
       <td>${j.sudah_lapor
           ? '<span class="text-xs text-slate-400">—</span>'
           : `<button class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1 px-3 rounded-lg transition-colors" onclick="ambilAlihJadwal('${j.jadwal_id}','${encodeURIComponent(j.pangkalan_nama)}',${j.jumlah_kirim},'${j.tanggal}')">Ambil Alih</button>`}</td>
-    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="8">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
 }
 
 async function ambilAlihJadwal(jadwalId, pangkalanNamaEncoded, jumlahKirim, tanggalJadwal) {
