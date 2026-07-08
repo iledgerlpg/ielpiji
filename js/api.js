@@ -135,6 +135,7 @@ const API = (() => {
     confirmReset:   (body) => post('auth/confirm-reset', body),
     switchRole:     (body) => post('auth/switch-role', body),
     restoreRole:    ()     => post('auth/restore-role'),
+    getMyPermissions: ()    => get('auth/my-permissions'),
   };
 
   // ============================================================
