@@ -269,25 +269,25 @@ function renderImpersonateBanner() {
   // Ukur tinggi banner SETELAH dirender (bisa 2 baris di layar sempit)
   const bannerHeight = banner.offsetHeight;
 
-  // Geser topbar sesuai posisi CSS aktualnya (fixed/sticky butuh `top`, bukan margin)
-  const topbar = document.querySelector('.topbar, header, #topbar');
-  if (topbar) {
-    const pos = window.getComputedStyle(topbar).position;
-    if (pos === 'fixed' || pos === 'sticky') {
-      topbar.style.top = bannerHeight + 'px';
-    } else {
-      topbar.style.marginTop = bannerHeight + 'px';
-    }
+  // Header: fixed top-0 → geser turun sejumlah tinggi banner
+  const header = document.querySelector('header');
+  if (header) {
+    header.style.top = bannerHeight + 'px';
   }
 
-  // Geser sidebar juga kalau posisinya fixed/sticky (biasanya full-height dari top:0)
-  const sidebar = document.querySelector('#sidebar, aside, .sidebar');
+  // Sidebar: fixed inset-y-0 (top:0 s/d bottom:0) → geser turun & kurangi tinggi
+  const sidebar = document.getElementById('sidebar');
   if (sidebar) {
-    const pos = window.getComputedStyle(sidebar).position;
-    if (pos === 'fixed' || pos === 'sticky') {
-      sidebar.style.top = bannerHeight + 'px';
-      sidebar.style.height = `calc(100% - ${bannerHeight}px)`;
-    }
+    sidebar.style.top = bannerHeight + 'px';
+    sidebar.style.height = `calc(100% - ${bannerHeight}px)`;
+  }
+
+  // Main: punya pt-16 (padding-top 64px) untuk kasih ruang ke header.
+  // Tambahkan bannerHeight ke atas padding yang sudah ada.
+  const main = document.querySelector('main');
+  if (main) {
+    const existingPaddingTop = parseInt(window.getComputedStyle(main).paddingTop) || 0;
+    main.style.paddingTop = (existingPaddingTop + bannerHeight) + 'px';
   }
 }
 window.renderImpersonateBanner = renderImpersonateBanner;
