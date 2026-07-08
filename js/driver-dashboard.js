@@ -169,10 +169,12 @@ async function loadDashboard() {
     <!-- Offline queue indicator -->
     <div id="queue-indicator"></div>`;
 
-  // Cek antrian offline
+ // Cek antrian offline
   const qCount = await DB.getQueueCount();
-  if (qCount > 0) {
-    document.getElementById('queue-indicator').innerHTML = `
+  if (activeSection !== 'dashboard') return;
+  const queueEl = document.getElementById('queue-indicator');
+  if (qCount > 0 && queueEl) {
+    queueEl.innerHTML = `
       <div class="card border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30">
         <div class="flex items-center gap-3">
           <div class="text-2xl">⏳</div>
