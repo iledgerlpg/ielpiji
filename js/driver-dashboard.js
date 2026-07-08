@@ -706,7 +706,7 @@ const body = {
     akurasi:              _laporanGPS.akurasi,
   };
 
-const res = await API.driver.submitLaporan(body);
+  const res = await API.driver.submitLaporan(body);
   UI.setLoading(btn, false);
 
   if (res.success || res.code === 202) {
@@ -720,7 +720,7 @@ const res = await API.driver.submitLaporan(body);
     errEl.textContent = res.message;
     errEl.classList.remove('hidden');
   }
-
+} 
 // ============================================================
 // RIWAYAT LAPORAN
 // ============================================================
