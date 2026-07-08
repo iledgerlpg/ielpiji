@@ -319,11 +319,34 @@ function deleteUserById(userId) {
 
 function openUserModal(user = null) {
   const isEdit = !!user;
-  const modal  = document.createElement('div');
-  modal.id     = 'user-modal';
+
+  // Parse permissions user yang sedang diedit
+  let userPerms = [];
+  if (isEdit && user.permissions) {
+    try { userPerms = JSON.parse(user.permissions); } catch (e) { userPerms = []; }
+  }
+
+  // Daftar permission yang bisa diberikan (sesuai role)
+  const permOptions = [
+    { value: 'OPERATOR',    label: 'Akses sebagai Operator' },
+    { value: 'DRIVER',      label: 'Akses sebagai Driver' },
+    { value: 'STAFF_ADMIN', label: 'Akses sebagai Staff Admin' },
+  ];
+
+  // Hanya tampilkan permission yang relevan berdasarkan role target
+  const targetRole = user?.role || 'OPERATOR';
+  const relevantPerms = {
+    STAFF_ADMIN: ['OPERATOR'],
+    DRIVER:      [],
+    KERNET:      [],
+    OPERATOR:    [],
+  }[targetRole] || [];
+
+  const modal = document.createElement('div');
+  modal.id    = 'user-modal';
   modal.className = 'fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
   modal.innerHTML = `
-    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
         <h3 class="font-semibold text-slate-900 dark:text-white">${isEdit ? 'Edit' : 'Tambah'} User</h3>
         <button class="btn-icon" onclick="document.getElementById('user-modal').remove()">✕</button>
@@ -341,12 +364,17 @@ function openUserModal(user = null) {
         </div>
         <div>
           <label class="form-label">Email *</label>
-          <input id="um-email" class="form-input" type="email" value="${UI.escapeHtml(user?.email || '')}" placeholder="email@pt.com" ${isEdit ? 'disabled class="form-input opacity-60"' : ''}/>
+          <input id="um-email" class="form-input" type="email"
+            value="${UI.escapeHtml(user?.email || '')}"
+            placeholder="email@pt.com"
+            ${isEdit ? 'disabled style="opacity:.6"' : ''}/>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label">Role *</label>
-            <select id="um-role" class="form-select" ${user?.role === 'HRD' ? 'disabled' : ''}>
+            <select id="um-role" class="form-select"
+              ${user?.role === 'HRD' ? 'disabled' : ''}
+              onchange="updatePermissionOptions()">
               <option ${user?.role==='OPERATOR'?'selected':''}>OPERATOR</option>
               <option ${user?.role==='DRIVER'?'selected':''}>DRIVER</option>
               <option ${user?.role==='KERNET'?'selected':''}>KERNET</option>
@@ -355,11 +383,34 @@ function openUserModal(user = null) {
           </div>
           <div>
             <label class="form-label">${isEdit ? 'Sandi Baru (kosongkan jika tidak ganti)' : 'Sandi *'}</label>
-            <input id="um-pass" class="form-input" type="password" placeholder="${isEdit ? 'Kosongkan jika tidak ganti' : 'Min. 6 karakter'}"/>
+            <input id="um-pass" class="form-input" type="password"
+              placeholder="${isEdit ? 'Kosongkan jika tidak ganti' : 'Min. 6 karakter'}"/>
           </div>
         </div>
+
+        <!-- Permission Section -->
+        <div id="um-permissions-section" class="${targetRole !== 'STAFF_ADMIN' ? 'hidden' : ''}">
+          <label class="form-label">Izin Tambahan</label>
+          <div class="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 space-y-2">
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
+              User ini bisa beralih (impersonate) ke role berikut:
+            </p>
+            <div id="um-permissions-list">
+              ${permOptions
+                .filter(p => relevantPerms.includes(p.value))
+                .map(p => `
+                  <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" class="um-perm-cb" value="${p.value}"
+                      ${userPerms.includes(p.value) ? 'checked' : ''}/>
+                    <span class="text-sm text-slate-700 dark:text-slate-200">${p.label}</span>
+                  </label>`).join('')}
+            </div>
+          </div>
+        </div>
+
         <div id="user-modal-error" class="hidden bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3"></div>
-        <button id="um-btn" class="btn-primary w-full justify-center" onclick="saveUser(${isEdit ? `'${user.user_id}'` : 'null'})">
+        <button id="um-btn" class="btn-primary w-full justify-center"
+          onclick="saveUser(${isEdit ? `'${user.user_id}'` : 'null'})">
           ${isEdit ? 'Simpan Perubahan' : 'Buat User'}
         </button>
       </div>
@@ -367,23 +418,62 @@ function openUserModal(user = null) {
   document.body.appendChild(modal);
 }
 
+// Update daftar permission saat role berubah
+function updatePermissionOptions() {
+  const role = document.getElementById('um-role')?.value;
+  const section = document.getElementById('um-permissions-section');
+  const list    = document.getElementById('um-permissions-list');
+  if (!section || !list) return;
+
+  const permMap = {
+    STAFF_ADMIN: [{ value: 'OPERATOR', label: 'Akses sebagai Operator' }],
+    DRIVER:      [],
+    KERNET:      [],
+    OPERATOR:    [],
+  };
+
+  const perms = permMap[role] || [];
+  if (!perms.length) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+  list.innerHTML = perms.map(p => `
+    <label class="flex items-center gap-3 cursor-pointer">
+      <input type="checkbox" class="um-perm-cb" value="${p.value}"/>
+      <span class="text-sm text-slate-700 dark:text-slate-200">${p.label}</span>
+    </label>`).join('');
+}
 async function saveUser(userId) {
   const btn   = document.getElementById('um-btn');
   const errEl = document.getElementById('user-modal-error');
   errEl.classList.add('hidden');
+
   const nama  = document.getElementById('um-nama').value.trim();
   const email = document.getElementById('um-email').value.trim();
   const role  = document.getElementById('um-role').value;
   const pass  = document.getElementById('um-pass').value;
   const hp    = document.getElementById('um-hp').value.trim();
 
-  if (!nama) { errEl.textContent = 'Nama wajib diisi.'; errEl.classList.remove('hidden'); return; }
-  if (!userId && (!email || !pass)) { errEl.textContent = 'Email dan sandi wajib diisi untuk user baru.'; errEl.classList.remove('hidden'); return; }
+  // Kumpulkan permissions yang dicentang
+  const permissions = Array.from(document.querySelectorAll('.um-perm-cb:checked'))
+    .map(cb => cb.value);
+
+  if (!nama) {
+    errEl.textContent = 'Nama wajib diisi.';
+    errEl.classList.remove('hidden'); return;
+  }
+  if (!userId && (!email || !pass)) {
+    errEl.textContent = 'Email dan sandi wajib diisi untuk user baru.';
+    errEl.classList.remove('hidden'); return;
+  }
 
   UI.setLoading(btn, true, 'Menyimpan...');
+
   const body = userId
-    ? { user_id: userId, nama, no_hp: hp, role, ...(pass ? { new_password: pass } : {}) }
-    : { nama, email, password: pass, role, no_hp: hp };
+    ? { user_id: userId, nama, no_hp: hp, role, permissions, ...(pass ? { new_password: pass } : {}) }
+    : { nama, email, password: pass, role, no_hp: hp, permissions };
 
   const res = userId ? await API.hrd.updateUser(body) : await API.hrd.createUser(body);
   UI.setLoading(btn, false);
