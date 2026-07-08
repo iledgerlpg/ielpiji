@@ -46,7 +46,35 @@ document.addEventListener('DOMContentLoaded', () => {
   renderImpersonateSwitcher(); 
   renderImpersonateBanner();
 });
+/** Banner ungu di atas layar saat sedang dalam mode impersonate. */
+function renderImpersonateBanner() {
+  const session = Auth.getSession();
+  if (!session?.original_role) return;
+  if (document.getElementById('impersonate-banner')) return;
 
+  const banner = document.createElement('div');
+  banner.id = 'impersonate-banner';
+  banner.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: linear-gradient(90deg, #7c3aed, #4f46e5);
+    color: white; text-align: center; padding: 8px 16px;
+    font-size: 13px; font-weight: 600; display: flex;
+    align-items: center; justify-content: center; gap: 12px;
+  `;
+  banner.innerHTML = `
+    <span>⚡ Mode Impersonate: <strong>${ROLE_LABEL[session.role] || session.role}</strong> (asli: ${ROLE_LABEL[session.original_role] || session.original_role})</span>
+    <button onclick="handleRestoreRole()"
+      style="background:white;color:#4f46e5;border:none;border-radius:8px;
+             padding:3px 12px;font-size:12px;font-weight:700;cursor:pointer;">
+      ✕ Kembali ke ${ROLE_LABEL[session.original_role] || session.original_role}
+    </button>
+  `;
+  document.body.prepend(banner);
+
+  const topbar = document.querySelector('.topbar, header, #topbar');
+  if (topbar) topbar.style.marginTop = '36px';
+}
+window.renderImpersonateBanner = renderImpersonateBanner;
 // ============================================================
 // SIDEBAR
 // ============================================================
