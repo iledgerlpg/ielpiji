@@ -319,6 +319,7 @@ const UI = (() => {
     DRIVER:      'badge-indigo',
     KERNET:      'badge-indigo',
     STAFF_ADMIN: 'badge-teal',
+    Ambil:       'badge-blue',
   };
 
   function badge(text, status = null) {
