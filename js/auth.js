@@ -159,3 +159,84 @@ const Auth = (() => {
 })();
 
 window.Auth = Auth;
+// ── SWITCH ROLE BANNER ──
+
+function renderImpersonateBanner() {
+  const session = Auth.getSession();
+  if (!session?.original_role) return;
+
+  // Tampilkan banner impersonate di atas topbar
+  const existing = document.getElementById('impersonate-banner');
+  if (existing) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'impersonate-banner';
+  banner.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: linear-gradient(90deg, #7c3aed, #4f46e5);
+    color: white; text-align: center; padding: 8px 16px;
+    font-size: 13px; font-weight: 600; display: flex;
+    align-items: center; justify-content: center; gap: 12px;
+  `;
+  banner.innerHTML = `
+    <span>⚡ Mode Impersonate: <strong>${session.role}</strong> (asli: ${session.original_role})</span>
+    <button onclick="handleRestoreRole()"
+      style="background:white;color:#4f46e5;border:none;border-radius:8px;
+             padding:3px 12px;font-size:12px;font-weight:700;cursor:pointer;">
+      ✕ Kembali ke ${session.original_role}
+    </button>
+  `;
+  document.body.prepend(banner);
+
+  // Geser topbar ke bawah banner
+  const topbar = document.querySelector('.topbar, header, #topbar');
+  if (topbar) topbar.style.marginTop = '36px';
+}
+
+async function handleSwitchRole(targetRole) {
+  const res = await API.auth.switchRole({ target_role: targetRole });
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
+
+  // Update session
+  const session = Auth.getSession();
+  Auth.saveSession({
+    ...session,
+    token:         res.data.token,
+    role:          res.data.role,
+    original_role: res.data.original_role,
+  });
+
+  UI.toast(`Beralih ke ${res.data.role}`, 'success');
+
+  // Redirect ke dashboard role yang sesuai
+  const rolePages = {
+    OPERATOR:    '/operator-dashboard.html',
+    DRIVER:      '/driver-dashboard.html',
+    KERNET:      '/driver-dashboard.html',
+    STAFF_ADMIN: '/staff-dashboard.html',
+  };
+  const page = rolePages[res.data.role];
+  if (page) setTimeout(() => { window.location.href = page; }, 500);
+}
+
+async function handleRestoreRole() {
+  const res = await API.auth.restoreRole();
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
+
+  const session = Auth.getSession();
+  Auth.saveSession({
+    ...session,
+    token:         res.data.token,
+    role:          res.data.role,
+    original_role: null,
+  });
+
+  UI.toast(`Kembali ke ${res.data.role}`, 'success');
+
+  const rolePages = {
+    HRD:         '/hrd-dashboard.html',
+    STAFF_ADMIN: '/staff-dashboard.html',
+  };
+  const page = rolePages[res.data.role];
+  if (page) setTimeout(() => { window.location.href = page; }, 500);
+}
