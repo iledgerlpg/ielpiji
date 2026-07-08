@@ -8,6 +8,17 @@
 const SESSION = Auth.guard(['HRD']);
 if (!SESSION) throw new Error('Unauthorized');
 
+function parsePermissions(user) {
+  const raw = user?.permissions;
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
 // ── Page state ──
 let allUsers = [], allAbsensi = [], allTugas = [], allPiket = [], allCatatan = [];
 let activeSection = 'dashboard';
@@ -122,6 +133,7 @@ async function loadDashboard(tanggal = UI.todayInputValue()) {
     </div>`;
 
   const res = await API.hrd.getDashboard({ tanggal });
+  if (activeSection !== 'dashboard') return;   // 
   if (!res.success) { UI.toast(res.message, 'error'); return; }
 
   const { sudah_absen, belum_absen, pending_approval } = res.data;
@@ -227,6 +239,7 @@ async function loadUsers() {
 </div>`;
 
   const res = await API.hrd.getUsers();
+  if (activeSection !== 'users') return;   // ← tambahkan
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allUsers = res.data.users;
   renderUsers(allUsers);
@@ -247,12 +260,9 @@ function filterUsers() {
 function renderUsers(users) {
   const tbody = document.getElementById('users-table-body');
   if (!tbody) return;
-  tbody.innerHTML = users.length ? users.map(u => {
-    let permsArr = [];
-    if (u.permissions) {
-      try { permsArr = JSON.parse(u.permissions); } catch (e) { permsArr = []; }
-    }
-    const hasOperatorAccess = permsArr.includes('OPERATOR');
+tbody.innerHTML = users.length ? users.map(u => {
+  const permsArr = parsePermissions(u);   // ← ganti blok try/catch dengan ini
+  const hasOperatorAccess = permsArr.includes('OPERATOR');
 
     const operatorToggle = u.role === 'STAFF_ADMIN' ? `
       <button
@@ -307,8 +317,8 @@ function openUserModal(user = null) {
   const isEdit = !!user;
 
   // Parse permissions user yang sedang diedit
-  let userPerms = [];
-  if (isEdit && user.permissions) {
+let userPerms = [];
+if (isEdit) userPerms = parsePermissions(user); 
     try { userPerms = JSON.parse(user.permissions); } catch (e) { userPerms = []; }
   }
 
@@ -495,11 +505,7 @@ async function toggleStaffOperatorAccess(userId) {
   if (!user) { UI.toast('Data user tidak ditemukan.', 'error'); return; }
   if (user.role !== 'STAFF_ADMIN') return;
 
-  let permsArr = [];
-  if (user.permissions) {
-    try { permsArr = JSON.parse(user.permissions); } catch (e) { permsArr = []; }
-  }
-
+  const permsArr = parsePermissions(user);   // ← ganti blok try/catch dengan ini
   const hasAccess = permsArr.includes('OPERATOR');
   const newPerms  = hasAccess
     ? permsArr.filter(p => p !== 'OPERATOR')
@@ -569,6 +575,7 @@ async function fetchAbsensi() {
   tbody.innerHTML = `<tr><td colspan="7"><div class="py-4">${skeletonLine()}</div></td></tr>`;
 
   const res = await API.hrd.getAbsensi(params);
+  if (activeSection !== 'absensi') return;   // ← tambahkan
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allAbsensi = res.data.absensi;
 
@@ -602,6 +609,7 @@ async function loadPerusahaan() {
     </div>`;
 
   const res = await API.hrd.getPerusahaan();
+  if (activeSection !== 'perusahaan') return; 
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   const d = res.data;
 
@@ -659,6 +667,7 @@ async function loadTugas() {
     <div id="tugas-list" class="space-y-3"></div>`;
 
   const res = await API.hrd.getTugasAdmin();
+  if (activeSection !== 'tugas') return;   // ← tambahkan
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allTugas = res.data.tugas;
   renderTugas(allTugas);
@@ -754,6 +763,7 @@ async function fetchPiket() {
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allPiket = res.data.jadwal;
   const usersRes = await API.hrd.getUsers({ role: 'STAFF_ADMIN' });
+  if (activeSection !== 'piket') return; 
   const users = usersRes.success ? usersRes.data.users : [];
   const userMap = {};
   users.forEach(u => { userMap[u.user_id] = u.nama; });
@@ -827,6 +837,7 @@ async function fetchCatatan() {
   const el = document.getElementById('catatan-list');
   el.innerHTML = `<div class="animate-pulse space-y-3">${Array(3).fill('<div class="card h-20"></div>').join('')}</div>`;
   const res = await API.hrd.getCatatan({ tipe: document.getElementById('cat-tipe')?.value || undefined });
+  if (activeSection !== 'catatan') return;   // ← tambahkan
   if (!res.success) { UI.toast(res.message, 'error'); return; }
   allCatatan = res.data.catatan;
   el.innerHTML = allCatatan.length ? allCatatan.map(c => `
