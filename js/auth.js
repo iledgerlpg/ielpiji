@@ -176,8 +176,8 @@ const ROLE_LABEL = {
 /**
  * Render dropdown "Ganti Role" di topbar, tepat di sebelah tombol dark/light mode
  * ([data-toggle-theme]). Hanya muncul jika:
- *  - User sedang impersonate (butuh cara balik), ATAU
- *  - User punya izin impersonate (field `permissions` di data user, diatur HRD).
+ * - User sedang impersonate (butuh cara balik), ATAU
+ * - User punya izin impersonate (field `permissions` di data user, diatur HRD).
  * Kalau tidak punya izin & tidak sedang impersonate → dropdown tidak dirender sama sekali.
  */
 async function renderImpersonateSwitcher() {
@@ -210,9 +210,9 @@ async function renderImpersonateSwitcher() {
   wrap.className = 'inline-flex items-center';
   wrap.innerHTML = `
     <select id="impersonate-select"
-      class="text-xs font-semibold rounded-lg border border-purple-300 dark:border-purple-700
-             bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300
-             px-2 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-400
+      class="text-xs font-semibold rounded-lg border border-yellow-400 dark:border-yellow-600
+             bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300
+             px-2 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-yellow-400
              max-w-[170px]">
       <option value="" selected disabled>${session.original_role ? '⚡ ' + ROLE_LABEL[session.role] : '🎭 Ganti Role'}</option>
       ${optionsHtml}
@@ -239,7 +239,8 @@ async function renderImpersonateSwitcher() {
   }
 }
 window.renderImpersonateSwitcher = renderImpersonateSwitcher;
-/** Banner ungu di atas layar saat sedang dalam mode impersonate. */
+
+/** Banner di atas layar saat sedang dalam mode impersonate. */
 function renderImpersonateBanner() {
   const session = Auth.getSession();
   if (!session?.original_role) return;
@@ -249,7 +250,7 @@ function renderImpersonateBanner() {
   banner.id = 'impersonate-banner';
   banner.style.cssText = `
     position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
-    background: linear-gradient(90deg, #7c3aed, #4f46e5);
+    background: linear-gradient(90deg, #eab308, #ca8a04);
     color: white; text-align: center; padding: 8px 16px;
     font-size: 13px; font-weight: 600; display: flex;
     align-items: center; justify-content: center; gap: 12px;
@@ -257,7 +258,7 @@ function renderImpersonateBanner() {
   banner.innerHTML = `
     <span>⚡ Mode Impersonate: <strong>${ROLE_LABEL[session.role] || session.role}</strong> (asli: ${ROLE_LABEL[session.original_role] || session.original_role})</span>
     <button onclick="handleRestoreRole()"
-      style="background:white;color:#4f46e5;border:none;border-radius:8px;
+      style="background:white;color:#ca8a04;border:none;border-radius:8px;
              padding:3px 12px;font-size:12px;font-weight:700;cursor:pointer;">
       ✕ Kembali ke ${ROLE_LABEL[session.original_role] || session.original_role}
     </button>
