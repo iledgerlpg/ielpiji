@@ -469,12 +469,29 @@ async function loadFormLaporan() {
   _laporanPhotos = {};
   _laporanGPS    = null;
 
-// Ambil SEMUA jadwal milik driver ini (lintas tanggal), lalu tampilkan
+  // Cek dulu apakah driver sudah absen masuk hari ini
+  const dashRes = await API.driver.getDashboard();
+  const sudahAbsenMasuk = !!dashRes?.data?.absensi_hari?.jam_masuk;
+
+  if (!sudahAbsenMasuk) {
+    main.innerHTML = `
+      <div class="page-header"><h2 class="page-title">Laporan Pengiriman</h2></div>
+      <div class="card text-center py-10">
+        <div class="text-4xl mb-3">⚠️</div>
+        <div class="font-semibold text-slate-900 dark:text-white">Anda belum absen masuk hari ini</div>
+        <div class="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-4">Absen masuk wajib dilakukan sebelum membuat laporan pengiriman.</div>
+        <button class="btn-primary" onclick="showSection('absensi')">📍 Absen Sekarang</button>
+      </div>`;
+    return;
+  }
+
+  // Ambil SEMUA jadwal milik driver ini (lintas tanggal), lalu tampilkan
   // yang BELUM dilaporkan saja di dropdown — supaya driver bisa pilih jadwal
   // dari hari manapun yang masih perlu dilaporkan, tidak cuma hari ini.
   const jadwalRes  = await API.driver.getJadwalSaya({});
   if (activeSection !== 'laporan') return;
   const jadwalList = (jadwalRes.success ? jadwalRes.data.jadwal : []).filter(j => !j.sudah_lapor);
+  
 
   const pangkalanOpts = jadwalList.map(j => {
     const namaDriver   = j.driver1_nama === SESSION.nama ? j.driver1_nama : (j.driver2_nama || j.driver1_nama);
