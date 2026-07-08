@@ -438,9 +438,9 @@ async function fetchJadwalGlobal() {
       <td>${j.sudah_lapor
           ? `<span class="badge badge-green">✓ ${UI.escapeHtml(j.dilaporkan_oleh || '-')}</span>`
           : '<span class="badge badge-gray">Belum</span>'}</td>
-      <td>${j.sudah_lapor
+<td>${j.sudah_lapor
           ? '<span class="text-xs text-slate-400">—</span>'
-          : `<button class="btn-secondary text-xs py-1 px-3" onclick="ambilAlihJadwal('${j.jadwal_id}')">Ambil Alih</button>`}</td>
+          : `<button class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1 px-3 rounded-lg transition-colors" onclick="ambilAlihJadwal('${j.jadwal_id}')">Ambil Alih</button>`}</td>
     </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
 }
 async function ambilAlihJadwal(jadwalId) {
