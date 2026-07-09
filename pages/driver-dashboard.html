@@ -7,17 +7,7 @@
   <title>ILPG — Driver Dashboard</title>
   <link rel="manifest" href="/manifest.json"/>
   <link rel="icon" href="/assets/icon-192.png"/>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: { extend: {
-        colors: { brand: { 600:'#2563eb',700:'#1d4ed8' } },
-        animation: { 'fade-in':'fadeIn .25s ease','scale-in':'scaleIn .2s ease' },
-        keyframes: { fadeIn:{'0%':{opacity:0},'100%':{opacity:1}}, scaleIn:{'0%':{transform:'scale(.95)',opacity:0},'100%':{transform:'scale(1)',opacity:1}} },
-      }}
-    };
-  </script>
+  <link rel="stylesheet" href="/css/tailwind.css"/>
   <style>
     *,*::before,*::after{box-sizing:border-box}
     body{font-family:system-ui,-apple-system,sans-serif}
