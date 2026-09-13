@@ -99,121 +99,168 @@ async function loadDashboard() {
     </div>` : ''}`;
 }
 
-// ── ABSENSI ──
+// ============================================================
+// ABSENSI
+// ============================================================
+
 async function loadAbsensi() {
   const main = document.getElementById('main-content');
-  const res  = await API.staff.getDashboard();
-  const absenHari  = res.success ? res.data.absensi_hari : null;
-  const sudahMasuk = !!absenHari?.jam_masuk;
-  const sudahPulang= !!absenHari?.jam_pulang;
+
+  // Cek status absensi hari ini
+  const dashRes = await API.driver.getDashboard();
+  const absenHari = dashRes.success ? dashRes.data.absensi_hari : null;
+  const sudahMasuk  = !!absenHari?.jam_masuk;
+  const sudahPulang = !!absenHari?.jam_pulang;
 
   main.innerHTML = `
-    <div class="page-header"><h2 class="page-title">Absensi</h2><p class="page-sub">Catat kehadiran Anda dengan foto selfie dan GPS.</p></div>
+    <div class="page-header">
+      <h2 class="page-title">Absensi</h2>
+      <p class="page-sub">Catat kehadiran Anda dengan foto dan lokasi GPS.</p>
+    </div>
 
+    <!-- Status hari ini -->
     <div class="card mb-4">
       <h3 class="font-semibold text-slate-900 dark:text-white mb-3">Status Hari Ini</h3>
       <div class="flex gap-4">
         <div class="flex-1 text-center py-3 rounded-xl ${sudahMasuk ? 'bg-green-50 dark:bg-green-900/20' : 'bg-slate-50 dark:bg-slate-800'}">
           <div class="text-2xl mb-1">${sudahMasuk ? '✅' : '⏳'}</div>
-          <div class="text-xs font-medium text-slate-700 dark:text-slate-300">Masuk</div>
-          <div class="text-xs text-slate-500 font-mono">${absenHari?.jam_masuk || '—'}</div>
+          <div class="text-xs font-medium text-slate-700 dark:text-slate-300">Absen Masuk</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">${absenHari?.jam_masuk || '—'}</div>
         </div>
         <div class="flex-1 text-center py-3 rounded-xl ${sudahPulang ? 'bg-green-50 dark:bg-green-900/20' : 'bg-slate-50 dark:bg-slate-800'}">
           <div class="text-2xl mb-1">${sudahPulang ? '✅' : '⏳'}</div>
-          <div class="text-xs font-medium text-slate-700 dark:text-slate-300">Pulang</div>
-          <div class="text-xs text-slate-500 font-mono">${absenHari?.jam_pulang || '—'}</div>
+          <div class="text-xs font-medium text-slate-700 dark:text-slate-300">Absen Pulang</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">${absenHari?.jam_pulang || '—'}</div>
         </div>
       </div>
     </div>
 
-    ${sudahPulang ? `<div class="card text-center py-10"><div class="text-4xl mb-3">✅</div><div class="font-semibold text-slate-900 dark:text-white">Absensi hari ini sudah lengkap!</div></div>` : `
-    <div class="card space-y-4">
-      <h3 class="font-semibold text-slate-900 dark:text-white">${!sudahMasuk ? '📍 Absen Masuk' : '📍 Absen Pulang'}</h3>
-      <div class="bg-blue-50 dark:bg-blue-950/30 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
-        ℹ️ Foto diambil via <strong>kamera depan</strong>. Lokasi tidak ditampilkan di layar.
-      </div>
-
-      <!-- Foto -->
-      <div>
-        <label class="form-label">Foto Selfie *</label>
-        <div class="aspect-[4/3] bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden relative flex items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" onclick="openStaffCamera()">
-          <div id="staff-photo-ph" class="text-center space-y-2"><div class="text-3xl">📷</div><div class="text-sm text-slate-500">Tap untuk ambil foto</div></div>
-          <img id="staff-photo-img" class="hidden absolute inset-0 w-full h-full object-cover" src="" alt="Foto"/>
+    <!-- Form Absensi -->
+    ${sudahPulang ? `
+      <div class="card text-center py-10">
+        <div class="text-4xl mb-3">✅</div>
+        <div class="font-semibold text-slate-900 dark:text-white">Absensi hari ini sudah lengkap!</div>
+        <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Masuk: ${absenHari.jam_masuk} · Pulang: ${absenHari.jam_pulang}</div>
+      </div>` : `
+      <div class="card space-y-4">
+        <h3 class="font-semibold text-slate-900 dark:text-white">
+          ${!sudahMasuk ? '📍 Absen Masuk' : '📍 Absen Pulang'}
+        </h3>
+        <div class="text-sm text-slate-500 dark:text-slate-400 bg-blue-50 dark:bg-blue-950/30 rounded-xl px-4 py-3">
+          ℹ️ Pastikan Wajah Terlihat Jelas <strong> </strong>. Mohon tidak meninggalkan halaman ketika absen berlangsung.
         </div>
-      </div>
 
-      <!-- GPS -->
-      <div id="staff-gps-box" class="flex items-center gap-3 py-3 px-4 rounded-xl bg-slate-50 dark:bg-slate-800">
-        <div class="text-xl">📡</div>
-        <div class="flex-1">
-          <div class="text-sm font-medium text-slate-700 dark:text-slate-300">Lokasi GPS</div>
-          <div id="staff-gps-txt" class="text-xs text-slate-500">Belum diambil</div>
+        <!-- Foto preview -->
+        <div>
+          <label class="form-label">Foto Selfie *</label>
+          <div id="abs-photo-preview" class="relative bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" onclick="openAbsenCamera()">
+            <div id="abs-photo-placeholder" class="text-center space-y-2">
+              <div class="text-3xl">📷</div>
+              <div class="text-sm text-slate-500 dark:text-slate-400">Tap untuk ambil foto</div>
+            </div>
+            <img id="abs-photo-img" class="hidden absolute inset-0 w-full h-full object-cover" src="" alt="Foto absensi"/>
+          </div>
         </div>
-        <button id="staff-gps-btn" class="btn-secondary text-xs py-1.5 px-3" onclick="getStaffGPS()">Ambil Lokasi</button>
-      </div>
 
-      <div id="staff-abs-err" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
-      <button id="staff-abs-btn" class="btn-primary w-full justify-center py-3" onclick="submitStaffAbsen('${!sudahMasuk ? 'masuk' : 'pulang'}')">
-        ${!sudahMasuk ? 'Kirim Absen Masuk' : 'Kirim Absen Pulang'}
-      </button>
-    </div>`}`;
+
+ 
+        <div id="abs-error" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
+
+        <button id="abs-submit-btn" class="btn-primary w-full justify-center py-3" onclick="submitAbsensi('${!sudahMasuk ? 'masuk' : 'pulang'}')">
+          ${!sudahMasuk ? 'Kirim Absen Masuk' : 'Kirim Absen Pulang'}
+        </button>
+      </div>`}`;
 }
 
-async function openStaffCamera() {
-  UI.openModal('camera-modal');
-  document.getElementById('camera-modal-title').textContent = 'Foto Selfie Absensi';
+let _absenPhotoB64 = null;
+
+async function openAbsenCamera() {
+  const video  = document.getElementById('camera-video');
+  const modal  = document.getElementById('camera-modal');
+  const title  = document.getElementById('camera-modal-title');
+  title.textContent = 'Foto Selfie Absensi';
+
+UI.openModal('camera-modal');
   try {
-    await Camera.init(document.getElementById('camera-video'));
+    await Camera.init(video, 'user');
     document.getElementById('camera-capture-btn').onclick = async () => {
-      const r = await Camera.capture();
-      _absenPhotoB64 = r.base64;
-      document.getElementById('staff-photo-img').src = r.base64;
-      document.getElementById('staff-photo-img').classList.remove('hidden');
-      document.getElementById('staff-photo-ph').classList.add('hidden');
-      Camera.stop(); UI.closeModal('camera-modal');
-      UI.toast(`📸 Foto diambil (${r.sizeKB}KB)`, 'success');
+      const result = await Camera.capture();
+      _absenPhotoB64 = result.base64;
+
+      // Tampilkan preview
+      const img  = document.getElementById('abs-photo-img');
+      const ph   = document.getElementById('abs-photo-placeholder');
+      img.src    = result.base64;
+      img.classList.remove('hidden');
+      ph.classList.add('hidden');
+
+      Camera.stop();
+      UI.closeModal('camera-modal');
+      UI.toast(`📸 Foto diambil (${result.sizeKB}KB)`, 'success');
     };
-  } catch (err) { Camera.stop(); UI.closeModal('camera-modal'); UI.toast(err.message, 'error'); }
+  } catch (err) {
+    Camera.stop();
+    UI.closeModal('camera-modal');
+    UI.toast(err.message, 'error');
+  }
 }
 
-async function getStaffGPS() {
-  const btn = document.getElementById('staff-gps-btn');
-  const txt = document.getElementById('staff-gps-txt');
-  UI.setLoading(btn, true, 'Mendeteksi...');
-  txt.textContent = 'Mendeteksi...';
-  try {
-    _absenGPS = await Camera.getLocation(100, 20000);
-    txt.textContent = `✅ Terdeteksi (±${_absenGPS.akurasi}m)`;
-    document.getElementById('staff-gps-box').classList.add('bg-green-50', 'dark:bg-green-900/20');
-    UI.toast(`Lokasi terdeteksi (±${_absenGPS.akurasi}m)`, 'success');
-  } catch (err) { txt.textContent = '❌ ' + err.message; UI.toast(err.message, 'error'); }
-  UI.setLoading(btn, false);
-}
 
-async function submitStaffAbsen(tipe) {
-  const btn   = document.getElementById('staff-abs-btn');
-  const errEl = document.getElementById('staff-abs-err');
+async function submitAbsensi(tipe) {
+  const btn   = document.getElementById('abs-submit-btn');
+  const errEl = document.getElementById('abs-error');
   errEl.classList.add('hidden');
-  if (!_absenPhotoB64) { errEl.textContent = 'Foto selfie wajib diambil.'; errEl.classList.remove('hidden'); return; }
-  if (!_absenGPS)      { errEl.textContent = 'Lokasi GPS belum diambil.';  errEl.classList.remove('hidden'); return; }
+
+  if (!_absenPhotoB64) {
+    errEl.textContent = 'Foto selfie wajib diambil terlebih dahulu.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  UI.setLoading(btn, true, 'Mendeteksi lokasi...');
+  try {
+    currentGPS = await Camera.getLocation(100, 20000);
+  } catch (err) {
+    UI.setLoading(btn, false);
+    errEl.textContent = 'Gagal mendeteksi lokasi: ' + err.message;
+    errEl.classList.remove('hidden');
+    return;
+  }
 
   UI.setLoading(btn, true, 'Mengupload foto...');
-  const imgType  = tipe === 'masuk' ? 'ABSEN_MASUK' : 'ABSEN_PULANG';
-  const upRes    = await API.uploadImage(_absenPhotoB64, imgType);
-  if (!upRes.success) { UI.setLoading(btn, false); errEl.textContent = upRes.message; errEl.classList.remove('hidden'); return; }
+
+  // Upload foto ke Drive
+  const imgType = tipe === 'masuk' ? 'ABSEN_MASUK' : 'ABSEN_PULANG';
+  const uploadRes = await API.uploadImage(_absenPhotoB64, imgType);
+  if (!uploadRes.success) {
+    UI.setLoading(btn, false);
+    errEl.textContent = `Gagal upload foto: ${uploadRes.message}`;
+    errEl.classList.remove('hidden');
+    return;
+  }
 
   UI.setLoading(btn, true, 'Mengirim absensi...');
-  const body     = { [`foto_${tipe}_url`]: upRes.data.file_url, [`lat_${tipe}`]: _absenGPS.lat, [`lng_${tipe}`]: _absenGPS.lng, [`akurasi_${tipe}`]: _absenGPS.akurasi };
-  const endpoint = tipe === 'masuk' ? API.staff.absenMasuk : API.staff.absenPulang;
-  const res      = await endpoint(body);
+  const body = {
+    [`foto_${tipe}_url`]:    uploadRes.data.file_url,
+    [`lat_${tipe}`]:         currentGPS.lat,
+    [`lng_${tipe}`]:         currentGPS.lng,
+    [`akurasi_${tipe}`]:     currentGPS.akurasi,
+  };
+
+  const endpoint = tipe === 'masuk' ? API.driver.absenMasuk : API.driver.absenPulang;
+  const res = await endpoint(body);
   UI.setLoading(btn, false);
 
   if (res.success || res.code === 202) {
-    _absenPhotoB64 = null; _absenGPS = null;
+    _absenPhotoB64 = null; currentGPS = null;
     UI.toast(res.message, 'success');
     setTimeout(() => showSection('dashboard'), 1000);
-  } else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
+  } else {
+    errEl.textContent = res.message;
+    errEl.classList.remove('hidden');
+  }
 }
+
 
 // ── TUGAS ──
 async function loadTugas() {
