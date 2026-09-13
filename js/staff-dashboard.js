@@ -7,8 +7,7 @@ const SESSION = Auth.guard(['STAFF_ADMIN']);
 if (!SESSION) throw new Error('Unauthorized');
 
 let activeSection = 'dashboard';
-let _absenPhotoB64 = null;
-let _absenGPS      = null;
+let currentGPS    = null;
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard',     icon: 'home' },
@@ -30,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildSidebar();
   UI.init();
   showSection('dashboard');
-  renderImpersonateSwitcher(); 
+  renderImpersonateSwitcher();
   renderImpersonateBanner();
 });
 
@@ -47,7 +46,11 @@ function showSection(id) {
   document.getElementById('topbar-title').textContent = NAV_ITEMS.find(n => n.id === id)?.label || 'Staff Admin';
   ({ dashboard: loadDashboard, absensi: loadAbsensi, tugas: loadTugas, catatan: loadCatatan, piket: loadPiket })[id]?.();
 }
-// ── DASHBOARD ──
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+
 async function loadDashboard() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
@@ -106,8 +109,7 @@ async function loadDashboard() {
 async function loadAbsensi() {
   const main = document.getElementById('main-content');
 
-  // Cek status absensi hari ini
-  const dashRes = await API.driver.getDashboard();
+  const dashRes = await API.staff.getDashboard();
   const absenHari = dashRes.success ? dashRes.data.absensi_hari : null;
   const sudahMasuk  = !!absenHari?.jam_masuk;
   const sudahPulang = !!absenHari?.jam_pulang;
@@ -147,7 +149,7 @@ async function loadAbsensi() {
           ${!sudahMasuk ? '📍 Absen Masuk' : '📍 Absen Pulang'}
         </h3>
         <div class="text-sm text-slate-500 dark:text-slate-400 bg-blue-50 dark:bg-blue-950/30 rounded-xl px-4 py-3">
-          ℹ️ Pastikan Wajah Terlihat Jelas <strong> </strong>. Mohon tidak meninggalkan halaman ketika absen berlangsung.
+          ℹ️ Pastikan Wajah Terlihat Jelas. Mohon tidak meninggalkan halaman ketika absen berlangsung.
         </div>
 
         <!-- Foto preview -->
@@ -162,8 +164,6 @@ async function loadAbsensi() {
           </div>
         </div>
 
-
- 
         <div id="abs-error" class="hidden bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400"></div>
 
         <button id="abs-submit-btn" class="btn-primary w-full justify-center py-3" onclick="submitAbsensi('${!sudahMasuk ? 'masuk' : 'pulang'}')">
@@ -176,21 +176,19 @@ let _absenPhotoB64 = null;
 
 async function openAbsenCamera() {
   const video  = document.getElementById('camera-video');
-  const modal  = document.getElementById('camera-modal');
   const title  = document.getElementById('camera-modal-title');
   title.textContent = 'Foto Selfie Absensi';
 
-UI.openModal('camera-modal');
+  UI.openModal('camera-modal');
   try {
     await Camera.init(video, 'user');
     document.getElementById('camera-capture-btn').onclick = async () => {
       const result = await Camera.capture();
       _absenPhotoB64 = result.base64;
 
-      // Tampilkan preview
-      const img  = document.getElementById('abs-photo-img');
-      const ph   = document.getElementById('abs-photo-placeholder');
-      img.src    = result.base64;
+      const img = document.getElementById('abs-photo-img');
+      const ph  = document.getElementById('abs-photo-placeholder');
+      img.src   = result.base64;
       img.classList.remove('hidden');
       ph.classList.add('hidden');
 
@@ -204,7 +202,6 @@ UI.openModal('camera-modal');
     UI.toast(err.message, 'error');
   }
 }
-
 
 async function submitAbsensi(tipe) {
   const btn   = document.getElementById('abs-submit-btn');
@@ -229,7 +226,6 @@ async function submitAbsensi(tipe) {
 
   UI.setLoading(btn, true, 'Mengupload foto...');
 
-  // Upload foto ke Drive
   const imgType = tipe === 'masuk' ? 'ABSEN_MASUK' : 'ABSEN_PULANG';
   const uploadRes = await API.uploadImage(_absenPhotoB64, imgType);
   if (!uploadRes.success) {
@@ -241,13 +237,13 @@ async function submitAbsensi(tipe) {
 
   UI.setLoading(btn, true, 'Mengirim absensi...');
   const body = {
-    [`foto_${tipe}_url`]:    uploadRes.data.file_url,
-    [`lat_${tipe}`]:         currentGPS.lat,
-    [`lng_${tipe}`]:         currentGPS.lng,
-    [`akurasi_${tipe}`]:     currentGPS.akurasi,
+    [`foto_${tipe}_url`]: uploadRes.data.file_url,
+    [`lat_${tipe}`]:      currentGPS.lat,
+    [`lng_${tipe}`]:      currentGPS.lng,
+    [`akurasi_${tipe}`]:  currentGPS.akurasi,
   };
 
-  const endpoint = tipe === 'masuk' ? API.driver.absenMasuk : API.driver.absenPulang;
+  const endpoint = tipe === 'masuk' ? API.staff.absenMasuk : API.staff.absenPulang;
   const res = await endpoint(body);
   UI.setLoading(btn, false);
 
@@ -261,8 +257,10 @@ async function submitAbsensi(tipe) {
   }
 }
 
+// ============================================================
+// TUGAS
+// ============================================================
 
-// ── TUGAS ──
 async function loadTugas() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
@@ -312,7 +310,10 @@ async function updateTugas(id, status) {
   else UI.toast(res.message, 'error');
 }
 
-// ── CATATAN ──
+// ============================================================
+// CATATAN
+// ============================================================
+
 async function loadCatatan() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
@@ -379,7 +380,10 @@ async function saveCatatanStaff() {
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
-// ── JADWAL PIKET ──
+// ============================================================
+// JADWAL PIKET
+// ============================================================
+
 async function loadPiket() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
