@@ -8,11 +8,55 @@
  * hex code atau @apply baru langsung di <style> inline tiap halaman.
  * Edit di sini, lalu jalankan `npm run build:css`.
  *
- * v2 — refresh tampilan: font Plus Jakarta Sans, warna & shadow
+ * v2 — refresh tampilan: font Plus Jakarta Sans (self-hosted, lihat
+ * @font-face di bawah), warna & shadow
  * diselaraskan lewat CSS variables (light/dark), badge lebih soft,
  * nav aktif pakai accent bar, ukuran & spacing lebih proporsional
  * di mobile maupun desktop.
  */
+
+/*
+ * Font di-hosting sendiri (bukan lewat Google Fonts CDN) supaya tidak
+ * gagal/timeout saat driver atau staff mengakses app dari lokasi dengan
+ * koneksi lambat/terbatas. File .woff2 ada di /assets/fonts/ — taruh
+ * folder itu di root static hosting yang sama dengan /css dan /assets
+ * lainnya. Total kelima bobot ini hanya sekitar 60KB.
+ */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/plus-jakarta-sans-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/assets/fonts/plus-jakarta-sans-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/assets/fonts/plus-jakarta-sans-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/fonts/plus-jakarta-sans-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/assets/fonts/plus-jakarta-sans-latin-800-normal.woff2') format('woff2');
+}
 
 @layer base {
   :root {
