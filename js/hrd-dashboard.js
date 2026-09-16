@@ -604,14 +604,96 @@ async function fetchAbsensi() {
       <td class="font-mono text-sm text-slate-700 dark:text-slate-300">${a.jam_masuk || '-'}</td>
       <td class="font-mono text-sm ${a.jam_pulang ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">${a.jam_pulang || 'Belum pulang'}</td>
       <td class="text-xs">${lokasiCell(a)}</td>
-      <td>
-        ${a.foto_masuk_url ? `<a href="${a.foto_masuk_url}" target="_blank" class="text-blue-500 hover:underline text-xs">Masuk</a>` : '-'}
-        ${a.foto_pulang_url ? ` · <a href="${a.foto_pulang_url}" target="_blank" class="text-blue-500 hover:underline text-xs">Pulang</a>` : ''}
-      </td>
+<td>
+  <div class="flex items-center gap-2">
+    ${a.foto_masuk_url
+      ? `<button
+           type="button"
+           onclick="previewAbsensiFoto('${encodeURIComponent(a.foto_masuk_url)}','Foto Masuk - ${UI.escapeHtml(a.nama)}')"
+           class="group relative w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
+           title="Lihat Foto Masuk">
+           <img
+             src="${UI.escapeHtml(a.foto_masuk_url)}"
+             class="w-full h-full object-cover group-hover:scale-110 transition-transform"
+             loading="lazy"
+             onerror="this.style.display='none';this.parentElement.innerHTML='📷';"
+           />
+         </button>`
+      : ''}
+
+    ${a.foto_pulang_url
+      ? `<button
+           type="button"
+           onclick="previewAbsensiFoto('${encodeURIComponent(a.foto_pulang_url)}','Foto Pulang - ${UI.escapeHtml(a.nama)}')"
+           class="group relative w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
+           title="Lihat Foto Pulang">
+           <img
+             src="${UI.escapeHtml(a.foto_pulang_url)}"
+             class="w-full h-full object-cover group-hover:scale-110 transition-transform"
+             loading="lazy"
+             onerror="this.style.display='none';this.parentElement.innerHTML='📷';"
+           />
+         </button>`
+      : ''}
+
+    ${!a.foto_masuk_url && !a.foto_pulang_url
+      ? '<span class="text-slate-400 text-xs">-</span>'
+      : ''}
+  </div>
+</td>
     </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
   saveCache('absensi');
 }
+function previewAbsensiFoto(encodedUrl, title = 'Foto Absensi') {
+  const url = decodeURIComponent(encodedUrl);
 
+  // Hapus modal lama kalau ada
+  document.getElementById('absensi-foto-modal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'absensi-foto-modal';
+  modal.className =
+    'fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4';
+
+  modal.innerHTML = `
+    <div class="relative w-full max-w-3xl max-h-[90vh] flex flex-col items-center">
+
+      <div class="w-full flex items-center justify-between mb-3">
+        <h3 class="text-white font-semibold text-sm">
+          ${UI.escapeHtml(title)}
+        </h3>
+
+        <button
+          type="button"
+          onclick="document.getElementById('absensi-foto-modal').remove()"
+          class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xl">
+          ✕
+        </button>
+      </div>
+
+      <div class="bg-black rounded-xl overflow-hidden shadow-2xl max-h-[80vh]">
+        <img
+          src="${UI.escapeHtml(url)}"
+          class="max-w-full max-h-[80vh] object-contain"
+          alt="${UI.escapeHtml(title)}"
+          onerror="
+            this.style.display='none';
+            this.parentElement.innerHTML='<div class=\\'p-10 text-white text-center\\'>Foto tidak dapat ditampilkan.<br><span class=\\'text-sm text-slate-400\\'>Pastikan file dapat diakses tanpa login Google.</span></div>';
+          "
+        />
+      </div>
+    </div>
+  `;
+
+  // Klik background untuk tutup
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+
+  document.body.appendChild(modal);
+}
 /**
  * Render kolom "Lokasi" tabel Monitor Absensi — link Google Maps dari
  * koordinat lat/lng masuk & pulang, menggantikan angka akurasi GPS mentah
