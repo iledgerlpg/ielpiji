@@ -605,44 +605,47 @@ async function fetchAbsensi() {
       <td class="font-mono text-sm ${a.jam_pulang ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">${a.jam_pulang || 'Belum pulang'}</td>
       <td class="text-xs">${lokasiCell(a)}</td>
 <td>
-  <div class="flex items-center gap-2">
-    ${a.foto_masuk_url
-      ? `<button
-           type="button"
-           onclick="previewAbsensiFoto('${encodeURIComponent(a.foto_masuk_url)}','Foto Masuk - ${UI.escapeHtml(a.nama)}')"
-           class="group relative w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
-           title="Lihat Foto Masuk">
-           <img
-             src="${UI.escapeHtml(a.foto_masuk_url)}"
-             class="w-full h-full object-cover group-hover:scale-110 transition-transform"
-             loading="lazy"
-             onerror="this.style.display='none';this.parentElement.innerHTML='📷';"
-           />
-         </button>`
-      : ''}
+  ${a.foto_masuk_url
+    ? `<a href="${driveDirectUrl(a.foto_masuk_url)}" target="_blank"
+         class="text-blue-500 hover:underline text-xs">Masuk</a>`
+    : '-'}
 
-    ${a.foto_pulang_url
-      ? `<button
-           type="button"
-           onclick="previewAbsensiFoto('${encodeURIComponent(a.foto_pulang_url)}','Foto Pulang - ${UI.escapeHtml(a.nama)}')"
-           class="group relative w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
-           title="Lihat Foto Pulang">
-           <img
-             src="${UI.escapeHtml(a.foto_pulang_url)}"
-             class="w-full h-full object-cover group-hover:scale-110 transition-transform"
-             loading="lazy"
-             onerror="this.style.display='none';this.parentElement.innerHTML='📷';"
-           />
-         </button>`
-      : ''}
-
-    ${!a.foto_masuk_url && !a.foto_pulang_url
-      ? '<span class="text-slate-400 text-xs">-</span>'
-      : ''}
-  </div>
+  ${a.foto_pulang_url
+    ? ` · <a href="${driveDirectUrl(a.foto_pulang_url)}" target="_blank"
+         class="text-emerald-500 hover:underline text-xs">Pulang</a>`
+    : ''}
 </td>
     </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
   saveCache('absensi');
+}
+function driveDirectUrl(url) {
+  if (!url) return '';
+
+  // Kalau sudah format drive.usercontent.google.com
+  if (url.includes('drive.usercontent.google.com')) {
+    return url;
+  }
+
+  // Ambil File ID dari:
+  // https://drive.google.com/file/d/FILE_ID/view
+  let match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+
+  // Atau:
+  // https://drive.google.com/open?id=FILE_ID
+  if (!match) {
+    match = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  }
+
+  // Atau kalau URL langsung mengandung /d/FILE_ID
+  if (!match) {
+    match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  }
+
+  if (!match) return url;
+
+  const fileId = match[1];
+
+  return `https://drive.usercontent.google.com/download?id=${fileId}&export=view&authuser=0`;
 }
 function previewAbsensiFoto(encodedUrl, title = 'Foto Absensi') {
   const url = decodeURIComponent(encodedUrl);
