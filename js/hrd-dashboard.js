@@ -585,136 +585,188 @@ async function fetchAbsensi() {
     bulan:   document.getElementById('abs-bulan')?.value   || undefined,
     role:    document.getElementById('abs-role')?.value    || undefined,
   };
-  // Jika tanggal diisi, hapus bulan (prioritas tanggal)
+
+  // Jika tanggal diisi, hapus bulan
   if (params.tanggal) delete params.bulan;
 
   const tbody = document.getElementById('abs-table-body');
-  tbody.innerHTML = `<tr><td colspan="7"><div class="py-4">${skeletonLine()}</div></td></tr>`;
+  if (!tbody) return;
+
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="7">
+        <div class="py-4">${skeletonLine()}</div>
+      </td>
+    </tr>`;
 
   const res = await API.hrd.getAbsensi(params);
-  if (activeSection !== 'absensi') return;   // ← tambahkan
-  if (!res.success) { UI.toast(res.message, 'error'); return; }
-  allAbsensi = res.data.absensi;
 
-  tbody.innerHTML = allAbsensi.length ? allAbsensi.map(a => `
-    <tr>
-      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(a.nama)}</td>
-      <td>${UI.badge(a.role, a.role)}</td>
-      <td class="text-slate-500 dark:text-slate-400 text-xs">${UI.formatDate(a.tanggal)}</td>
-      <td class="font-mono text-sm text-slate-700 dark:text-slate-300">${a.jam_masuk || '-'}</td>
-      <td class="font-mono text-sm ${a.jam_pulang ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">${a.jam_pulang || 'Belum pulang'}</td>
-      <td class="text-xs">${lokasiCell(a)}</td>
-<tr>
-    <td class="font-medium text-slate-900 dark:text-white">
-        ${UI.escapeHtml(a.nama)}
-    </td>
+  if (activeSection !== 'absensi') return;
 
-    <td>
-        ${UI.badge(a.role, a.role)}
-    </td>
+  if (!res.success) {
+    UI.toast(res.message, 'error');
+    return;
+  }
 
-    <td class="text-slate-500 dark:text-slate-400 text-xs">
-        ${UI.formatDate(a.tanggal)}
-    </td>
+  allAbsensi = res.data.absensi || [];
 
-    <td class="font-mono text-sm text-slate-700 dark:text-slate-300">
-        ${a.jam_masuk || '-'}
-    </td>
+  tbody.innerHTML = allAbsensi.length
+    ? allAbsensi.map(a => `
+        <tr>
 
-    <td class="font-mono text-sm ${
-        a.jam_pulang
-            ? 'text-slate-700 dark:text-slate-300'
-            : 'text-slate-400'
-    }">
-        ${a.jam_pulang || 'Belum pulang'}
-    </td>
+          <td class="font-medium text-slate-900 dark:text-white">
+            ${UI.escapeHtml(a.nama || '-')}
+          </td>
 
-    <td class="text-xs">
-        ${lokasiCell(a)}
-    </td>
+          <td>
+            ${UI.badge(a.role || '-', a.role || '')}
+          </td>
 
-<td>
-    <div class="flex gap-1.5 justify-center items-center">
-        ${
-            a.foto_masuk_url || a.foto_pulang_url
-            ? `
-                ${renderThumb(a.foto_masuk_url, 'Masuk')}
-                ${renderThumb(a.foto_pulang_url, 'Pulang')}
-              `
-            : `<span class="text-slate-400 text-xs">-</span>`
-        }
-    </div>
-</td>
-</tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
+          <td class="text-slate-500 dark:text-slate-400 text-xs">
+            ${UI.formatDate(a.tanggal)}
+          </td>
+
+          <td class="font-mono text-sm text-slate-700 dark:text-slate-300">
+            ${a.jam_masuk || '-'}
+          </td>
+
+          <td class="font-mono text-sm ${
+            a.jam_pulang
+              ? 'text-slate-700 dark:text-slate-300'
+              : 'text-slate-400'
+          }">
+            ${a.jam_pulang || 'Belum pulang'}
+          </td>
+
+          <td class="text-xs">
+            ${lokasiCell(a)}
+          </td>
+
+          <!-- FOTO -->
+          <td>
+            <div class="flex gap-2 justify-center items-center">
+
+              ${
+                a.foto_masuk_url
+                  ? renderThumb(a.foto_masuk_url, 'Masuk')
+                  : ''
+              }
+
+              ${
+                a.foto_pulang_url
+                  ? renderThumb(a.foto_pulang_url, 'Pulang')
+                  : ''
+              }
+
+              ${
+                !a.foto_masuk_url && !a.foto_pulang_url
+                  ? '<span class="text-slate-400 text-xs">-</span>'
+                  : ''
+              }
+
+            </div>
+          </td>
+
+        </tr>
+      `).join('')
+    : `
+      <tr>
+        <td colspan="7">
+          ${UI.emptyState('Tidak ada data absensi.', '📋')}
+        </td>
+      </tr>`;
+
   saveCache('absensi');
 }
 
 function renderThumb(fileId, label = 'Foto') {
-    if (!fileId) return '';
+  if (!fileId) return '';
 
-    const id = extractDriveFileId(fileId);
+  const id = extractDriveFileId(fileId);
 
-    if (!id) return '';
+  if (!id) {
+    console.warn('File ID tidak ditemukan:', fileId);
+    return '';
+  }
 
-    const thumbUrl =
-        `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
+  // URL thumbnail untuk tampilan langsung
+  const thumbUrl =
+    `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
 
-    const viewUrl =
-        `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
+  // URL ketika thumbnail diklik
+  const viewUrl =
+    `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
 
-    return `
-        <button
-            type="button"
-            onclick="window.open('${viewUrl}', '_blank')"
-            title="Lihat ${label}"
-            class="relative group block"
-        >
-            <img
-                src="${thumbUrl}"
-                alt="${label}"
-                loading="lazy"
-                class="w-12 h-12 object-cover rounded-lg
-                       border border-slate-200 dark:border-slate-700
-                       cursor-pointer
-                       group-hover:scale-110
-                       transition-transform duration-200"
-                onerror="this.outerHTML=\`
-                    <div class='w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs text-slate-400'>
-                        📷
-                    </div>
-                \`"
-            >
+  return `
+    <button
+      type="button"
+      onclick="window.open('${viewUrl}', '_blank')"
+      title="Lihat foto ${label}"
+      class="relative group block p-0 border-0 bg-transparent"
+    >
 
-            <span class="absolute -bottom-1 left-1/2 -translate-x-1/2
-                         bg-slate-800 text-white text-[8px]
-                         px-1 rounded opacity-0
-                         group-hover:opacity-100 transition-opacity">
-                ${label}
-            </span>
-        </button>
-    `;
+      <img
+        src="${thumbUrl}"
+        alt="Foto ${label}"
+        loading="lazy"
+        class="w-14 h-14 object-cover rounded-lg
+               border border-slate-200 dark:border-slate-700
+               cursor-pointer
+               shadow-sm
+               group-hover:scale-110
+               group-hover:shadow-md
+               transition-all duration-200"
+        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+      >
+
+      <!-- fallback kalau thumbnail gagal -->
+      <span
+        style="display:none"
+        class="w-14 h-14 rounded-lg
+               bg-slate-100 dark:bg-slate-800
+               border border-slate-200 dark:border-slate-700
+               items-center justify-center
+               text-slate-400 text-lg"
+      >
+        📷
+      </span>
+
+      <!-- label -->
+      <span
+        class="absolute left-1/2 -translate-x-1/2 bottom-0
+               px-1.5 py-0.5 rounded
+               bg-black/70 text-white
+               text-[9px] leading-none
+               opacity-0 group-hover:opacity-100
+               transition-opacity whitespace-nowrap"
+      >
+        ${label}
+      </span>
+
+    </button>
+  `;
 }
 function extractDriveFileId(value) {
-    if (!value) return '';
+  if (!value) return '';
 
-    // Kalau yang dikirim memang File ID
-    if (/^[a-zA-Z0-9_-]{20,}$/.test(value)) {
-        return value;
-    }
+  // Kalau yang dikirim memang File ID
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(value)) {
+    return value;
+  }
 
-    // /file/d/FILE_ID/
-    let match = value.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (match) return match[1];
+  // /file/d/FILE_ID/
+  let match = value.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
 
-    // ?id=FILE_ID
-    match = value.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-    if (match) return match[1];
+  // ?id=FILE_ID
+  match = value.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
 
-    // /d/FILE_ID
-    match = value.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (match) return match[1];
+  // /d/FILE_ID
+  match = value.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
 
-    return '';
+  return '';
 }
 
 /**
