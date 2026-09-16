@@ -23,6 +23,13 @@ function parsePermissions(user) {
 let allUsers = [], allAbsensi = [], allTugas = [], allPiket = [], allCatatan = [];
 let activeSection = 'dashboard';
 
+// ── Section cache ──
+const SECTION_CACHE = {};
+const CACHE_TTL_MS  = 60_000;
+function isCacheValid(id) { const c = SECTION_CACHE[id]; return c && (Date.now() - c.ts < CACHE_TTL_MS); }
+function saveCache(id)    { const el = document.getElementById('main-content'); if (el) SECTION_CACHE[id] = { html: el.innerHTML, ts: Date.now() }; }
+function clearCache(id)   { if (id) delete SECTION_CACHE[id]; else Object.keys(SECTION_CACHE).forEach(k => delete SECTION_CACHE[k]); }
+
 // ── Sidebar nav config ──
 const NAV_ITEMS = [
   { id: 'dashboard',   label: 'Dashboard',       icon: 'home' },
@@ -55,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildSidebar();
   UI.init();
   document.getElementById('topbar-title').textContent = 'HRD Dashboard';
+  API.get('ping').catch(() => {});
   showSection('dashboard');
   renderImpersonateSwitcher(); 
   renderImpersonateBanner();
@@ -81,6 +89,12 @@ function showSection(id) {
   document.getElementById('topbar-title').textContent = NAV_ITEMS.find(n => n.id === id)?.label || 'HRD';
 
   const main = document.getElementById('main-content');
+
+  if (isCacheValid(id)) {
+    main.innerHTML = SECTION_CACHE[id].html;
+    return;
+  }
+
   main.innerHTML = '';
 
   const loaders = {
@@ -210,6 +224,7 @@ async function loadDashboard(tanggal = UI.todayInputValue()) {
           </div>
         </div>`).join('')
     : UI.emptyState('Tidak ada akun yang menunggu persetujuan.', '👍');
+  saveCache('dashboard');
 }
 
 // ============================================================
@@ -300,6 +315,7 @@ tbody.innerHTML = users.length ? users.map(u => {
       </td>
     </tr>`;
   }).join('') : `<tr><td colspan="6">${UI.emptyState('Tidak ada user ditemukan.', '👤')}</td></tr>`;
+  saveCache('users');
 }
 
 /** Cari user dari cache allUsers berdasarkan ID, lalu buka modal edit (hindari inject JSON ke onclick). */
@@ -489,7 +505,7 @@ async function deleteUser(userId, nama) {
   const ok = await UI.confirm(`Nonaktifkan akun "${nama}"? Akun tidak akan bisa login, tapi data tetap tersimpan.`, 'Nonaktifkan User');
   if (!ok) return;
   const res = await API.hrd.deleteUser({ user_id: userId });
-  if (res.success) { UI.toast('User berhasil dinonaktifkan.', 'success'); loadUsers(); }
+  if (res.success) { UI.toast('User berhasil dinonaktifkan.', 'success'); clearCache('users'); loadUsers(); }
   else UI.toast(res.message, 'error');
 }
 
@@ -498,7 +514,7 @@ async function approveUser(userId, action) {
   const ok = await UI.confirm(`${action === 'APPROVE' ? 'Setujui' : 'Tolak'} akun ini?`, 'Konfirmasi');
   if (!ok) return;
   const res = await API.hrd.approveUser({ user_id: userId, action });
-  if (res.success) { UI.toast(`Akun berhasil di-${label}.`, 'success'); loadDashboard(); }
+  if (res.success) { UI.toast(`Akun berhasil di-${label}.`, 'success'); clearCache('dashboard'); loadDashboard(); }
   else UI.toast(res.message, 'error');
 }
 async function toggleStaffOperatorAccess(userId) {
@@ -593,6 +609,7 @@ async function fetchAbsensi() {
         ${a.foto_pulang_url ? ` · <a href="${a.foto_pulang_url}" target="_blank" class="text-blue-500 hover:underline text-xs">Pulang</a>` : ''}
       </td>
     </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
+  saveCache('absensi');
 }
 
 /**
@@ -602,8 +619,8 @@ async function fetchAbsensi() {
  * Format link WAJIB: https://www.google.com/maps?q={lat},{lng}
  */
 function lokasiCell(a) {
-  const masukLink  = mapsLink(a.lat_masuk, a.lng_masuk, '📌', 'text-blue-500 hover:text-blue-600 dark:text-blue-400');
-  const pulangLink = mapsLink(a.lat_pulang, a.lng_pulang, '🏠', 'text-emerald-500 hover:text-emerald-600 dark:text-emerald-400');
+  const masukLink  = mapsLink(a.lat_masuk, a.lng_masuk, 'Masuk', 'text-blue-500 hover:text-blue-600 dark:text-blue-400');
+  const pulangLink = mapsLink(a.lat_pulang, a.lng_pulang, 'Pulang', 'text-emerald-500 hover:text-emerald-600 dark:text-emerald-400');
 
   if (!masukLink && !pulangLink) return '<span class="text-slate-300 dark:text-slate-700">-</span>';
   return `${masukLink || ''}${masukLink && pulangLink ? ' · ' : ''}${pulangLink || ''}`;
@@ -715,6 +732,7 @@ function renderTugas(tugas) {
         ${t.file_url ? `<a href="${t.file_url}" target="_blank" class="btn-secondary text-xs py-1 px-2 shrink-0">📎 File</a>` : ''}
       </div>
     </div>`).join('') : UI.emptyState('Belum ada tugas yang dibuat.', '📋');
+  saveCache('tugas');
 }
 
 function openTugasModal() {
@@ -747,7 +765,7 @@ async function saveTugas() {
   UI.setLoading(btn, true, 'Membuat...');
   const res = await API.hrd.createTugasAdmin({ judul, deskripsi: desc, file_url: document.getElementById('t-file').value.trim() });
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Tugas berhasil dibuat.', 'success'); document.getElementById('tugas-modal').remove(); loadTugas(); }
+  if (res.success) { UI.toast('Tugas berhasil dibuat.', 'success'); document.getElementById('tugas-modal').remove(); clearCache('tugas'); loadTugas(); }
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
@@ -795,6 +813,7 @@ async function fetchPiket() {
       <td class="text-slate-700 dark:text-slate-300">${UI.escapeHtml(p.shift)}</td>
       <td class="text-slate-500 dark:text-slate-400 text-sm">${UI.escapeHtml(p.keterangan || '-')}</td>
     </tr>`).join('') : `<tr><td colspan="4">${UI.emptyState('Belum ada jadwal piket.', '📅')}</td></tr>`;
+  saveCache('piket');
 }
 
 function openPiketModal() {
@@ -830,7 +849,7 @@ async function savePiket() {
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = await API.hrd.createJadwalPiket({ user_id: userId, tanggal: tgl, shift, keterangan: document.getElementById('pk-ket').value.trim() });
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Jadwal piket berhasil ditambahkan.', 'success'); document.getElementById('piket-modal').remove(); fetchPiket(); }
+  if (res.success) { UI.toast('Jadwal piket berhasil ditambahkan.', 'success'); document.getElementById('piket-modal').remove(); clearCache('piket'); fetchPiket(); }
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
@@ -875,6 +894,7 @@ async function fetchCatatan() {
         </div>
       </div>
     </div>`).join('') : UI.emptyState('Belum ada catatan.', '📝');
+  saveCache('catatan');
 }
 
 function openCatatanModal() {
@@ -921,7 +941,7 @@ async function saveCatatan() {
   UI.setLoading(btn, true, 'Mengirim...');
   const res = await API.hrd.createCatatan({ judul, isi, tipe: document.getElementById('cn-tipe').value, untuk_role: document.getElementById('cn-role').value });
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Catatan berhasil dikirim.', 'success'); document.getElementById('catatan-modal').remove(); fetchCatatan(); }
+  if (res.success) { UI.toast('Catatan berhasil dikirim.', 'success'); document.getElementById('catatan-modal').remove(); clearCache('catatan'); fetchCatatan(); }
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
