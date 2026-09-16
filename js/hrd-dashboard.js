@@ -604,58 +604,90 @@ async function fetchAbsensi() {
       <td class="font-mono text-sm text-slate-700 dark:text-slate-300">${a.jam_masuk || '-'}</td>
       <td class="font-mono text-sm ${a.jam_pulang ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">${a.jam_pulang || 'Belum pulang'}</td>
       <td class="text-xs">${lokasiCell(a)}</td>
-<td>
-  <div class="flex items-center gap-2">
+<tr>
+    <td class="font-medium text-slate-900 dark:text-white">
+        ${UI.escapeHtml(a.nama)}
+    </td>
 
-    ${a.foto_masuk_url ? `
-      <img
-        src="${driveDirectUrl(a.foto_masuk_url)}"
-        alt="Foto Masuk"
-        class="w-12 h-12 object-cover rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-105 transition"
-        title="Foto Masuk"
-        onclick="window.open('${driveDirectUrl(a.foto_masuk_url)}', '_blank')"
-        onerror="this.style.display='none';"
-      />
-    ` : ''}
+    <td>
+        ${UI.badge(a.role, a.role)}
+    </td>
 
-    ${a.foto_pulang_url ? `
-      <img
-        src="${driveDirectUrl(a.foto_pulang_url)}"
-        alt="Foto Pulang"
-        class="w-12 h-12 object-cover rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-105 transition"
-        title="Foto Pulang"
-        onclick="window.open('${driveDirectUrl(a.foto_pulang_url)}', '_blank')"
-        onerror="this.style.display='none';"
-      />
-    ` : ''}
+    <td class="text-slate-500 dark:text-slate-400 text-xs">
+        ${UI.formatDate(a.tanggal)}
+    </td>
 
-    ${!a.foto_masuk_url && !a.foto_pulang_url
-      ? '<span class="text-slate-400 text-xs">-</span>'
-      : ''}
+    <td class="font-mono text-sm text-slate-700 dark:text-slate-300">
+        ${a.jam_masuk || '-'}
+    </td>
 
-  </div>
-</td>
-    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
+    <td class="font-mono text-sm ${
+        a.jam_pulang
+            ? 'text-slate-700 dark:text-slate-300'
+            : 'text-slate-400'
+    }">
+        ${a.jam_pulang || 'Belum pulang'}
+    </td>
+
+    <td class="text-xs">
+        ${lokasiCell(a)}
+    </td>
+
+    <td>
+        <div class="flex gap-1.5 justify-center items-center">
+            ${
+                a.foto_masuk_url || a.foto_pulang_url
+                ? `
+                    ${renderThumb(a.foto_masuk_url, 'Masuk')}
+                    ${renderThumb(a.foto_pulang_url, 'Pulang')}
+                  `
+                : `<span class="text-slate-400 text-xs">-</span>`
+            }
+        </div>
+    </td>
+</tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
   saveCache('absensi');
 }
 function driveDirectUrl(url) {
-  if (!url) return '';
+    if (!url) return '';
 
-  // Sudah direct URL
-  if (url.includes('drive.usercontent.google.com')) {
-    return url;
-  }
+    // Kalau sudah menggunakan drive.usercontent.google.com
+    if (url.includes('drive.usercontent.google.com')) {
+        return url;
+    }
 
-  let match =
-    url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
-    url.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
-    url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    let match =
+        url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+        url.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+        url.match(/\/d\/([a-zA-Z0-9_-]+)/);
 
-  if (!match) return url;
+    if (!match) return url;
 
-  const fileId = match[1];
+    const fileId = match[1];
 
-  return `https://drive.usercontent.google.com/download?id=${fileId}&export=view&authuser=0`;
+    return `https://drive.usercontent.google.com/download?id=${fileId}&export=view&authuser=0`;
+}
+function renderThumb(url, label = 'Foto') {
+    if (!url) return '';
+
+    const directUrl = driveDirectUrl(url);
+
+    return `
+        <div class="relative group">
+            <img
+                src="${directUrl}"
+                alt="${label}"
+                title="${label}"
+                class="w-10 h-10 object-cover rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-110 transition shadow-sm"
+                loading="lazy"
+                onclick="window.open('${directUrl}', '_blank')"
+                onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<span class=\\'text-slate-400 text-xs\\'>×</span>';"
+            >
+            <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[8px] px-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
+                ${label}
+            </span>
+        </div>
+    `;
 }
 function previewAbsensiFoto(encodedUrl, title = 'Foto Absensi') {
   const url = decodeURIComponent(encodedUrl);
