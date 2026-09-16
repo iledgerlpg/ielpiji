@@ -14,6 +14,29 @@ if (!SESSION) throw new Error('Unauthorized');
 
 let activeSection = 'dashboard';
 
+// ============================================================
+// SECTION CACHE — hindari fetch ulang saat pindah-balik section
+// ============================================================
+const SECTION_CACHE   = {};
+const CACHE_TTL_MS    = 60_000; // 60 detik
+
+function isCacheValid(id) {
+  const c = SECTION_CACHE[id];
+  return c && (Date.now() - c.ts < CACHE_TTL_MS);
+}
+
+/** Simpan snapshot HTML main-content ke cache */
+function saveCache(id) {
+  const el = document.getElementById('main-content');
+  if (el) SECTION_CACHE[id] = { html: el.innerHTML, ts: Date.now() };
+}
+
+/** Hapus cache section tertentu (setelah mutasi data) */
+function clearCache(id) {
+  if (id) delete SECTION_CACHE[id];
+  else Object.keys(SECTION_CACHE).forEach(k => delete SECTION_CACHE[k]);
+}
+
 const NAV_ITEMS = [
   { id: 'dashboard',          label: 'Dashboard',              icon: 'home' },
   { id: 'jadwal-harian',      label: 'Jadwal Harian',         icon: 'calendar' },
@@ -48,6 +71,8 @@ const SVG = {
 document.addEventListener('DOMContentLoaded', () => {
   buildSidebar();
   UI.init();
+  // Warm up GAS supaya cold-start tidak kena di klik pertama user
+  API.get('ping').catch(() => {});
   showSection('dashboard');
   renderImpersonateSwitcher();
   renderImpersonateBanner();
@@ -198,6 +223,15 @@ function showSection(id) {
   document.getElementById(`nav-${id}`)?.classList.add('active');
   const item = NAV_ITEMS.find(n => n.id === id);
   document.getElementById('topbar-title').textContent = item?.label || 'Operator';
+
+  const main = document.getElementById('main-content');
+
+  // Gunakan cache jika masih valid — section ini tidak perlu fetch ulang
+  if (isCacheValid(id)) {
+    main.innerHTML = SECTION_CACHE[id].html;
+    return;
+  }
+
   const loaders = {
     'dashboard':          loadDashboard,
     'jadwal-harian':      loadJadwalHarian,
@@ -260,6 +294,7 @@ async function fetchDashboard() {
           <button class="btn-primary text-xs py-1 px-3" onclick="showSection('bayar-refill')">Bayar</button>
         </div>`).join('')
     : UI.emptyState('Semua pangkalan sudah bayar! 🎉', '💚');
+  saveCache('dashboard');
 }
 
 // ============================================================
@@ -332,6 +367,7 @@ async function fetchJadwalHarian() {
         <button class="btn-danger text-xs py-1 px-2" onclick="deleteJadwalHarian('${j.jadwal_id}')">Hapus</button>
       </td>
     </tr>`).join('') : `<tr><td colspan="9">${UI.emptyState('Belum ada jadwal.','📋')}</td></tr>`;
+  saveCache('jadwal-harian');
 }
 
 /** Download template Excel (.xlsx) asli untuk Jadwal Harian */
@@ -591,14 +627,14 @@ async function saveJadwal() {
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = await API.operator.createJadwalHarian(body);
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast('Jadwal berhasil ditambahkan.', 'success'); document.getElementById('jh-modal').remove(); fetchJadwalHarian(); }
+  if (res.success) { UI.toast('Jadwal berhasil ditambahkan.', 'success'); document.getElementById('jh-modal').remove(); clearCache('jadwal-harian'); fetchJadwalHarian(); }
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 
 async function deleteJadwalHarian(id) {
   if (!await UI.confirm('Hapus jadwal ini?', 'Konfirmasi Hapus')) return;
   const res = await API.operator.deleteJadwalHarian({ jadwal_id: id });
-  if (res.success) { UI.toast('Jadwal dihapus.', 'success'); fetchJadwalHarian(); }
+  if (res.success) { UI.toast('Jadwal dihapus.', 'success'); clearCache('jadwal-harian'); fetchJadwalHarian(); }
   else UI.toast(res.message, 'error');
 }
 // ============================================================
@@ -751,17 +787,18 @@ async function fetchLaporanPengiriman() {
         }
     </tbody>
 </table>`;
+  saveCache('laporan-pengiriman');
 }
 async function verifikasiLaporanPengiriman(id) {
   const res = await API.operator.updateLaporanPengiriman({ laporan_id: id, status: 'VERIFIED' });
-  if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); fetchLaporanPengiriman(); }
+  if (res.success) { UI.toast('Laporan diverifikasi.', 'success'); clearCache('laporan-pengiriman'); fetchLaporanPengiriman(); }
   else UI.toast(res.message, 'error');
 }
 
 async function hapusLaporanPengiriman(id) {
   if (!await UI.confirm('Hapus laporan ini?', 'Konfirmasi')) return;
   const res = await API.operator.deleteLaporanPengiriman({ laporan_id: id });
-  if (res.success) { UI.toast('Laporan dihapus.', 'success'); fetchLaporanPengiriman(); }
+  if (res.success) { UI.toast('Laporan dihapus.', 'success'); clearCache('laporan-pengiriman'); fetchLaporanPengiriman(); }
   else UI.toast(res.message, 'error');
 }
 
@@ -819,6 +856,7 @@ async function fetchMonitoringKirim() {
       <td class="text-center ${selisihJ > 0 ? 'text-red-500' : selisihJ < 0 ? 'text-amber-500' : 'text-green-600'} font-semibold">${selisihJ > 0 ? '+' : ''}${UI.formatNumber(selisihJ)}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="7">${UI.emptyState('Belum ada data monitoring.','📊')}</td></tr>`;
+  saveCache('monitoring-kirim');
 }
 
 // ============================================================
@@ -1126,6 +1164,7 @@ const cells = daysToShow.map(d => {
       <tbody>${bodyHtml}</tbody>
       <tfoot>${footerHtml}</tfoot>
     </table>` : UI.emptyState('Belum ada data alokasi untuk periode ini.', '📊');
+  saveCache('master-sa');
 }
 async function toggleVerifikasiMasterSACell(saId, hari, btnEl) {
   const wasVerified = btnEl.classList.contains('bg-green-100');
@@ -1746,6 +1785,9 @@ allOwners.forEach((ownerData, idx) => {
   });
 
   tbody.innerHTML = html || `<tr><td colspan="8">${UI.emptyState('Tidak ada data pembayaran.', '💰')}</td></tr>`;
+  // Cache pembayaran — section-id bergantung tipe yang sedang aktif
+  const _cacheId = activeSection === 'bayar-bh' ? 'bayar-bh' : 'bayar-refill';
+  saveCache(_cacheId);
 }
 function openRiwayatBayarModal(pangkalanId, namaPangkalan, namaOwner, tipe) {
   const allOwners = window._pembayaranAllRows || [];
@@ -2125,6 +2167,7 @@ async function fetchMonitoringBayar() {
         <div>Bagi Hasil: <span class="font-medium text-slate-700 dark:text-slate-300">${UI.formatRupiah(m.total_bagi_hasil)}</span></div>
       </div>
     </div>`).join('') : UI.emptyState('Belum ada data pembayaran bulan ini.','💰');
+  saveCache('monitoring-bayar');
 }
 
 // ============================================================
@@ -2207,6 +2250,7 @@ async function fetchStok() {
         <button class="btn-danger text-xs py-1 px-2" onclick="hapusPembelian('${p.pembelian_id}')">Hapus</button>
       </td>
     </tr>`).join('') : `<tr><td colspan="5">${UI.emptyState('Belum ada pembelian.','📦')}</td></tr>`;
+  saveCache('stok-gudang');
 }
 
 function openPembelianModal() {
@@ -2267,7 +2311,7 @@ async function savePembelian() {
   if (res.success) { 
     UI.toast('Pembelian berhasil dicatat.', 'success'); 
     document.getElementById('beli-modal').remove(); 
-    fetchStok();
+    clearCache('stok-gudang'); fetchStok();
   } else { 
     errEl.textContent = res.message; 
     errEl.classList.remove('hidden'); 
@@ -2277,7 +2321,7 @@ async function savePembelian() {
 async function hapusPembelian(id) {
   if (!await UI.confirm('Hapus data pembelian ini?')) return;
   const res = await API.operator.deletePembelianStok({ pembelian_id: id });
-  if (res.success) { UI.toast('Pembelian dihapus.', 'success'); fetchStok(); }
+  if (res.success) { UI.toast('Pembelian dihapus.', 'success'); clearCache('stok-gudang'); fetchStok(); }
   else UI.toast(res.message, 'error');
 }
 /** Download template Excel Stok Gudang dengan data real */
@@ -2536,6 +2580,7 @@ function filterPangkalan() {
       </td>
     </tr>`).join('')
   : `<tr><td colspan="9">${UI.emptyState('Tidak ada pangkalan.','🏪')}</td></tr>`;
+  saveCache('pangkalan');
 }
 function openPangkalanModal(data = null) {
   const modal = document.createElement('div');
@@ -2627,7 +2672,7 @@ async function hapusPangkalanById(id) {
   const data = _allPangkalan.find(p => p.pangkalan_id === id);
   if (!await UI.confirm(`Nonaktifkan pangkalan "${UI.escapeHtml(data?.nama || 'ini')}"?`)) return;
   const res = await API.operator.deletePangkalan({ pangkalan_id: id });
-  if (res.success) { UI.toast('Pangkalan dinonaktifkan.', 'success'); fetchPangkalan(); }
+  if (res.success) { UI.toast('Pangkalan dinonaktifkan.', 'success'); clearCache('pangkalan'); fetchPangkalan(); }
   else UI.toast(res.message, 'error');
 }
 
@@ -2662,6 +2707,7 @@ async function loadSPBE() {
         </div>
       </td>
     </tr>`).join('') : `<tr><td colspan="4">${UI.emptyState('Belum ada SPBE.','⛽')}</td></tr>`;
+  saveCache('spbe');
 }
 
 function openSPBEModalById(id) {
@@ -2674,7 +2720,7 @@ async function hapusSPBEById(id) {
   const data = (window._allSPBE || []).find(s => s.spbe_id === id);
   if (!await UI.confirm(`Nonaktifkan SPBE "${UI.escapeHtml(data?.nama || 'ini')}"?`)) return;
   const res = await API.operator.deleteSPBE({ spbe_id: id });
-  if (res.success) { UI.toast('SPBE dinonaktifkan.', 'success'); loadSPBE(); }
+  if (res.success) { UI.toast('SPBE dinonaktifkan.', 'success'); clearCache('spbe'); loadSPBE(); }
   else UI.toast(res.message, 'error');
 }
 
@@ -2708,7 +2754,7 @@ async function saveSPBE(id) {
   UI.setLoading(btn, true, 'Menyimpan...');
   const res = id ? await API.operator.updateSPBE({ spbe_id: id, nama, alamat }) : await API.operator.createSPBE({ nama, alamat });
   UI.setLoading(btn, false);
-  if (res.success) { UI.toast(id ? 'SPBE diupdate.' : 'SPBE ditambahkan.', 'success'); document.getElementById('spbe-modal').remove(); loadSPBE(); }
+  if (res.success) { UI.toast(id ? 'SPBE diupdate.' : 'SPBE ditambahkan.', 'success'); document.getElementById('spbe-modal').remove(); clearCache('spbe'); loadSPBE(); }
   else { errEl.textContent = res.message; errEl.classList.remove('hidden'); }
 }
 // ============================================================
@@ -3013,6 +3059,7 @@ async function fetchRekapPangkalan() {
   document.getElementById('rp-total-brimola').textContent = UI.formatRupiah(rows.reduce((s,r)=>s+Number(r.bayar_brimola||0),0));
   document.getElementById('rp-total-bh').textContent      = UI.formatRupiah(rows.reduce((s,r)=>s+Number(r.bagi_hasil||0),0));
   document.getElementById('rp-total-tbg').textContent     = UI.formatRupiah(rows.reduce((s,r)=>s+Number(r.total_tabung||0),0));
+  saveCache('rekap-pangkalan');
 }
 
 async function exportRekapPangkalanExcel(btnEl) {
