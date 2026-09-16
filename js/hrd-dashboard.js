@@ -704,8 +704,8 @@ function previewAbsensiFoto(encodedUrl, title = 'Foto Absensi') {
  * Format link WAJIB: https://www.google.com/maps?q={lat},{lng}
  */
 function lokasiCell(a) {
-  const masukLink  = mapsLink(a.lat_masuk, a.lng_masuk, 'Masuk', 'text-blue-500 hover:text-blue-600 dark:text-blue-400');
-  const pulangLink = mapsLink(a.lat_pulang, a.lng_pulang, 'Pulang', 'text-emerald-500 hover:text-emerald-600 dark:text-emerald-400');
+  const masukLink  = mapsLink(a.lat_masuk, a.lng_masuk, '📥', 'text-blue-500 hover:text-blue-600 dark:text-blue-400');
+  const pulangLink = mapsLink(a.lat_pulang, a.lng_pulang, '📤', 'text-emerald-500 hover:text-emerald-600 dark:text-emerald-400');
 
   if (!masukLink && !pulangLink) return '<span class="text-slate-300 dark:text-slate-700">-</span>';
   return `${masukLink || ''}${masukLink && pulangLink ? ' · ' : ''}${pulangLink || ''}`;
