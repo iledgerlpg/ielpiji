@@ -648,25 +648,7 @@ async function fetchAbsensi() {
 </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
   saveCache('absensi');
 }
-function driveDirectUrl(url) {
-    if (!url) return '';
 
-    // Kalau sudah menggunakan drive.usercontent.google.com
-    if (url.includes('drive.usercontent.google.com')) {
-        return url;
-    }
-
-    let match =
-        url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
-        url.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
-        url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-
-    if (!match) return url;
-
-    const fileId = match[1];
-
-    return `https://drive.usercontent.google.com/download?id=${fileId}&export=view&authuser=0`;
-}
 function renderThumb(fileId, label = 'Foto') {
     if (!fileId) return '';
 
