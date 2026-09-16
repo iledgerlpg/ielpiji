@@ -12,6 +12,14 @@ let capturedPhotos = {}; // { ABSEN_MASUK, ABSEN_PULANG, PENGIRIMAN, RETUR, PANG
 let currentGPS     = null;
 let pangkalanList  = [];
 
+// ── Section cache (absensi & laporan selalu fresh, tidak di-cache) ──
+const SECTION_CACHE = {};
+const CACHE_TTL_MS  = 60_000;
+const NO_CACHE_SECTIONS = new Set(['absensi', 'laporan']);
+function isCacheValid(id) { if (NO_CACHE_SECTIONS.has(id)) return false; const c = SECTION_CACHE[id]; return c && (Date.now() - c.ts < CACHE_TTL_MS); }
+function saveCache(id)    { if (NO_CACHE_SECTIONS.has(id)) return; const el = document.getElementById('main-content'); if (el) SECTION_CACHE[id] = { html: el.innerHTML, ts: Date.now() }; }
+function clearCache(id)   { if (id) delete SECTION_CACHE[id]; else Object.keys(SECTION_CACHE).forEach(k => delete SECTION_CACHE[k]); }
+
 const NAV_ITEMS = [
   { id: 'dashboard',  label: 'Dashboard',         icon: 'home' },
   { id: 'absensi',    label: 'Absensi',            icon: 'clock' },
@@ -38,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildSidebar();
   UI.init();
   document.getElementById('topbar-title').textContent = 'Driver Dashboard';
+  API.get('ping').catch(() => {});
   showSection('dashboard');
   prefetchPangkalan();
   renderImpersonateSwitcher();
@@ -59,13 +68,18 @@ function showSection(id) {
   document.getElementById(`nav-${id}`)?.classList.add('active');
   document.getElementById('topbar-title').textContent = NAV_ITEMS.find(n => n.id === id)?.label || 'Driver';
 
+  if (isCacheValid(id)) {
+    document.getElementById('main-content').innerHTML = SECTION_CACHE[id].html;
+    return;
+  }
+
   const loaders = {
-    dashboard:  loadDashboard,
-    absensi:    loadAbsensi,
-    jadwal:     loadJadwalSaya,
+    dashboard:    loadDashboard,
+    absensi:      loadAbsensi,
+    jadwal:       loadJadwalSaya,
     'jadwal-all': loadJadwalGlobal,
-    laporan:    loadFormLaporan,
-    riwayat:    loadRiwayat,
+    laporan:      loadFormLaporan,
+    riwayat:      loadRiwayat,
   };
   if (loaders[id]) loaders[id]();
 }
