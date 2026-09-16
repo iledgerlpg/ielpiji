@@ -633,18 +633,18 @@ async function fetchAbsensi() {
         ${lokasiCell(a)}
     </td>
 
-    <td>
-        <div class="flex gap-1.5 justify-center items-center">
-            ${
-                a.foto_masuk_url || a.foto_pulang_url
-                ? `
-                    ${renderThumb(a.foto_masuk_url, 'Masuk')}
-                    ${renderThumb(a.foto_pulang_url, 'Pulang')}
-                  `
-                : `<span class="text-slate-400 text-xs">-</span>`
-            }
-        </div>
-    </td>
+<td>
+    <div class="flex gap-1.5 justify-center items-center">
+        ${
+            a.foto_masuk_url || a.foto_pulang_url
+            ? `
+                ${renderThumb(a.foto_masuk_url, 'Masuk')}
+                ${renderThumb(a.foto_pulang_url, 'Pulang')}
+              `
+            : `<span class="text-slate-400 text-xs">-</span>`
+        }
+    </div>
+</td>
 </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
   saveCache('absensi');
 }
@@ -667,27 +667,72 @@ function driveDirectUrl(url) {
 
     return `https://drive.usercontent.google.com/download?id=${fileId}&export=view&authuser=0`;
 }
-function renderThumb(url, label = 'Foto') {
-    if (!url) return '';
+function renderThumb(fileId, label = 'Foto') {
+    if (!fileId) return '';
 
-    const directUrl = driveDirectUrl(url);
+    const id = extractDriveFileId(fileId);
+
+    if (!id) return '';
+
+    const thumbUrl =
+        `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
+
+    const viewUrl =
+        `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
 
     return `
-        <div class="relative group">
+        <button
+            type="button"
+            onclick="window.open('${viewUrl}', '_blank')"
+            title="Lihat ${label}"
+            class="relative group block"
+        >
             <img
-                src="${directUrl}"
+                src="${thumbUrl}"
                 alt="${label}"
-                title="${label}"
-                class="w-10 h-10 object-cover rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-110 transition shadow-sm"
                 loading="lazy"
-                onclick="window.open('${directUrl}', '_blank')"
-                onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<span class=\\'text-slate-400 text-xs\\'>×</span>';"
+                class="w-12 h-12 object-cover rounded-lg
+                       border border-slate-200 dark:border-slate-700
+                       cursor-pointer
+                       group-hover:scale-110
+                       transition-transform duration-200"
+                onerror="this.outerHTML=\`
+                    <div class='w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs text-slate-400'>
+                        📷
+                    </div>
+                \`"
             >
-            <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[8px] px-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
+
+            <span class="absolute -bottom-1 left-1/2 -translate-x-1/2
+                         bg-slate-800 text-white text-[8px]
+                         px-1 rounded opacity-0
+                         group-hover:opacity-100 transition-opacity">
                 ${label}
             </span>
-        </div>
+        </button>
     `;
+}
+function extractDriveFileId(value) {
+    if (!value) return '';
+
+    // Kalau yang dikirim memang File ID
+    if (/^[a-zA-Z0-9_-]{20,}$/.test(value)) {
+        return value;
+    }
+
+    // /file/d/FILE_ID/
+    let match = value.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) return match[1];
+
+    // ?id=FILE_ID
+    match = value.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (match) return match[1];
+
+    // /d/FILE_ID
+    match = value.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) return match[1];
+
+    return '';
 }
 
 /**
