@@ -44,6 +44,9 @@ const ICONS = {
   note: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>',
 };
 
+// Ikon pin lokasi kecil — dipakai di kolom Lokasi tabel Monitor Absensi.
+const PIN_ICON = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>';
+
 // ============================================================
 // INIT
 // ============================================================
@@ -551,7 +554,7 @@ async function loadAbsensi() {
     </div>
     <div id="abs-container" class="table-wrapper">
       <table><thead><tr>
-        <th>Nama</th><th>Role</th><th>Tanggal</th><th>Masuk</th><th>Pulang</th><th>Akurasi GPS</th><th>Foto</th>
+        <th>Nama</th><th>Role</th><th>Tanggal</th><th>Masuk</th><th>Pulang</th><th>Lokasi</th><th>Foto</th>
       </tr></thead>
       <tbody id="abs-table-body"></tbody></table>
     </div>`;
@@ -584,12 +587,32 @@ async function fetchAbsensi() {
       <td class="text-slate-500 dark:text-slate-400 text-xs">${UI.formatDate(a.tanggal)}</td>
       <td class="font-mono text-sm text-slate-700 dark:text-slate-300">${a.jam_masuk || '-'}</td>
       <td class="font-mono text-sm ${a.jam_pulang ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">${a.jam_pulang || 'Belum pulang'}</td>
-      <td class="text-xs text-slate-500">${a.akurasi_masuk ? `${a.akurasi_masuk}m` : '-'}</td>
+      <td class="text-xs">${lokasiCell(a)}</td>
       <td>
         ${a.foto_masuk_url ? `<a href="${a.foto_masuk_url}" target="_blank" class="text-blue-500 hover:underline text-xs">Masuk</a>` : '-'}
         ${a.foto_pulang_url ? ` · <a href="${a.foto_pulang_url}" target="_blank" class="text-blue-500 hover:underline text-xs">Pulang</a>` : ''}
       </td>
     </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
+}
+
+/**
+ * Render kolom "Lokasi" tabel Monitor Absensi — link Google Maps dari
+ * koordinat lat/lng masuk & pulang, menggantikan angka akurasi GPS mentah
+ * yang sebelumnya ditampilkan di kolom ini.
+ * Format link WAJIB: https://www.google.com/maps?q={lat},{lng}
+ */
+function lokasiCell(a) {
+  const masukLink  = mapsLink(a.lat_masuk, a.lng_masuk, 'Masuk', 'text-blue-500 hover:text-blue-600 dark:text-blue-400');
+  const pulangLink = mapsLink(a.lat_pulang, a.lng_pulang, 'Pulang', 'text-emerald-500 hover:text-emerald-600 dark:text-emerald-400');
+
+  if (!masukLink && !pulangLink) return '<span class="text-slate-300 dark:text-slate-700">-</span>';
+  return `${masukLink || ''}${masukLink && pulangLink ? ' · ' : ''}${pulangLink || ''}`;
+}
+
+function mapsLink(lat, lng, label, colorClass) {
+  if (lat === undefined || lat === null || lat === '' || lng === undefined || lng === null || lng === '') return '';
+  const url = `https://www.google.com/maps?q=${lat},${lng}`;
+  return `<a href="${url}" target="_blank" title="Lokasi ${label}" class="inline-flex items-center gap-1 ${colorClass} hover:underline">${PIN_ICON}${label}</a>`;
 }
 
 // ============================================================
