@@ -605,15 +605,35 @@ async function fetchAbsensi() {
       <td class="font-mono text-sm ${a.jam_pulang ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">${a.jam_pulang || 'Belum pulang'}</td>
       <td class="text-xs">${lokasiCell(a)}</td>
 <td>
-  ${a.foto_masuk_url
-    ? `<a href="${driveDirectUrl(a.foto_masuk_url)}" target="_blank"
-         class="text-blue-500 hover:underline text-xs">Masuk</a>`
-    : '-'}
+  <div class="flex items-center gap-2">
 
-  ${a.foto_pulang_url
-    ? ` · <a href="${driveDirectUrl(a.foto_pulang_url)}" target="_blank"
-         class="text-emerald-500 hover:underline text-xs">Pulang</a>`
-    : ''}
+    ${a.foto_masuk_url ? `
+      <img
+        src="${driveDirectUrl(a.foto_masuk_url)}"
+        alt="Foto Masuk"
+        class="w-12 h-12 object-cover rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-105 transition"
+        title="Foto Masuk"
+        onclick="window.open('${driveDirectUrl(a.foto_masuk_url)}', '_blank')"
+        onerror="this.style.display='none';"
+      />
+    ` : ''}
+
+    ${a.foto_pulang_url ? `
+      <img
+        src="${driveDirectUrl(a.foto_pulang_url)}"
+        alt="Foto Pulang"
+        class="w-12 h-12 object-cover rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-105 transition"
+        title="Foto Pulang"
+        onclick="window.open('${driveDirectUrl(a.foto_pulang_url)}', '_blank')"
+        onerror="this.style.display='none';"
+      />
+    ` : ''}
+
+    ${!a.foto_masuk_url && !a.foto_pulang_url
+      ? '<span class="text-slate-400 text-xs">-</span>'
+      : ''}
+
+  </div>
 </td>
     </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
   saveCache('absensi');
@@ -621,25 +641,15 @@ async function fetchAbsensi() {
 function driveDirectUrl(url) {
   if (!url) return '';
 
-  // Kalau sudah format drive.usercontent.google.com
+  // Sudah direct URL
   if (url.includes('drive.usercontent.google.com')) {
     return url;
   }
 
-  // Ambil File ID dari:
-  // https://drive.google.com/file/d/FILE_ID/view
-  let match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-
-  // Atau:
-  // https://drive.google.com/open?id=FILE_ID
-  if (!match) {
-    match = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  }
-
-  // Atau kalau URL langsung mengandung /d/FILE_ID
-  if (!match) {
-    match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  }
+  let match =
+    url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+    url.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+    url.match(/\/d\/([a-zA-Z0-9_-]+)/);
 
   if (!match) return url;
 
