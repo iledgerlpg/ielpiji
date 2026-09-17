@@ -494,7 +494,7 @@ async function saveUser(userId) {
   if (res.success) {
     UI.toast(userId ? 'User berhasil diupdate.' : 'User berhasil dibuat.', 'success');
     document.getElementById('user-modal').remove();
-    loadUsers();
+    clearCache('users'); loadUsers();
   } else {
     errEl.textContent = res.message;
     errEl.classList.remove('hidden');
@@ -546,7 +546,7 @@ async function toggleStaffOperatorAccess(userId) {
 
   if (res.success) {
     UI.toast(hasAccess ? 'Akses Operator dicabut.' : 'Akses Operator diberikan.', 'success');
-    loadUsers();
+    clearCache('users'); loadUsers();
   } else {
     UI.toast(res.message, 'error');
   }
@@ -585,187 +585,65 @@ async function fetchAbsensi() {
     bulan:   document.getElementById('abs-bulan')?.value   || undefined,
     role:    document.getElementById('abs-role')?.value    || undefined,
   };
-
-  // Jika tanggal diisi, hapus bulan
+  // Jika tanggal diisi, hapus bulan (prioritas tanggal)
   if (params.tanggal) delete params.bulan;
 
   const tbody = document.getElementById('abs-table-body');
-  if (!tbody) return;
-
-  tbody.innerHTML = `
-    <tr>
-      <td colspan="7">
-        <div class="py-4">${skeletonLine()}</div>
-      </td>
-    </tr>`;
+  tbody.innerHTML = `<tr><td colspan="7"><div class="py-4">${skeletonLine()}</div></td></tr>`;
 
   const res = await API.hrd.getAbsensi(params);
+  if (activeSection !== 'absensi') return;   // ← tambahkan
+  if (!res.success) { UI.toast(res.message, 'error'); return; }
+  allAbsensi = res.data.absensi;
 
-  if (activeSection !== 'absensi') return;
-
-  if (!res.success) {
-    UI.toast(res.message, 'error');
-    return;
-  }
-
-  allAbsensi = res.data.absensi || [];
-
-  tbody.innerHTML = allAbsensi.length
-    ? allAbsensi.map(a => `
-        <tr>
-
-          <td class="font-medium text-slate-900 dark:text-white">
-            ${UI.escapeHtml(a.nama || '-')}
-          </td>
-
-          <td>
-            ${UI.badge(a.role || '-', a.role || '')}
-          </td>
-
-          <td class="text-slate-500 dark:text-slate-400 text-xs">
-            ${UI.formatDate(a.tanggal)}
-          </td>
-
-          <td class="font-mono text-sm text-slate-700 dark:text-slate-300">
-            ${a.jam_masuk || '-'}
-          </td>
-
-          <td class="font-mono text-sm ${
-            a.jam_pulang
-              ? 'text-slate-700 dark:text-slate-300'
-              : 'text-slate-400'
-          }">
-            ${a.jam_pulang || 'Belum pulang'}
-          </td>
-
-          <td class="text-xs">
-            ${lokasiCell(a)}
-          </td>
-
-          <!-- FOTO -->
-          <td>
-            <div class="flex gap-2 justify-center items-center">
-
-              ${
-                a.foto_masuk_url
-                  ? renderThumb(a.foto_masuk_url, 'Masuk')
-                  : ''
-              }
-
-              ${
-                a.foto_pulang_url
-                  ? renderThumb(a.foto_pulang_url, 'Pulang')
-                  : ''
-              }
-
-              ${
-                !a.foto_masuk_url && !a.foto_pulang_url
-                  ? '<span class="text-slate-400 text-xs">-</span>'
-                  : ''
-              }
-
-            </div>
-          </td>
-
-        </tr>
-      `).join('')
-    : `
-      <tr>
-        <td colspan="7">
-          ${UI.emptyState('Tidak ada data absensi.', '📋')}
-        </td>
-      </tr>`;
-
+  tbody.innerHTML = allAbsensi.length ? allAbsensi.map(a => `
+    <tr>
+      <td class="font-medium text-slate-900 dark:text-white">${UI.escapeHtml(a.nama)}</td>
+      <td>${UI.badge(a.role, a.role)}</td>
+      <td class="text-slate-500 dark:text-slate-400 text-xs">${UI.formatDate(a.tanggal)}</td>
+      <td class="font-mono text-sm text-slate-700 dark:text-slate-300">${a.jam_masuk || '-'}</td>
+      <td class="font-mono text-sm ${a.jam_pulang ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">${a.jam_pulang || 'Belum pulang'}</td>
+      <td class="text-xs">${lokasiCell(a)}</td>
+      <td>
+        <div class="flex gap-1.5 items-center">
+          ${a.foto_masuk_url ? renderThumb(a.foto_masuk_url, 'Masuk') : ''}
+          ${a.foto_pulang_url ? renderThumb(a.foto_pulang_url, 'Pulang') : ''}
+          ${!a.foto_masuk_url && !a.foto_pulang_url ? '<span class="text-slate-400 text-xs">-</span>' : ''}
+        </div>
+      </td>
+    </tr>`).join('') : `<tr><td colspan="7">${UI.emptyState('Tidak ada data absensi.', '📋')}</td></tr>`;
   saveCache('absensi');
 }
 
-function renderThumb(fileId, label = 'Foto') {
+function renderThumb(fileId, label) {
   if (!fileId) return '';
-
   const id = extractDriveFileId(fileId);
-
-  if (!id) {
-    console.warn('File ID tidak ditemukan:', fileId);
-    return '';
-  }
-
-  // URL thumbnail untuk tampilan langsung
-  const thumbUrl =
-    `https://drive.google.com/thumbnail?id=${id}&sz=w300`;
-
-  // URL ketika thumbnail diklik
-  const viewUrl =
-    `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
-
+  if (!id) return '';
+  const thumbUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w80`;
+  const viewUrl  = `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
   return `
-    <button
-      type="button"
-      onclick="window.open('${viewUrl}', '_blank')"
+    <button type="button" onclick="window.open('${viewUrl}', '_blank')"
       title="Lihat foto ${label}"
-      class="relative group block p-0 border-0 bg-transparent"
-    >
-
-      <img
-        src="${thumbUrl}"
-        alt="Foto ${label}"
-        loading="lazy"
-        class="w-14 h-14 object-cover rounded-lg
-               border border-slate-200 dark:border-slate-700
-               cursor-pointer
-               shadow-sm
-               group-hover:scale-110
-               group-hover:shadow-md
-               transition-all duration-200"
-        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-      >
-
-      <!-- fallback kalau thumbnail gagal -->
-      <span
-        style="display:none"
-        class="w-14 h-14 rounded-lg
-               bg-slate-100 dark:bg-slate-800
-               border border-slate-200 dark:border-slate-700
-               items-center justify-center
-               text-slate-400 text-lg"
-      >
-        📷
-      </span>
-
-      <!-- label -->
-      <span
-        class="absolute left-1/2 -translate-x-1/2 bottom-0
-               px-1.5 py-0.5 rounded
-               bg-black/70 text-white
-               text-[9px] leading-none
-               opacity-0 group-hover:opacity-100
-               transition-opacity whitespace-nowrap"
-      >
-        ${label}
-      </span>
-
-    </button>
-  `;
+      class="relative group block p-0 border-0 bg-transparent shrink-0">
+      <img src="${thumbUrl}" alt="Foto ${label}" loading="lazy"
+        class="w-9 h-9 object-cover rounded-lg border border-slate-200 dark:border-slate-700
+               cursor-pointer shadow-sm group-hover:scale-125 group-hover:shadow-md transition-all duration-200"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+      <span style="display:none"
+        class="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200
+               dark:border-slate-700 items-center justify-center text-slate-400 text-base">📷</span>
+      <span class="absolute left-1/2 -translate-x-1/2 bottom-0 px-1 py-0.5 rounded
+                   bg-black/70 text-white text-[8px] leading-none whitespace-nowrap
+                   opacity-0 group-hover:opacity-100 transition-opacity">${label}</span>
+    </button>`;
 }
+
 function extractDriveFileId(value) {
   if (!value) return '';
-
-  // Kalau yang dikirim memang File ID
-  if (/^[a-zA-Z0-9_-]{20,}$/.test(value)) {
-    return value;
-  }
-
-  // /file/d/FILE_ID/
-  let match = value.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-
-  // ?id=FILE_ID
-  match = value.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-
-  // /d/FILE_ID
-  match = value.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
-
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(value)) return value;
+  let m = value.match(/\/file\/d\/([a-zA-Z0-9_-]+)/); if (m) return m[1];
+  m = value.match(/[?&]id=([a-zA-Z0-9_-]+)/);         if (m) return m[1];
+  m = value.match(/\/d\/([a-zA-Z0-9_-]+)/);            if (m) return m[1];
   return '';
 }
 
@@ -776,8 +654,8 @@ function extractDriveFileId(value) {
  * Format link WAJIB: https://www.google.com/maps?q={lat},{lng}
  */
 function lokasiCell(a) {
-  const masukLink  = mapsLink(a.lat_masuk, a.lng_masuk, '📥', 'text-blue-500 hover:text-blue-600 dark:text-blue-400');
-  const pulangLink = mapsLink(a.lat_pulang, a.lng_pulang, '📤', 'text-emerald-500 hover:text-emerald-600 dark:text-emerald-400');
+  const masukLink  = mapsLink(a.lat_masuk, a.lng_masuk, 'Masuk', 'text-blue-500 hover:text-blue-600 dark:text-blue-400');
+  const pulangLink = mapsLink(a.lat_pulang, a.lng_pulang, 'Pulang', 'text-emerald-500 hover:text-emerald-600 dark:text-emerald-400');
 
   if (!masukLink && !pulangLink) return '<span class="text-slate-300 dark:text-slate-700">-</span>';
   return `${masukLink || ''}${masukLink && pulangLink ? ' · ' : ''}${pulangLink || ''}`;
@@ -825,6 +703,7 @@ async function loadPerusahaan() {
         <button id="save-pt-btn" class="btn-primary" onclick="savePerusahaan()">Simpan Perubahan</button>
       </div>
     </div>`;
+  saveCache('perusahaan');
 }
 
 async function savePerusahaan() {
