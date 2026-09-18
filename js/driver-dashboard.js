@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <meta name="theme-color" content="#1d4ed8"/>
-  <title>ILPG — Staff Admin Dashboard</title>
+  <title>ILPG — Driver Dashboard</title>
   <link rel="manifest" href="/manifest.json"/>
   <link rel="icon" href="/assets/icon-192.png"/>
   <link rel="stylesheet" href="/css/tailwind.css"/>
@@ -44,6 +44,13 @@
     }
     #topbar-title.title-enter { animation: title-fade 250ms var(--ease-out); }
 
+    @keyframes badge-pop {
+      0% { transform: scale(0); opacity: 0; }
+      60% { transform: scale(1.25); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    [data-queue-badge]:not(.hidden) { animation: badge-pop 300ms var(--ease-out); }
+
     /* Camera modal */
     #camera-modal { transition: opacity 220ms ease; }
     #camera-modal.hidden { opacity: 0; pointer-events: none; }
@@ -77,42 +84,60 @@
 </head>
 <body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen">
 
-<aside id="sidebar" class="sidebar fixed inset-y-0 left-0 z-40 flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 md:translate-x-0 -translate-x-full shadow-lg md:shadow-none">
+<!-- SIDEBAR -->
+<aside id="sidebar" class="sidebar fixed inset-y-0 left-0 z-40 flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 md:translate-x-0 -translate-x-full">
   <div class="flex items-center gap-3 px-4 h-16 border-b border-slate-200 dark:border-slate-800 shrink-0">
-    <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="4" fill="#fff"/><path d="M10 4v12M4 10h12" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round" opacity=".4"/></svg></div>
-    <div class="nav-label"><div class="font-bold text-slate-900 dark:text-white text-sm">ILPG</div><div class="text-xs text-slate-400">Staff Admin</div></div>
+    <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="4" fill="#fff"/><path d="M10 4v12M4 10h12" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round" opacity=".4"/></svg>
+    </div>
+    <div class="nav-label">
+      <div class="font-bold text-slate-900 dark:text-white text-sm">ILPG</div>
+      <div class="text-xs text-slate-400">Driver</div>
+    </div>
   </div>
   <nav class="flex-1 overflow-y-auto py-3 px-3 space-y-0.5" id="sidebar-nav"></nav>
   <div class="border-t border-slate-200 dark:border-slate-800 p-3 shrink-0">
     <div class="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-      <div class="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-sm font-bold shrink-0" data-user-avatar>S</div>
+      <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0" data-user-avatar>D</div>
       <div class="user-info min-w-0 flex-1">
-        <div class="text-sm font-medium text-slate-900 dark:text-white truncate" data-user-nama>Staff Admin</div>
-        <div class="text-xs text-slate-500" data-user-role>STAFF_ADMIN</div>
+        <div class="text-sm font-medium text-slate-900 dark:text-white truncate" data-user-nama>Driver</div>
+        <div class="text-xs text-slate-500" data-user-role>DRIVER</div>
       </div>
-      <button data-toggle-theme class="btn-icon text-xs" data-theme-icon>🌙</button>
+      <button data-toggle-theme class="btn-icon text-xs" data-theme-icon title="Ganti tema">🌙</button>
     </div>
   </div>
 </aside>
 
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/40 z-30 hidden md:hidden" onclick="toggleSidebar()"></div>
 
+<!-- TOPBAR -->
 <header class="fixed top-0 right-0 left-0 md:left-[260px] h-16 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-3">
-  <button class="btn-icon md:hidden" onclick="toggleSidebar()"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-  <div class="flex-1 min-w-0"><h1 class="text-base font-semibold text-slate-900 dark:text-white truncate" id="topbar-title">Staff Admin Dashboard</h1></div>
+  <button class="btn-icon md:hidden" onclick="toggleSidebar()">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
+  <div class="flex-1 min-w-0">
+    <h1 class="text-base font-semibold text-slate-900 dark:text-white truncate" id="topbar-title">Driver Dashboard</h1>
+  </div>
+  <button class="btn-icon relative" onclick="showQueueModal()">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+    <span data-queue-badge class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">0</span>
+  </button>
   <button data-toggle-theme class="btn-icon" data-theme-icon>🌙</button>
   <div class="relative" id="avatar-menu">
-    <button class="w-9 h-9 rounded-full bg-teal-600 flex items-center justify-center text-white text-sm font-bold hover:ring-2 hover:ring-teal-400 transition-all" data-user-avatar onclick="toggleAvatarMenu()">S</button>
+    <button class="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold hover:ring-2 hover:ring-indigo-400 transition-all" data-user-avatar onclick="toggleAvatarMenu()">D</button>
     <div id="avatar-dropdown" class="hidden absolute right-0 top-12 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 py-2 z-50 animate-scale-in">
       <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
         <div class="text-sm font-semibold text-slate-900 dark:text-white truncate" data-user-nama>—</div>
         <div class="text-xs text-slate-500 truncate" data-user-email>—</div>
       </div>
-      <button class="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2" data-logout><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7"/></svg>Keluar</button>
+      <button class="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2" data-logout>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7"/></svg>Keluar
+      </button>
     </div>
   </div>
 </header>
 
+<!-- MAIN -->
 <main class="pt-16 md:ml-[260px] min-h-screen">
   <div class="p-4 md:p-6 max-w-4xl mx-auto" id="main-content">
     <div class="flex items-center justify-center h-64 text-slate-400 animate-pulse">Memuat dashboard...</div>
@@ -127,53 +152,83 @@
       <button class="btn-icon" onclick="Camera.stop();UI.closeModal('camera-modal')">✕</button>
     </div>
     <div class="p-4 space-y-3">
-      <div class="relative bg-slate-900 rounded-xl overflow-hidden aspect-[4/3]"><video id="camera-video" autoplay playsinline muted class="w-full h-full object-cover"></video><div class="absolute inset-4 border-2 border-white/20 rounded-xl pointer-events-none"></div></div>
+      <div class="relative bg-slate-900 rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center">
+        <video id="camera-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+        <div class="absolute inset-4 border-2 border-white/20 rounded-xl pointer-events-none"></div>
+      </div>
       <canvas id="camera-canvas" class="hidden"></canvas>
-      <p class="text-xs text-slate-500 text-center">📸 Pastikan wajah Anda terlihat jelas</p>
+      <p class="text-xs text-slate-500 text-center">📸 Pastikan wajah atau objek terlihat jelas</p>
       <button id="camera-capture-btn" class="btn-primary w-full justify-center py-3 text-sm">📷 Ambil Foto</button>
     </div>
   </div>
 </div>
 
-<div id="offline-bar" class="fixed bottom-0 left-0 right-0 z-50 bg-amber-500 text-white text-center text-sm py-2 px-4 hidden">⚡ Tidak ada koneksi — Data akan dikirim otomatis saat online.</div>
+<!-- OFFLINE BAR -->
+<div id="offline-bar" class="fixed bottom-0 left-0 right-0 z-50 bg-amber-500 text-white text-center text-sm py-2 px-4 hidden">
+  ⚡ Tidak ada koneksi — Data akan dikirim otomatis saat online.
+</div>
 
+<!-- SCRIPTS -->
 <script src="/js/config.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/db.js"></script>
 <script src="/js/ui.js"></script>
 <script src="/js/camera.js"></script>
-<script src="/js/staff-dashboard.js"></script>
+<script src="/js/driver-dashboard.js"></script>
 <script>
-  function toggleSidebar(){const sb=document.getElementById('sidebar'),ov=document.getElementById('sidebar-overlay'),open=sb.classList.contains('-translate-x-full');sb.classList.toggle('-translate-x-full',!open);ov.classList.toggle('hidden',!open);}
-
-  function toggleAvatarMenu(){
-    const dd=document.getElementById('avatar-dropdown');
-    const willOpen=dd.classList.contains('hidden');
-    if(willOpen){dd.classList.remove('hidden');dd.classList.remove('animate-scale-in');void dd.offsetWidth;dd.classList.add('animate-scale-in');}
-    else{dd.classList.add('hidden');}
+  function toggleSidebar() {
+    const sb = document.getElementById('sidebar');
+    const ov = document.getElementById('sidebar-overlay');
+    const open = sb.classList.contains('-translate-x-full');
+    sb.classList.toggle('-translate-x-full', !open);
+    ov.classList.toggle('hidden', !open);
   }
-  document.addEventListener('click',e=>{if(!document.getElementById('avatar-menu')?.contains(e.target))document.getElementById('avatar-dropdown')?.classList.add('hidden');});
+
+  function toggleAvatarMenu() {
+    const dd = document.getElementById('avatar-dropdown');
+    const willOpen = dd.classList.contains('hidden');
+    if (willOpen) {
+      dd.classList.remove('hidden');
+      dd.classList.remove('animate-scale-in');
+      void dd.offsetWidth;
+      dd.classList.add('animate-scale-in');
+    } else {
+      dd.classList.add('hidden');
+    }
+  }
+  document.addEventListener('click', e => { if (!document.getElementById('avatar-menu')?.contains(e.target)) document.getElementById('avatar-dropdown')?.classList.add('hidden'); });
+
+  async function showQueueModal() {
+    const items = await DB.getQueue();
+    const pending = items.filter(i => i.status==='PENDING').length;
+    if (!pending) { UI.toast('Tidak ada data offline yang tertunda.','info'); return; }
+    const ok = await UI.confirm(`Terdapat ${pending} data yang belum terkirim. Kirim sekarang?`, 'Antrian Offline');
+    if (ok) { const r = await DB.flushQueue(); UI.toast(`${r.flushed} data terkirim.`, 'success'); UI.updateQueueBadge(); }
+  }
 
   // Animasikan setiap perubahan konten utama & judul topbar
-  (function watchContentTransitions(){
-    const mainContent=document.getElementById('main-content');
-    const topbarTitle=document.getElementById('topbar-title');
-    function replay(el,cls){el.classList.remove(cls);void el.offsetWidth;el.classList.add(cls);}
-    if(mainContent){new MutationObserver(()=>replay(mainContent,'content-enter')).observe(mainContent,{childList:true});}
-    if(topbarTitle){new MutationObserver(()=>replay(topbarTitle,'title-enter')).observe(topbarTitle,{characterData:true,childList:true,subtree:true});}
+  (function watchContentTransitions() {
+    const mainContent = document.getElementById('main-content');
+    const topbarTitle = document.getElementById('topbar-title');
+    function replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+    if (mainContent) { new MutationObserver(() => replay(mainContent, 'content-enter')).observe(mainContent, { childList: true }); }
+    if (topbarTitle) { new MutationObserver(() => replay(topbarTitle, 'title-enter')).observe(topbarTitle, { characterData: true, childList: true, subtree: true }); }
   })();
 
-  document.addEventListener('DOMContentLoaded',()=>{
-    if('serviceWorker'in navigator)navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-    const s=Auth.getSession();
-    if(s){document.querySelectorAll('[data-user-nama]').forEach(el=>el.textContent=s.nama);document.querySelectorAll('[data-user-email]').forEach(el=>el.textContent=s.email);document.querySelectorAll('[data-user-role]').forEach(el=>el.textContent=s.role);document.querySelectorAll('[data-user-avatar]').forEach(el=>el.textContent=s.nama.charAt(0).toUpperCase());}
-    document.querySelectorAll('[data-toggle-theme]').forEach(btn=>btn.addEventListener('click',()=>UI.toggleTheme()));
-    document.querySelectorAll('[data-logout]').forEach(btn=>btn.addEventListener('click',()=>Auth.logout()));
-    UI.initTheme();
-    window.addEventListener('online',()=>{document.getElementById('offline-bar').classList.add('hidden');DB.flushQueue().then(r=>{if(r.flushed>0)UI.toast(`${r.flushed} data terkirim.`,'success');});});
-    window.addEventListener('offline',()=>document.getElementById('offline-bar').classList.remove('hidden'));
-    if(!navigator.onLine)document.getElementById('offline-bar').classList.remove('hidden');
+  document.addEventListener('DOMContentLoaded', () => {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+    const s = Auth.getSession();
+    if (s) {
+      document.querySelectorAll('[data-user-nama]').forEach(el => el.textContent = s.nama);
+      document.querySelectorAll('[data-user-email]').forEach(el => el.textContent = s.email);
+      document.querySelectorAll('[data-user-role]').forEach(el => el.textContent = s.role);
+      document.querySelectorAll('[data-user-avatar]').forEach(el => el.textContent = s.nama.charAt(0).toUpperCase());
+    }
+
+    window.addEventListener('online', () => { document.getElementById('offline-bar').classList.add('hidden'); DB.flushQueue().then(r => { if (r.flushed > 0) UI.toast(`${r.flushed} data terkirim.`, 'success'); }); });
+    window.addEventListener('offline', () => { document.getElementById('offline-bar').classList.remove('hidden'); });
+    if (!navigator.onLine) document.getElementById('offline-bar').classList.remove('hidden');
   });
 </script>
 </body>
