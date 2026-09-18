@@ -8,7 +8,91 @@
   <link rel="manifest" href="/manifest.json"/>
   <link rel="icon" href="/assets/icon-192.png"/>
   <link rel="stylesheet" href="/css/tailwind.css"/>
-  </head>
+  <style>
+    /* ===== Animasi global ===== */
+    :root { --ease-out: cubic-bezier(0.16, 1, 0.3, 1); }
+
+    * { scroll-behavior: smooth; }
+
+    /* Sidebar */
+    #sidebar {
+      transition: transform 300ms var(--ease-out);
+      will-change: transform;
+    }
+    #sidebar-overlay {
+      transition: opacity 250ms ease;
+      opacity: 0;
+    }
+    #sidebar-overlay:not(.hidden) { opacity: 1; }
+
+    /* Topbar & buttons */
+    .btn-icon, .btn-danger, button {
+      transition: background-color 180ms ease, color 180ms ease, transform 120ms ease, box-shadow 180ms ease;
+    }
+    .btn-icon:active, .btn-danger:active { transform: scale(0.92); }
+    .btn-icon:hover { transform: translateY(-1px); }
+    [data-user-avatar] { transition: transform 200ms var(--ease-out), box-shadow 200ms ease; }
+    [data-user-avatar]:hover { transform: scale(1.06); }
+
+    [data-toggle-theme] { transition: transform 400ms var(--ease-out); }
+    [data-toggle-theme].spin { transform: rotate(360deg); }
+
+    /* Avatar dropdown */
+    #avatar-dropdown { transform-origin: top right; }
+    @keyframes scale-in {
+      0% { opacity: 0; transform: scale(0.9) translateY(-6px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .animate-scale-in { animation: scale-in 180ms var(--ease-out); }
+
+    /* Modal */
+    #profile-modal { transition: opacity 220ms ease; }
+    #profile-modal.hidden { opacity: 0; pointer-events: none; }
+    #profile-modal:not(.hidden) { opacity: 1; }
+    @keyframes modal-pop {
+      0% { opacity: 0; transform: scale(0.94) translateY(8px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    #profile-modal:not(.hidden) > div { animation: modal-pop 240ms var(--ease-out); }
+
+    /* Main content transition (perpindahan tampilan/halaman) */
+    @keyframes content-fade-in {
+      0% { opacity: 0; transform: translateY(8px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    #main-content.content-enter { animation: content-fade-in 320ms var(--ease-out); }
+
+    @keyframes title-fade {
+      0% { opacity: 0; transform: translateY(-4px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    #topbar-title.title-enter { animation: title-fade 250ms var(--ease-out); }
+
+    /* Queue badge */
+    @keyframes badge-pop {
+      0% { transform: scale(0); opacity: 0; }
+      60% { transform: scale(1.25); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    [data-queue-badge]:not(.hidden) { animation: badge-pop 300ms var(--ease-out); }
+
+    /* Cards & badges — subtle hover lift for anything using these classes */
+    .card-compact, .badge {
+      transition: transform 180ms var(--ease-out), box-shadow 180ms ease;
+    }
+
+    /* Toast (if UI.toast injects .toast elements) */
+    @keyframes toast-in {
+      0% { opacity: 0; transform: translateY(12px) scale(0.98); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .toast, [data-toast] { animation: toast-in 220ms var(--ease-out); }
+
+    /* Nav items in sidebar (delegated, since populated dynamically) */
+    #sidebar-nav > * { transition: background-color 160ms ease, transform 140ms ease; }
+    #sidebar-nav > *:active { transform: scale(0.97); }
+  </style>
+</head>
 <body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen">
 
 <!-- SIDEBAR -->
@@ -79,7 +163,7 @@
   <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
     <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
       <h3 class="font-semibold text-slate-900 dark:text-white">Profil Saya</h3>
-      <button class="btn-icon" onclick="document.getElementById('profile-modal').classList.add('hidden');document.getElementById('profile-modal').classList.remove('flex')">✕</button>
+      <button class="btn-icon" onclick="closeProfileModal()">✕</button>
     </div>
     <div class="p-5 space-y-4">
       <div class="flex items-center gap-4">
@@ -115,8 +199,32 @@
     sb.classList.toggle('-translate-x-full', !open);
     ov.classList.toggle('hidden', !open);
   }
-  function toggleAvatarMenu() { document.getElementById('avatar-dropdown').classList.toggle('hidden'); }
+
+  function toggleAvatarMenu() {
+    const dd = document.getElementById('avatar-dropdown');
+    const willOpen = dd.classList.contains('hidden');
+    if (willOpen) {
+      dd.classList.remove('hidden');
+      dd.classList.remove('animate-scale-in');
+      void dd.offsetWidth; // restart animation
+      dd.classList.add('animate-scale-in');
+    } else {
+      dd.classList.add('hidden');
+    }
+  }
   document.addEventListener('click', e => { if (!document.getElementById('avatar-menu')?.contains(e.target)) document.getElementById('avatar-dropdown')?.classList.add('hidden'); });
+
+  function openProfileModal() {
+    const m = document.getElementById('profile-modal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+  }
+  function closeProfileModal() {
+    const m = document.getElementById('profile-modal');
+    m.classList.add('hidden');
+    setTimeout(() => m.classList.remove('flex'), 220);
+  }
+
   async function showQueueModal() {
     const items = await DB.getQueue();
     const pending = items.filter(i => i.status === 'PENDING').length;
@@ -124,6 +232,29 @@
     const ok = await UI.confirm(`Terdapat ${pending} data yang belum terkirim. Kirim sekarang?`, 'Antrian Offline');
     if (ok) { const r = await DB.flushQueue(); UI.toast(`${r.flushed} data terkirim.`, 'success'); UI.updateQueueBadge(); }
   }
+
+  // Animasikan setiap perubahan konten utama (pergantian tampilan/halaman)
+  // dan judul topbar, tanpa perlu mengubah hrd-dashboard.js
+  (function watchContentTransitions() {
+    const mainContent = document.getElementById('main-content');
+    const topbarTitle = document.getElementById('topbar-title');
+
+    function replay(el, cls) {
+      el.classList.remove(cls);
+      void el.offsetWidth;
+      el.classList.add(cls);
+    }
+
+    if (mainContent) {
+      const moContent = new MutationObserver(() => replay(mainContent, 'content-enter'));
+      moContent.observe(mainContent, { childList: true });
+    }
+    if (topbarTitle) {
+      const moTitle = new MutationObserver(() => replay(topbarTitle, 'title-enter'));
+      moTitle.observe(topbarTitle, { characterData: true, childList: true, subtree: true });
+    }
+  })();
+
   document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
     const s = Auth.getSession();
