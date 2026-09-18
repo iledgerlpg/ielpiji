@@ -8,7 +8,73 @@
   <link rel="manifest" href="/manifest.json"/>
   <link rel="icon" href="/assets/icon-192.png"/>
   <link rel="stylesheet" href="/css/tailwind.css"/>
-  </head>
+  <style>
+    :root { --ease-out: cubic-bezier(0.16, 1, 0.3, 1); }
+    * { scroll-behavior: smooth; }
+
+    #sidebar { transition: transform 300ms var(--ease-out); will-change: transform; }
+    #sidebar-overlay { transition: opacity 250ms ease; opacity: 0; }
+    #sidebar-overlay:not(.hidden) { opacity: 1; }
+
+    .btn-icon, .btn-danger, .btn-primary, button {
+      transition: background-color 180ms ease, color 180ms ease, transform 120ms ease, box-shadow 180ms ease;
+    }
+    .btn-icon:active, .btn-danger:active, .btn-primary:active { transform: scale(0.92); }
+    .btn-icon:hover { transform: translateY(-1px); }
+    [data-user-avatar] { transition: transform 200ms var(--ease-out), box-shadow 200ms ease; }
+    [data-user-avatar]:hover { transform: scale(1.06); }
+    [data-toggle-theme] { transition: transform 400ms var(--ease-out); }
+
+    #avatar-dropdown { transform-origin: top right; }
+    @keyframes scale-in {
+      0% { opacity: 0; transform: scale(0.9) translateY(-6px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .animate-scale-in { animation: scale-in 180ms var(--ease-out); }
+
+    @keyframes content-fade-in {
+      0% { opacity: 0; transform: translateY(8px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    #main-content.content-enter { animation: content-fade-in 320ms var(--ease-out); }
+
+    @keyframes title-fade {
+      0% { opacity: 0; transform: translateY(-4px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    #topbar-title.title-enter { animation: title-fade 250ms var(--ease-out); }
+
+    /* Camera modal */
+    #camera-modal { transition: opacity 220ms ease; }
+    #camera-modal.hidden { opacity: 0; pointer-events: none; }
+    #camera-modal:not(.hidden) { opacity: 1; }
+    @keyframes modal-pop {
+      0% { opacity: 0; transform: scale(0.94) translateY(8px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    #camera-modal:not(.hidden) > div { animation: modal-pop 240ms var(--ease-out); }
+    #camera-capture-btn { transition: transform 120ms ease, box-shadow 180ms ease; }
+    #camera-capture-btn:active { transform: scale(0.95); }
+
+    /* Offline bar */
+    #offline-bar { transition: transform 280ms var(--ease-out), opacity 280ms ease; transform: translateY(100%); }
+    #offline-bar:not(.hidden) { transform: translateY(0); opacity: 1; animation: offline-slide-up 280ms var(--ease-out); }
+    @keyframes offline-slide-up {
+      0% { transform: translateY(100%); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+
+    .card-compact, .badge { transition: transform 180ms var(--ease-out), box-shadow 180ms ease; }
+    .toast, [data-toast] { animation: toast-in 220ms var(--ease-out); }
+    @keyframes toast-in {
+      0% { opacity: 0; transform: translateY(12px) scale(0.98); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    #sidebar-nav > * { transition: background-color 160ms ease, transform 140ms ease; }
+    #sidebar-nav > *:active { transform: scale(0.97); }
+  </style>
+</head>
 <body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen">
 
 <aside id="sidebar" class="sidebar fixed inset-y-0 left-0 z-40 flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 md:translate-x-0 -translate-x-full shadow-lg md:shadow-none">
@@ -80,8 +146,24 @@
 <script src="/js/staff-dashboard.js"></script>
 <script>
   function toggleSidebar(){const sb=document.getElementById('sidebar'),ov=document.getElementById('sidebar-overlay'),open=sb.classList.contains('-translate-x-full');sb.classList.toggle('-translate-x-full',!open);ov.classList.toggle('hidden',!open);}
-  function toggleAvatarMenu(){document.getElementById('avatar-dropdown').classList.toggle('hidden');}
+
+  function toggleAvatarMenu(){
+    const dd=document.getElementById('avatar-dropdown');
+    const willOpen=dd.classList.contains('hidden');
+    if(willOpen){dd.classList.remove('hidden');dd.classList.remove('animate-scale-in');void dd.offsetWidth;dd.classList.add('animate-scale-in');}
+    else{dd.classList.add('hidden');}
+  }
   document.addEventListener('click',e=>{if(!document.getElementById('avatar-menu')?.contains(e.target))document.getElementById('avatar-dropdown')?.classList.add('hidden');});
+
+  // Animasikan setiap perubahan konten utama & judul topbar
+  (function watchContentTransitions(){
+    const mainContent=document.getElementById('main-content');
+    const topbarTitle=document.getElementById('topbar-title');
+    function replay(el,cls){el.classList.remove(cls);void el.offsetWidth;el.classList.add(cls);}
+    if(mainContent){new MutationObserver(()=>replay(mainContent,'content-enter')).observe(mainContent,{childList:true});}
+    if(topbarTitle){new MutationObserver(()=>replay(topbarTitle,'title-enter')).observe(topbarTitle,{characterData:true,childList:true,subtree:true});}
+  })();
+
   document.addEventListener('DOMContentLoaded',()=>{
     if('serviceWorker'in navigator)navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
     const s=Auth.getSession();
